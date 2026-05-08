@@ -1,0 +1,174 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id              String   @id @default(cuid())
+  username        String   @unique
+  password        String
+  email           String?  @unique
+  name            String?
+  avatar          String?
+  role            String   @default("user")
+  credits         Int      @default(3)
+  departmentId    String?
+  department      Department? @relation(fields: [departmentId], references: [id])
+  dingtalkUnionId String?  @unique
+  dingtalkOpenId  String?  @unique
+  lastLoginAt     DateTime?
+  jobs            GenerationJob[]
+  histories       GenerationHistory[]
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model Department {
+  id             String   @id @default(cuid())
+  name           String   
+  dingtalkDeptId String?  @unique
+  parentId       String?
+  parent         Department?  @relation("DepartmentToDepartment", fields: [parentId], references: [id])
+  children       Department[] @relation("DepartmentToDepartment")
+  users          User[]
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model VerificationCode {
+  id        String   @id @default(cuid())
+  email     String
+  code      String
+  type      String   @default("reset_password")
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+model Project {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  clientName  String?
+  eventName   String?
+  city        String?
+  brandName   String?
+  status      String   @default("active")
+  assets      Asset[]
+  jobs        GenerationJob[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Asset {
+  id           String   @id @default(cuid())
+  projectId    String?
+  project      Project? @relation(fields: [projectId], references: [id])
+  name         String
+  type         String
+  fileUrl      String
+  thumbnailUrl String?
+  mimeType     String
+  width        Int?
+  height       Int?
+  sizeBytes    Int
+  createdAt    DateTime @default(now())
+}
+
+model FeatureGroup {
+  id          String           @id @default(cuid())
+  name        String
+  key         String           @unique
+  description String?
+  icon        String?
+  sortOrder   Int              @default(0)
+  enabled     Boolean          @default(true)
+  templates   ActionTemplate[]
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+}
+
+model ActionTemplate {
+  id             String   @id @default(cuid())
+  featureGroupId String
+  featureGroup   FeatureGroup @relation(fields: [featureGroupId], references: [id])
+  name           String
+  key            String   @unique
+  description    String?
+  mode           String
+  promptTemplate String
+  negativePrompt String?
+  defaultSize    String   @default("auto")
+  defaultQuality String   @default("medium")
+  responseFormat String   @default("b64_json")
+  inputSlotsJson String   @default("[]")
+  variablesJson  String   @default("[]")
+  referenceImagesJson String @default("[]")
+  coverImageJson String @default("[]")
+  coverMetadataJson String @default("{}")
+  allowUserPrompt Boolean @default(true)
+  userPromptPriorityDefault Boolean @default(false)
+  enableSpecifiedColors Boolean @default(false)
+  specifiedColorsJson String @default("[]")
+  enabled        Boolean  @default(true)
+  sortOrder      Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model GenerationJob {
+  id          String   @id @default(cuid())
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id])
+  projectId   String?
+  project     Project? @relation(fields: [projectId], references: [id])
+  name        String
+  status      String   @default("pending")
+  totalCount  Int      @default(0)
+  successCount Int     @default(0)
+  failedCount Int      @default(0)
+  items       GenerationJobItem[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model GenerationJobItem {
+  id             String   @id @default(cuid())
+  jobId          String
+  job            GenerationJob @relation(fields: [jobId], references: [id])
+  templateId     String?
+  templateName   String
+  mode           String
+  prompt         String
+  variables      String?
+  outputImageUrl String?
+  status         String   @default("pending")
+  errorMessage   String?
+  createdAt      DateTime @default(now())
+  completedAt    DateTime?
+}
+
+model GenerationHistory {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id])
+  templateId   String?
+  templateName String
+  prompt       String
+  variables    String?
+  outputImageUrl String?
+  thumbnailUrl String?
+  status       String   @default("success")
+  createdAt    DateTime @default(now())
+}
+
+model SystemSetting {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

@@ -1,0 +1,168 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #F8FAFC;
+  --foreground: #0F172A;
+  --muted: #F1F5F9;
+  --muted-foreground: #64748B;
+  --accent: #1E293B;
+  --accent-foreground: #ffffff;
+  --card: #ffffff;
+  --card-foreground: #0F172A;
+  --border: #E2E8F0;
+  --input: #E2E8F0;
+  --primary: #1E293B;
+  --primary-foreground: #ffffff;
+  --secondary: #F1F5F9;
+  --secondary-foreground: #0F172A;
+  --destructive: #EF4444;
+  --destructive-foreground: #ffffff;
+  --success: #10B981;
+  --warning: #F59E0B;
+  --radius: 16px;
+}
+
+.dark {
+  --background: #030712;
+  --foreground: #F8FAFC;
+  --muted: #1E293B;
+  --muted-foreground: #94A3B8;
+  --accent: #F8FAFC;
+  --accent-foreground: #0F172A;
+  --card: #0F172A;
+  --card-foreground: #F8FAFC;
+  --border: #1E293B;
+  --input: #1E293B;
+  --primary: #F8FAFC;
+  --primary-foreground: #0F172A;
+  --secondary: #1E293B;
+  --secondary-foreground: #F8FAFC;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Outfit', system-ui, -apple-system, sans-serif;
+  background: var(--background);
+  color: var(--foreground);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply px-6 py-3 bg-accent text-accent-foreground rounded-lg font-medium 
+           transition-all duration-300 hover:opacity-90 hover:scale-105
+           focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2;
+  }
+
+  .btn-secondary {
+    @apply px-6 py-3 bg-secondary text-secondary-foreground rounded-lg font-medium
+           border border-border transition-all duration-300 hover:bg-muted
+           focus:outline-none focus:ring-2 focus:ring-border focus:ring-offset-2;
+  }
+
+  .card {
+    @apply bg-card rounded-xl border border-border shadow-sm 
+           transition-all duration-300 hover:shadow-md hover:border-accent/20;
+  }
+
+  .input-field {
+    @apply w-full px-4 py-3 bg-input border border-border rounded-lg
+           text-foreground placeholder:text-muted-foreground
+           focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent
+           transition-all duration-200;
+  }
+
+  .glass {
+    background: rgba(255, 255, 255, 0.7);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+  }
+
+  .dark .glass {
+    background: rgba(15, 23, 42, 0.8);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .gradient-bg {
+    background: linear-gradient(135deg, #1E293B 0%, #0F172A 100%);
+  }
+
+  .text-gradient {
+    background: linear-gradient(135deg, #1E293B 0%, #0F172A 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .dark .text-gradient {
+    background: linear-gradient(135deg, #F8FAFC 0%, #E2E8F0 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .animate-fade-in {
+    animation: fadeIn 0.8s ease-out;
+  }
+
+  .animate-slide-up {
+    animation: slideUp 0.6s ease-out;
+  }
+
+  .animate-scale-in {
+    animation: scaleIn 0.4s ease-out;
+  }
+
+  .stagger-1 { animation-delay: 0.1s; }
+  .stagger-2 { animation-delay: 0.2s; }
+  .stagger-3 { animation-delay: 0.3s; }
+  .stagger-4 { animation-delay: 0.4s; }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
