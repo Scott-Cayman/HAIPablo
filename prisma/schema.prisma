@@ -113,6 +113,7 @@ model ActionTemplate {
   userPromptPriorityDefault Boolean @default(false)
   enableSpecifiedColors Boolean @default(false)
   specifiedColorsJson String @default("[]")
+  showMainVisual Boolean @default(true)
   enabled        Boolean  @default(true)
   sortOrder      Int      @default(0)
   createdAt      DateTime @default(now())
@@ -159,9 +160,11 @@ model GenerationHistory {
   templateName String
   prompt       String
   variables    String?
+  configJson   String? // 新增：存储完整的 UI 状态以便还原
   outputImageUrl String?
   thumbnailUrl String?
   status       String   @default("success")
+  creditsUsed  Int      @default(1)
   createdAt    DateTime @default(now())
 }
 

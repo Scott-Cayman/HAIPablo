@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
+import { UserAvatar } from '@/components/UserAvatar';
 import { 
   ArrowLeft, 
   Clock, 
@@ -27,6 +28,8 @@ interface History {
   variables: string | null;
   outputImageUrl: string | null;
   thumbnailUrl: string | null;
+  status: string;
+  creditsUsed: number;
   createdAt: string;
 }
 
@@ -39,6 +42,12 @@ export default function HistoryPage() {
   const [selectedMainCategory, setSelectedMainCategory] = useState<string>('全部');
   const [selectedSubCategory, setSelectedSubCategory] = useState<string>('全部');
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+  
+  // 预览图片缩放和拖拽状态
+  const [zoomScale, setZoomScale] = useState(1);
+  const [zoomPosition, setZoomPosition] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+
   const router = useRouter();
 
   const filterOptions = useMemo(() => {
@@ -150,6 +159,11 @@ export default function HistoryPage() {
     router.push('/auth');
   };
 
+  const handleReuse = (item: any) => {
+    if (!item.templateId) return;
+    router.push(`/generate?templateId=${item.templateId}&historyId=${item.id}`);
+  };
+
   const handleDownload = async (url: string, templateName: string) => {
     try {
       const response = await fetch(url);
@@ -166,6 +180,40 @@ export default function HistoryPage() {
       console.error('下载失败:', error);
       window.open(url, '_blank');
     }
+  };
+
+  const handlePreviewClose = () => {
+    setPreviewImage(null);
+    setZoomScale(1);
+    setZoomPosition({ x: 0, y: 0 });
+  };
+
+  const handleWheel = (e: React.WheelEvent) => {
+    if (previewImage) {
+      const delta = e.deltaY;
+      const scaleStep = 0.1;
+      const newScale = delta < 0 ? zoomScale + scaleStep : zoomScale - scaleStep;
+      setZoomScale(Math.max(0.1, Math.min(10, newScale)));
+    }
+  };
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (zoomScale > 1) {
+      setIsDragging(true);
+    }
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (isDragging) {
+      setZoomPosition(prev => ({
+        x: prev.x + e.movementX,
+        y: prev.y + e.movementY
+      }));
+    }
+  };
+
+  const handleMouseUp = () => {
+    setIsDragging(false);
   };
 
   if (loading) {
@@ -200,16 +248,10 @@ export default function HistoryPage() {
                   onClick={() => setShowUserMenu(!showUserMenu)}
                   className="flex items-center gap-3 hover:opacity-80 transition-opacity"
                 >
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                    user.role === 'admin' 
-                      ? 'bg-gradient-to-br from-amber-500 to-orange-500' 
-                      : 'bg-gradient-to-br from-violet-600 to-purple-600'
-                  }`}>
-                    <User className="w-5 h-5 text-white" />
-                  </div>
+                  <UserAvatar user={user} size="lg" className="bg-white" />
                   <div className="hidden md:block text-left">
                     <p className="text-sm font-medium text-gray-900">{user.name || user.username}</p>
-                    <p className="text-xs text-gray-500">@{user.username}</p>
+                    <p className="text-xs text-gray-500">{user.email || user.username}</p>
                   </div>
                 </button>
 
@@ -224,16 +266,10 @@ export default function HistoryPage() {
                     >
                       <div className="p-4 bg-gradient-to-r from-violet-50 to-purple-50 border-b border-gray-100">
                         <div className="flex items-center gap-3">
-                          <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                            user.role === 'admin' 
-                              ? 'bg-gradient-to-br from-amber-500 to-orange-500' 
-                              : 'bg-gradient-to-br from-violet-600 to-purple-600'
-                          }`}>
-                            <User className="w-5 h-5 text-white" />
-                          </div>
+                          <UserAvatar user={user} size="lg" className="bg-white" />
                           <div>
                             <p className="font-semibold text-gray-900">{user.name || user.username}</p>
-                            <p className="text-xs text-gray-500">@{user.username}</p>
+                            <p className="text-xs text-gray-500">{user.email || user.username}</p>
                           </div>
                         </div>
                         {user.role === 'admin' && (
@@ -241,6 +277,14 @@ export default function HistoryPage() {
                             <span className="px-2 py-1 bg-amber-100 text-amber-700 text-xs font-medium rounded-full flex items-center gap-1 w-fit">
                               <Shield className="w-3 h-3" />
                               管理员
+                            </span>
+                          </div>
+                        )}
+                        {user.role === 'sub_admin' && (
+                          <div className="mt-3">
+                            <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded-full flex items-center gap-1 w-fit">
+                              <Shield className="w-3 h-3" />
+                              子管理员
                             </span>
                           </div>
                         )}
@@ -255,13 +299,13 @@ export default function HistoryPage() {
                           我的历史
                         </button>
 
-                        {user.role === 'admin' && (
+                        {(user.role === 'admin' || user.role === 'sub_admin') && (
                           <button
                             onClick={() => router.push('/admin/users')}
                             className="w-full px-4 py-2.5 text-left text-amber-700 hover:bg-amber-50 rounded-lg transition-colors flex items-center gap-3 mt-1"
                           >
                             <Users className="w-4 h-4" />
-                            用户管理
+                            {user.role === 'admin' ? '用户管理' : '人员列表'}
                           </button>
                         )}
 
@@ -355,7 +399,20 @@ export default function HistoryPage() {
                       transition={{ delay: index * 0.05 }}
                       className="group relative aspect-square rounded-xl overflow-hidden bg-gray-100 border border-gray-200 shadow-sm"
                     >
-                      {history.outputImageUrl ? (
+                      {history.status === 'processing' ? (
+                        <div className="w-full h-full flex flex-col items-center justify-center text-violet-600 bg-violet-50/50">
+                          <Loader2 className="w-8 h-8 animate-spin mb-2" />
+                          <span className="text-xs font-medium">正在生成中...</span>
+                          <div className="absolute top-2 right-2 flex flex-col gap-1 items-end pointer-events-none">
+                            <span className="px-2 py-0.5 bg-black/40 text-white text-[10px] rounded backdrop-blur-md">
+                              {history.templateName}
+                            </span>
+                            <span className="px-2 py-0.5 bg-violet-600/60 text-white text-[9px] rounded backdrop-blur-md">
+                              消耗 1 潮能力
+                            </span>
+                          </div>
+                        </div>
+                      ) : history.outputImageUrl ? (
                         <>
                           <img
                             src={history.outputImageUrl}
@@ -363,6 +420,13 @@ export default function HistoryPage() {
                             className="w-full h-full object-cover"
                           />
                           <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-row items-center justify-center gap-4 backdrop-blur-sm">
+                            <button
+                              onClick={() => handleReuse(history)}
+                              className="w-10 h-10 bg-white/20 hover:bg-violet-500 rounded-full flex items-center justify-center text-white transition-all transform hover:scale-110"
+                              title="再来一张"
+                            >
+                              <Sparkles className="w-5 h-5" />
+                            </button>
                             <button
                               onClick={() => setPreviewImage(history.outputImageUrl)}
                               className="w-10 h-10 bg-white/20 hover:bg-white/40 rounded-full flex items-center justify-center text-white transition-colors"
@@ -382,12 +446,30 @@ export default function HistoryPage() {
                             <span className="px-2 py-0.5 bg-black/40 text-white text-[10px] rounded backdrop-blur-md">
                               {history.templateName}
                             </span>
+                            <span className={`px-2 py-0.5 text-[9px] rounded backdrop-blur-md ${
+                              history.status === 'success' 
+                                ? 'bg-violet-600/60 text-white' 
+                                : 'bg-red-600/60 text-white'
+                            }`}>
+                              消耗 {history.creditsUsed ?? (history.status === 'success' ? 1 : 0)} 潮能力
+                            </span>
+                            <span className="px-2 py-0.5 bg-black/30 text-white text-[8px] rounded backdrop-blur-md">
+                              {new Date(history.createdAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
+                            </span>
                           </div>
                         </>
                       ) : (
                         <div className="w-full h-full flex flex-col items-center justify-center text-gray-400">
                           <ImageIcon className="w-8 h-8 mb-2 opacity-50" />
                           <span className="text-xs">生成失败</span>
+                          <div className="absolute top-2 right-2 flex flex-col gap-1 items-end pointer-events-none">
+                            <span className="px-2 py-0.5 bg-black/40 text-white text-[10px] rounded backdrop-blur-md">
+                              {history.templateName}
+                            </span>
+                            <span className="px-2 py-0.5 bg-red-600/60 text-white text-[9px] rounded backdrop-blur-md">
+                              消耗 0 潮能力
+                            </span>
+                          </div>
                         </div>
                       )}
                     </motion.div>
@@ -421,21 +503,48 @@ export default function HistoryPage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] bg-black/90 flex items-center justify-center p-4"
-            onClick={() => setPreviewImage(null)}
+            className="fixed inset-0 z-[100] bg-black/90 flex items-center justify-center p-8 overflow-hidden backdrop-blur-sm"
+            onClick={handlePreviewClose}
+            onWheel={handleWheel}
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={handleMouseUp}
           >
-            <button 
-              className="absolute top-6 right-6 p-2 bg-white/10 hover:bg-white/20 rounded-full text-white transition-colors"
-              onClick={() => setPreviewImage(null)}
+            <div 
+              className="relative transition-transform duration-200 ease-out"
+              style={{ 
+                transform: `translate(${zoomPosition.x}px, ${zoomPosition.y}px) scale(${zoomScale})`,
+                cursor: zoomScale > 1 ? (isDragging ? 'grabbing' : 'grab') : 'default'
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <motion.img
+                initial={{ scale: 0.8 }}
+                animate={{ scale: 1 }}
+                exit={{ scale: 0.8 }}
+                src={previewImage}
+                alt="预览"
+                className="max-w-[90vw] max-h-[90vh] object-contain rounded-lg shadow-2xl select-none"
+                draggable={false}
+              />
+            </div>
+
+            <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-4 px-4 py-2 bg-white/10 backdrop-blur-md rounded-full border border-white/20 text-white text-xs pointer-events-none">
+              <div className="flex items-center gap-1.5">
+                <div className="w-1.5 h-1.5 rounded-full bg-violet-400 animate-pulse" />
+                滚轮缩放: {Math.round(zoomScale * 100)}%
+              </div>
+              <div className="w-px h-3 bg-white/20" />
+              <div>左键按住可拖拽</div>
+            </div>
+
+            <button
+              onClick={handlePreviewClose}
+              className="absolute top-6 right-6 p-3 bg-white/10 hover:bg-red-500/50 hover:text-white rounded-full text-white transition-all border border-white/10 backdrop-blur-md"
             >
               <X className="w-6 h-6" />
             </button>
-            <img 
-              src={previewImage} 
-              alt="Preview" 
-              className="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl"
-              onClick={e => e.stopPropagation()}
-            />
           </motion.div>
         )}
       </AnimatePresence>

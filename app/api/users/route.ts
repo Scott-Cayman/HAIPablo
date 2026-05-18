@@ -21,11 +21,36 @@ export async function GET(request: NextRequest) {
       where: { id: requesterId }
     });
 
-    if (!requester || requester.role !== 'admin') {
+    if (!requester) {
       return NextResponse.json(
-        { error: '权限不足，仅管理员可访问' },
-        { status: 403 }
+        { error: '用户不存在' },
+        { status: 404 }
       );
+    }
+
+    // 如果不是管理员，只能获取自己的信息
+    if (requester.role !== 'admin') {
+      const me = await prisma.user.findUnique({
+        where: { id: requesterId },
+        select: {
+          id: true,
+          username: true,
+          email: true,
+          name: true,
+          avatar: true,
+          role: true,
+          credits: true,
+          departmentId: true,
+          createdAt: true,
+          _count: {
+            select: {
+              histories: true,
+              jobs: true
+            }
+          }
+        }
+      });
+      return NextResponse.json([me]);
     }
 
     const users = await prisma.user.findMany({
@@ -75,7 +100,14 @@ export async function POST(request: NextRequest) {
       where: { id: requesterId }
     });
 
-    if (!requester || requester.role !== 'admin') {
+    if (!requester) {
+      return NextResponse.json(
+        { error: '用户不存在' },
+        { status: 404 }
+      );
+    }
+
+    if (requester.role !== 'admin') {
       return NextResponse.json(
         { error: '权限不足，仅管理员可创建用户' },
         { status: 403 }

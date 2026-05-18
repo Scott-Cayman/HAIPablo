@@ -212,6 +212,7 @@ export async function POST(request: NextRequest) {
       name: user.name,
       avatar: user.avatar,
       role: user.role,
+      credits: user.credits,
     });
   } catch (error) {
     console.error('DingTalk callback error:', error);

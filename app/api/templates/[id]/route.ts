@@ -36,7 +36,8 @@ export async function GET(
       enableSpecifiedColors: template.enableSpecifiedColors || false,
       specifiedColors: template.specifiedColorsJson 
         ? JSON.parse(template.specifiedColorsJson) 
-        : []
+        : [],
+      showMainVisual: template.showMainVisual
     });
   } catch (error) {
     console.error('获取模板详情失败:', error);
@@ -54,6 +55,19 @@ export async function PUT(
   try {
     const { id } = params;
     const body = await request.json();
+    const { requesterId } = body;
+
+    if (!requesterId) {
+      return NextResponse.json({ error: '缺少请求者ID' }, { status: 401 });
+    }
+
+    const requester = await prisma.user.findUnique({
+      where: { id: requesterId }
+    });
+
+    if (!requester || (requester.role !== 'admin' && requester.role !== 'sub_admin')) {
+      return NextResponse.json({ error: '权限不足' }, { status: 403 });
+    }
 
     const template = await prisma.actionTemplate.update({
       where: { id },
@@ -74,6 +88,7 @@ export async function PUT(
         userPromptPriorityDefault: body.userPromptPriorityDefault || false,
         enableSpecifiedColors: body.enableSpecifiedColors || false,
         specifiedColorsJson: JSON.stringify(body.specifiedColors || []),
+        showMainVisual: body.showMainVisual !== false,
         enabled: body.enabled,
         sortOrder: body.sortOrder
       },
@@ -98,7 +113,8 @@ export async function PUT(
       enableSpecifiedColors: template.enableSpecifiedColors || false,
       specifiedColors: template.specifiedColorsJson
         ? JSON.parse(template.specifiedColorsJson)
-        : []
+        : [],
+      showMainVisual: template.showMainVisual
     });
   } catch (error) {
     console.error('更新模板失败:', error);
@@ -115,6 +131,20 @@ export async function DELETE(
 ) {
   try {
     const { id } = params;
+    const { searchParams } = new URL(request.url);
+    const requesterId = searchParams.get('requesterId');
+
+    if (!requesterId) {
+      return NextResponse.json({ error: '缺少请求者ID' }, { status: 401 });
+    }
+
+    const requester = await prisma.user.findUnique({
+      where: { id: requesterId }
+    });
+
+    if (!requester || (requester.role !== 'admin' && requester.role !== 'sub_admin')) {
+      return NextResponse.json({ error: '权限不足' }, { status: 403 });
+    }
 
     await prisma.actionTemplate.delete({
       where: { id }

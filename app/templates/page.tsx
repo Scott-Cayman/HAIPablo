@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
+import { UserAvatar } from '@/components/UserAvatar';
 import { 
   ArrowLeft, 
   Layers, 
@@ -213,8 +214,8 @@ export default function TemplatesPage() {
   const handleEditTemplate = (e: React.MouseEvent, template: Template) => {
     e.stopPropagation();
     
-    if (!user || user.username !== 'admin') {
-      alert('只有管理员可以编辑模板');
+    if (!user || (user.role !== 'admin' && user.role !== 'sub_admin')) {
+      alert('权限不足，无法编辑模板');
       return;
     }
     
@@ -224,8 +225,8 @@ export default function TemplatesPage() {
   const handleDeleteTemplate = async (e: React.MouseEvent, template: Template) => {
     e.stopPropagation();
     
-    if (!user || user.username !== 'admin') {
-      alert('只有管理员可以删除模板');
+    if (!user || (user.role !== 'admin' && user.role !== 'sub_admin')) {
+      alert('权限不足，无法删除模板');
       return;
     }
     
@@ -234,7 +235,7 @@ export default function TemplatesPage() {
     }
 
     try {
-      const response = await fetch(`/api/templates/${template.id}`, {
+      const response = await fetch(`/api/templates/${template.id}?requesterId=${user.id}`, {
         method: 'DELETE'
       });
 
@@ -251,16 +252,16 @@ export default function TemplatesPage() {
   };
 
   const handleNewTemplate = () => {
-    if (!user || user.username !== 'admin') {
-      alert('只有管理员可以创建模板');
+    if (!user || (user.role !== 'admin' && user.role !== 'sub_admin')) {
+      alert('权限不足，无法创建模板');
       return;
     }
     router.push(`/templates/config?groupId=${selectedGroup?.id}`);
   };
 
   const handleAddGroup = () => {
-    if (!user || user.username !== 'admin') {
-      alert('只有管理员可以添加功能分类');
+    if (!user || (user.role !== 'admin' && user.role !== 'sub_admin')) {
+      alert('权限不足，无法添加功能分类');
       return;
     }
     setNewGroupData({
@@ -283,7 +284,7 @@ export default function TemplatesPage() {
       const response = await fetch('/api/feature-groups', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newGroupData)
+        body: JSON.stringify({ ...newGroupData, requesterId: user.id })
       });
 
       if (response.ok) {
@@ -303,8 +304,8 @@ export default function TemplatesPage() {
   };
 
   const handleEditGroup = (group: FeatureGroup) => {
-    if (!user || user.username !== 'admin') {
-      alert('只有管理员可以编辑功能分类');
+    if (!user || (user.role !== 'admin' && user.role !== 'sub_admin')) {
+      alert('权限不足，无法编辑功能分类');
       return;
     }
     setEditingGroup(group);
@@ -328,7 +329,7 @@ export default function TemplatesPage() {
       const response = await fetch(`/api/feature-groups/${editingGroup.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newGroupData)
+        body: JSON.stringify({ ...newGroupData, requesterId: user.id })
       });
 
       if (response.ok) {
@@ -354,8 +355,8 @@ export default function TemplatesPage() {
   };
 
   const handleDeleteGroup = async (group: FeatureGroup) => {
-    if (!user || user.username !== 'admin') {
-      alert('只有管理员可以删除功能分类');
+    if (!user || (user.role !== 'admin' && user.role !== 'sub_admin')) {
+      alert('权限不足，无法删除功能分类');
       return;
     }
 
@@ -369,7 +370,7 @@ export default function TemplatesPage() {
     }
 
     try {
-      const response = await fetch(`/api/feature-groups/${group.id}`, {
+      const response = await fetch(`/api/feature-groups/${group.id}?requesterId=${user.id}`, {
         method: 'DELETE'
       });
 
@@ -405,7 +406,7 @@ export default function TemplatesPage() {
   return (
     <div className={`min-h-screen transition-colors duration-500 ${darkMode ? 'bg-gray-950' : 'bg-gradient-to-br from-slate-100 via-gray-50 to-slate-100'}`}>
       <header className={`sticky top-0 z-50 border-b backdrop-blur-xl transition-colors duration-500 ${darkMode ? 'bg-gray-950/80 border-gray-800' : 'bg-white/70 border-gray-200'}`}>
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center">
+        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center relative">
           <div className="flex items-center gap-4">
             <button 
               onClick={() => router.push('/')}
@@ -413,10 +414,20 @@ export default function TemplatesPage() {
             >
               <ArrowLeft className="w-5 h-5" />
             </button>
-            <div>
-              <h1 className={`text-2xl font-bold transition-colors duration-500 ${darkMode ? 'text-white' : 'text-gray-900'}`}>模板中心</h1>
-              <p className={`text-sm transition-colors duration-500 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>选择生成模板，开始创作</p>
+            <div className="hidden md:block">
+              <h1 className={`text-xl font-bold transition-colors duration-500 ${darkMode ? 'text-white' : 'text-gray-900'}`}>模板中心</h1>
+              <p className={`text-xs transition-colors duration-500 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>选择生成模板，开始创作</p>
             </div>
+          </div>
+
+          {/* Centered Logo - Enlarged by 20% */}
+          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+            <img 
+              src={darkMode ? "/img/white.png" : "/img/black.png"} 
+              alt="HAIPablo Logo" 
+              className="h-14 object-contain cursor-pointer hover:opacity-80 transition-opacity"
+              onClick={() => router.push('/')}
+            />
           </div>
 
           <div className="flex-1 flex items-center justify-end gap-4">
@@ -450,18 +461,10 @@ export default function TemplatesPage() {
                   onClick={() => setShowUserMenu(!showUserMenu)}
                   className="flex items-center gap-3 hover:opacity-80 transition-opacity"
                 >
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                    (user.role === 'admin' || user.username === 'admin')
-                      ? 'bg-gradient-to-br from-amber-500 to-orange-600' 
-                      : darkMode 
-                        ? 'bg-gradient-to-br from-gray-600 to-gray-700' 
-                        : 'bg-gradient-to-br from-gray-700 to-gray-800'
-                  }`}>
-                    <User className="w-5 h-5 text-white" />
-                  </div>
-                  <div className="hidden md:block text-left">
+                  <UserAvatar user={user} size="lg" darkMode={darkMode} />
+                  <div className="hidden lg:block text-left">
                     <p className={`text-sm font-medium transition-colors duration-500 ${darkMode ? 'text-white' : 'text-gray-900'}`}>{user.name || user.username}</p>
-                    <p className={`text-xs transition-colors duration-500 ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>@{user.username}</p>
+                    <p className={`text-xs transition-colors duration-500 ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>{user.email || user.username}</p>
                   </div>
                 </button>
 
@@ -484,18 +487,10 @@ export default function TemplatesPage() {
                           : 'bg-gray-50 border-gray-100'
                       }`}>
                         <div className="flex items-center gap-3">
-                          <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                            (user.role === 'admin' || user.username === 'admin')
-                              ? 'bg-gradient-to-br from-amber-500 to-orange-600' 
-                              : darkMode 
-                                ? 'bg-gradient-to-br from-gray-600 to-gray-700' 
-                                : 'bg-gradient-to-br from-gray-700 to-gray-800'
-                          }`}>
-                            <User className="w-5 h-5 text-white" />
-                          </div>
+                          <UserAvatar user={user} size="lg" darkMode={darkMode} />
                           <div>
                             <p className={`font-semibold transition-colors duration-500 ${darkMode ? 'text-white' : 'text-gray-900'}`}>{user.name || user.username}</p>
-                            <p className={`text-xs transition-colors duration-500 ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>@{user.username}</p>
+                            <p className={`text-xs transition-colors duration-500 ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>{user.email || user.username}</p>
                           </div>
                         </div>
                         <div className="mt-3 flex items-center gap-2">
@@ -507,7 +502,7 @@ export default function TemplatesPage() {
                             <Sparkles className="w-3 h-3" />
                             潮能力: {user.credits ?? 0}
                           </span>
-                          {(user.role === 'admin' || user.username === 'admin') && (
+                          {user.role === 'admin' && (
                             <span className={`px-2 py-1 text-xs font-medium rounded-full flex items-center gap-1 w-fit ${
                               darkMode 
                                 ? 'bg-amber-900/50 text-amber-400' 
@@ -515,6 +510,16 @@ export default function TemplatesPage() {
                             }`}>
                               <Shield className="w-3 h-3" />
                               管理员
+                            </span>
+                          )}
+                          {user.role === 'sub_admin' && (
+                            <span className={`px-2 py-1 text-xs font-medium rounded-full flex items-center gap-1 w-fit ${
+                              darkMode 
+                                ? 'bg-blue-900/50 text-blue-400' 
+                                : 'bg-blue-100 text-blue-700'
+                            }`}>
+                              <Shield className="w-3 h-3" />
+                              子管理员
                             </span>
                           )}
                         </div>
@@ -533,19 +538,19 @@ export default function TemplatesPage() {
                           我的历史
                         </button>
 
-                        {(user.role === 'admin' || user.username === 'admin') && (
-                              <button
-                                onClick={() => router.push('/admin/users')}
-                                className={`w-full px-4 py-2.5 text-left rounded-lg transition-colors flex items-center gap-3 mt-1 ${
-                                  darkMode 
-                                    ? 'text-amber-400 hover:bg-amber-950/30' 
-                                    : 'text-amber-700 hover:bg-amber-50'
-                                }`}
-                              >
-                                <Users className="w-4 h-4" />
-                                用户与部门管理
-                              </button>
-                            )}
+                        {(user.role === 'admin' || user.role === 'sub_admin') && (
+                          <button
+                            onClick={() => router.push('/admin/users')}
+                            className={`w-full px-4 py-2.5 text-left rounded-lg transition-colors flex items-center gap-3 mt-1 ${
+                              darkMode 
+                                ? 'text-amber-400 hover:bg-amber-950/30' 
+                                : 'text-amber-700 hover:bg-amber-50'
+                            }`}
+                          >
+                            <Users className="w-4 h-4" />
+                            {user.role === 'admin' ? '用户与部门管理' : '人员列表'}
+                          </button>
+                        )}
 
                             <div className={`my-2 border-t transition-colors duration-500 ${darkMode ? 'border-gray-800' : 'border-gray-100'}`} />
 
@@ -634,7 +639,7 @@ export default function TemplatesPage() {
                         </div>
                       </motion.button>
                       
-                      {user?.username === 'admin' && (
+                      {(user.role === 'admin' || user.role === 'sub_admin') && (
                         <div className={`absolute top-2 right-2 flex gap-1 transition-opacity ${
                           isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
                         }`}>
@@ -680,7 +685,7 @@ export default function TemplatesPage() {
                   );
                 })}
                 
-                {user?.username === 'admin' && (
+                {(user.role === 'admin' || user.role === 'sub_admin') && (
                   <motion.button
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -742,7 +747,7 @@ export default function TemplatesPage() {
                       <LayersIcon className="w-4 h-4" />
                       {batchMode ? '取消批量' : '批量生成'}
                     </button>
-                    {user?.username === 'admin' && (
+                    {(user.role === 'admin' || user.role === 'sub_admin') && (
                       <button 
                         onClick={handleNewTemplate}
                         className={`px-4 py-2 rounded-lg transition-colors flex items-center gap-2 ${
@@ -840,7 +845,7 @@ export default function TemplatesPage() {
                                   <Sparkles className={`w-5 h-5 ${darkMode ? 'text-gray-300' : 'text-gray-600'}`} />
                                 </div>
                               </div>
-                              {user?.username === 'admin' && !batchMode && (
+                              {(user.role === 'admin' || user.role === 'sub_admin') && !batchMode && (
                                 <div className="flex gap-1">
                                   <button
                                     onClick={(e) => handleEditTemplate(e, template)}
@@ -868,12 +873,12 @@ export default function TemplatesPage() {
                               )}
                             </div>
                             
-                            <h3 className={`text-base font-semibold mb-2 transition-colors duration-500 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                            <h3 className={`text-base font-semibold mb-2 line-clamp-1 h-6 transition-colors duration-500 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
                               {template.name}
                             </h3>
                             
-                            <p className={`text-sm mb-3 line-clamp-2 transition-colors duration-500 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                              {template.description}
+                            <p className={`text-sm mb-3 line-clamp-2 h-10 transition-colors duration-500 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                              {template.description || ' '}
                             </p>
                             
                             {template.coverImage ? (
@@ -964,7 +969,7 @@ export default function TemplatesPage() {
                     </div>
                     <h3 className={`text-xl font-semibold mb-3 transition-colors duration-500 ${darkMode ? 'text-white' : 'text-gray-900'}`}>该分类下暂无模板</h3>
                     <p className={`mb-6 transition-colors duration-500 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>创建一个新模板开始使用</p>
-                    {user?.username === 'admin' && (
+                    {(user.role === 'admin' || user.role === 'sub_admin') && (
                       <button
                         onClick={handleNewTemplate}
                         className={`px-6 py-3 rounded-lg transition-colors inline-flex items-center gap-2 ${

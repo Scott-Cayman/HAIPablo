@@ -42,7 +42,8 @@ export async function GET(request: NextRequest) {
       enableSpecifiedColors: template.enableSpecifiedColors || false,
       specifiedColors: template.specifiedColorsJson
         ? JSON.parse(template.specifiedColorsJson)
-        : []
+        : [],
+      showMainVisual: template.showMainVisual
     }));
 
     return NextResponse.json(formattedTemplates);
@@ -78,9 +79,23 @@ export async function POST(request: NextRequest) {
       userPromptPriorityDefault,
       enableSpecifiedColors,
       specifiedColors,
+      showMainVisual,
       enabled,
-      sortOrder
+      sortOrder,
+      requesterId
     } = body;
+
+    if (!requesterId) {
+      return NextResponse.json({ error: '缺少请求者ID' }, { status: 401 });
+    }
+
+    const requester = await prisma.user.findUnique({
+      where: { id: requesterId }
+    });
+
+    if (!requester || (requester.role !== 'admin' && requester.role !== 'sub_admin')) {
+      return NextResponse.json({ error: '权限不足' }, { status: 403 });
+    }
 
     if (!featureGroupId || !name || !key || !mode || !promptTemplate) {
       return NextResponse.json(
@@ -110,6 +125,7 @@ export async function POST(request: NextRequest) {
         userPromptPriorityDefault: userPromptPriorityDefault || false,
         enableSpecifiedColors: enableSpecifiedColors || false,
         specifiedColorsJson: JSON.stringify(specifiedColors || []),
+        showMainVisual: showMainVisual !== false,
         enabled: enabled !== false,
         sortOrder: sortOrder || 0
       },
@@ -134,7 +150,8 @@ export async function POST(request: NextRequest) {
       enableSpecifiedColors: template.enableSpecifiedColors || false,
       specifiedColors: template.specifiedColorsJson
         ? JSON.parse(template.specifiedColorsJson)
-        : []
+        : [],
+      showMainVisual: template.showMainVisual
     }, { status: 201 });
   } catch (error) {
     console.error('创建模板失败:', error);

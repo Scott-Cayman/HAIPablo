@@ -57,7 +57,19 @@ export async function PUT(
   try {
     const { id } = params;
     const body = await request.json();
-    const { name, key, description, icon, sortOrder, enabled } = body;
+    const { name, key, description, icon, sortOrder, enabled, requesterId } = body;
+
+    if (!requesterId) {
+      return NextResponse.json({ error: '缺少请求者ID' }, { status: 401 });
+    }
+
+    const requester = await prisma.user.findUnique({
+      where: { id: requesterId }
+    });
+
+    if (!requester || (requester.role !== 'admin' && requester.role !== 'sub_admin')) {
+      return NextResponse.json({ error: '权限不足' }, { status: 403 });
+    }
 
     if (!name || !key) {
       return NextResponse.json(
@@ -108,6 +120,20 @@ export async function DELETE(
 ) {
   try {
     const { id } = params;
+    const { searchParams } = new URL(request.url);
+    const requesterId = searchParams.get('requesterId');
+
+    if (!requesterId) {
+      return NextResponse.json({ error: '缺少请求者ID' }, { status: 401 });
+    }
+
+    const requester = await prisma.user.findUnique({
+      where: { id: requesterId }
+    });
+
+    if (!requester || (requester.role !== 'admin' && requester.role !== 'sub_admin')) {
+      return NextResponse.json({ error: '权限不足' }, { status: 403 });
+    }
 
     const featureGroup = await prisma.featureGroup.findUnique({
       where: { id },

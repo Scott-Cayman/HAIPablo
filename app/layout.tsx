@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "HAI Pablo 工作台 | 智海王潮AI创意效率工作台",
-  description: "智海王潮AI创意效率工作台，基于GPT图像生成模型，支持多种预设模板和自定义配置",
+  title: "HAI Pablo 工作台 | AI创意工作台",
+  description: "HIMICE·AI 智海王潮 HAI",
 };
 
 export default function RootLayout({

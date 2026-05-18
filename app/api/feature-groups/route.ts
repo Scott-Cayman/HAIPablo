@@ -54,7 +54,19 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { name, key, description, icon, sortOrder, enabled } = body;
+    const { name, key, description, icon, sortOrder, enabled, requesterId } = body;
+
+    if (!requesterId) {
+      return NextResponse.json({ error: '缺少请求者ID' }, { status: 401 });
+    }
+
+    const requester = await prisma.user.findUnique({
+      where: { id: requesterId }
+    });
+
+    if (!requester || (requester.role !== 'admin' && requester.role !== 'sub_admin')) {
+      return NextResponse.json({ error: '权限不足' }, { status: 403 });
+    }
 
     if (!name || !key) {
       return NextResponse.json(

@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { UserAvatar } from '@/components/UserAvatar';
 import { 
   ArrowLeft, 
   Upload,
@@ -57,17 +58,21 @@ interface Template {
   defaultQuality: string;
   mode: 'generation' | 'edit';
   referenceImages: ReferenceImage[];
+  showMainVisual?: boolean;
   variables: Array<{
+    id: string;
     key: string;
     label: string;
-    type: string;
-    required?: boolean;
+    type: 'text' | 'textarea' | 'number' | 'color' | 'select' | 'image';
     placeholder?: string;
+    required?: boolean;
+    defaultValue?: string;
+    options?: Array<{ label: string; value: string }>;
   }>;
   allowUserPrompt?: boolean;
   userPromptPriorityDefault?: boolean;
   enableSpecifiedColors?: boolean;
-  specifiedColors?: Array<{name: string; color: string; order: number}>;
+  specifiedColors?: Array<{name: string; color: string; order: number; label?: string}>;
 }
 
 interface SpecifiedColor {
@@ -80,7 +85,7 @@ interface SpecifiedColor {
 export default function GeneratePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const templateId = searchParams.get('templateId');
+  const templateId = searchParams.get('templateId') || searchParams.get('id');
 
   const [template, setTemplate] = useState<Template | null>(null);
   const [user, setUser] = useState<any>(null);
@@ -97,6 +102,7 @@ export default function GeneratePage() {
   const [generationStatus, setGenerationStatus] = useState('');
 
   const [formData, setFormData] = useState<Record<string, string>>({});
+  const [variableImages, setVariableImages] = useState<Record<string, ReferenceImage | null>>({});
   const [size, setSize] = useState('auto');
   const [quality, setQuality] = useState('medium');
   const [enableUserPrompt, setEnableUserPrompt] = useState(false);
@@ -106,6 +112,13 @@ export default function GeneratePage() {
   const [specifiedColors, setSpecifiedColors] = useState<SpecifiedColor[]>([]);
   const [selectedColorIndex, setSelectedColorIndex] = useState<number | null>(null);
   const [editingColorValue, setEditingColorValue] = useState('');
+
+  // 预览图片缩放和拖拽状态
+  const [zoomScale, setZoomScale] = useState(1);
+  const [zoomPosition, setZoomPosition] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+
+  const historyId = searchParams.get('historyId');
 
   useEffect(() => {
     const savedDarkMode = localStorage.getItem('darkMode');
@@ -134,7 +147,7 @@ export default function GeneratePage() {
 
     document.addEventListener('click', handleClickOutside);
     return () => document.removeEventListener('click', handleClickOutside);
-  }, [templateId]);
+  }, [templateId, historyId]);
 
   const toggleDarkMode = () => {
     setDarkMode(!darkMode);
@@ -162,10 +175,49 @@ export default function GeneratePage() {
         }
 
         const initialForm: Record<string, string> = {};
+        const initialImages: Record<string, ReferenceImage | null> = {};
         data.variables?.forEach((v: any) => {
-          initialForm[v.key] = '';
+          if (v.type === 'image') {
+            initialImages[v.key] = null;
+          } else {
+            initialForm[v.key] = '';
+          }
         });
+
+        // 如果有 historyId，直接在这里合并数据，避免多次渲染冲突
+        if (historyId) {
+          try {
+            const historyResponse = await fetch(`/api/history/${historyId}`);
+            if (historyResponse.ok) {
+              const historyData = await historyResponse.json();
+              if (historyData.configJson) {
+                const config = JSON.parse(historyData.configJson);
+                if (config.formData) Object.assign(initialForm, config.formData);
+                if (config.variableImages) Object.assign(initialImages, config.variableImages);
+                
+                if (config.selectedUserImage) {
+                  setSelectedUserImage(config.selectedUserImage);
+                  setUserImages(prev => {
+                    if (!prev.find(img => img.id === config.selectedUserImage.id)) {
+                      return [config.selectedUserImage, ...prev];
+                    }
+                    return prev;
+                  });
+                }
+                if (config.userPrompt) setUserPrompt(config.userPrompt);
+                if (config.enableUserPrompt !== undefined) setEnableUserPrompt(config.enableUserPrompt);
+                if (config.userPromptPriority !== undefined) setUserPromptPriority(config.userPromptPriority);
+                if (config.size) setSize(config.size);
+                if (config.quality) setQuality(config.quality);
+              }
+            }
+          } catch (err) {
+            console.error('加载历史状态失败:', err);
+          }
+        }
+
         setFormData(initialForm);
+        setVariableImages(initialImages);
         
         console.log('模板已设置:', { name: data.name, hasPrompt: !!data.promptTemplate, promptLength: data.promptTemplate?.length, refImagesCount: data.referenceImages?.length });
       } else {
@@ -235,17 +287,70 @@ export default function GeneratePage() {
     setFormData(prev => ({ ...prev, [key]: value }));
   };
 
+  const handleVariableImageUpload = async (key: string, e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingImage(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const response = await fetch('/api/upload', { method: 'POST', body: fd });
+      if (!response.ok) throw new Error('上传失败');
+      const data = await response.json();
+      const newImage = {
+        id: `var_${key}_${Date.now()}`,
+        url: data.url,
+        name: file.name
+      };
+      setVariableImages(prev => ({ ...prev, [key]: newImage }));
+    } catch (error) {
+      console.error('上传变量图片失败:', error);
+      setError('图片上传失败');
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
   const getRenderedPrompt = () => {
     if (!template?.promptTemplate) return '';
     
     let prompt = template.promptTemplate;
-    for (const [key, value] of Object.entries(formData)) {
-      if (value) {
-        const regex = new RegExp(`{{${key}}}`, 'g');
-        prompt = prompt.replace(regex, value);
+
+    // 1. 处理所有自定义变量替换（文本、数字、下拉、颜色等）
+    // 支持 {{key}} 和直接使用 key (作为备选，防止用户忘记大括号)
+    template.variables?.forEach(v => {
+      if (v.type !== 'image') {
+        const value = formData[v.key] || '';
+        // 替换 {{key}}
+        const bracedRegex = new RegExp(`{{${v.key}}}`, 'g');
+        prompt = prompt.replace(bracedRegex, value);
+        // 替换直接的 key (例如 var_1)
+        const rawRegex = new RegExp(`\\b${v.key}\\b`, 'g');
+        prompt = prompt.replace(rawRegex, value);
       }
-    }
+    });
+
+    // 2. 处理图片变量替换为 "参考图N"
+    // 计算顺序：预设参考图 -> 变量中的图片 -> 通用上传的参考图
+    const presetCount = template.referenceImages?.length || 0;
+    const imageVariables = template.variables?.filter(v => v.type === 'image') || [];
     
+    imageVariables.forEach((v, index) => {
+      const refIndex = presetCount + index + 1;
+      const regex = new RegExp(`{{${v.key}}}`, 'g');
+      // 如果用户上传了图片变量，则在提示词中标识为参考图N
+      prompt = prompt.replace(regex, `参考图${refIndex}`);
+    });
+
+    // 3. 如果启用了通用参考图上传，计算其索引
+    // 通用参考图的索引在预设图和变量图之后
+    if (template.showMainVisual !== false) {
+      const mainVisualIndex = presetCount + imageVariables.length + 1;
+      // 虽然用户没直接引用通用参考图变量，但如果他们在提示词里写了 "参考图X"，AI就能对应上
+    }
+
+    // 4. 处理用户补充提示词
     if (enableUserPrompt && userPrompt.trim()) {
       if (userPromptPriority) {
         prompt = userPrompt.trim() + '\n\n' + prompt;
@@ -268,8 +373,9 @@ export default function GeneratePage() {
   };
 
   const detectMaxColorNumber = (text: string): number => {
+    const combinedPrompt = (template?.promptTemplate || '') + '\n\n' + text;
     const regex = /指定色(\d+)/g;
-    const matches = [...text.matchAll(regex)];
+    const matches = [...combinedPrompt.matchAll(regex)];
     let max = 0;
     matches.forEach(match => {
       const num = parseInt(match[1]);
@@ -304,8 +410,9 @@ export default function GeneratePage() {
   const handleUserPromptChange = (value: string) => {
     setUserPrompt(value);
 
+    const combinedPrompt = (template?.promptTemplate || '') + '\n\n' + value;
     const regex = /指定色(\d+)/g;
-    const matches = [...value.matchAll(regex)];
+    const matches = [...combinedPrompt.matchAll(regex)];
     const detected = new Set<string>();
     
     matches.forEach(match => {
@@ -319,11 +426,12 @@ export default function GeneratePage() {
         const existing = updated.find(c => c.name === colorName);
         if (!existing) {
           const num = parseInt(colorName.replace('指定色', ''));
+          const templateColor = template?.specifiedColors?.find(c => c.name === colorName);
           updated.push({
             name: colorName,
-            color: '#888888',
+            color: templateColor ? templateColor.color : '#888888',
             order: num,
-            label: ''
+            label: templateColor ? templateColor.label : ''
           });
         }
       });
@@ -337,11 +445,22 @@ export default function GeneratePage() {
   const getAllImages = (): ReferenceImage[] => {
     const allImages: ReferenceImage[] = [];
     
-    if (selectedPresetImage) {
-      allImages.push(selectedPresetImage);
+    // 1. 预设图片
+    if (template?.referenceImages) {
+      allImages.push(...template.referenceImages);
     }
     
-    if (selectedUserImage) {
+    // 2. 变量图片 (保持和 getRenderedPrompt 中一样的顺序)
+    const imageVariables = template?.variables?.filter(v => v.type === 'image') || [];
+    imageVariables.forEach(v => {
+      const img = variableImages[v.key];
+      if (img) {
+        allImages.push(img);
+      }
+    });
+
+    // 3. 通用参考图 (仅在启用时添加)
+    if (template?.showMainVisual !== false && selectedUserImage) {
       allImages.push(selectedUserImage);
     }
     
@@ -371,6 +490,11 @@ export default function GeneratePage() {
     try {
       setGenerationStatus('正在上传图片...');
       
+      const imageVariables = template?.variables?.filter(v => v.type === 'image') || [];
+      const variableImageUrls = imageVariables
+        .map(v => variableImages[v.key]?.url)
+        .filter(url => !!url) as string[];
+
       const requestData = {
         userId: user?.id,
         templateId: template?.id,
@@ -381,10 +505,20 @@ export default function GeneratePage() {
         variables: formData,
         size,
         quality,
-        referenceImages: selectedPresetImage ? [selectedPresetImage.url] : [],
-        images: selectedUserImage ? [selectedUserImage.url] : [],
+        referenceImages: template?.referenceImages?.map(img => img.url) || [],
+        images: [...variableImageUrls, ...(selectedUserImage ? [selectedUserImage.url] : [])],
         userPrompt: enableUserPrompt ? userPrompt : null,
-        userPromptPriority: userPromptPriority
+        userPromptPriority: userPromptPriority,
+        config: {
+          formData,
+          variableImages,
+          selectedUserImage,
+          userPrompt,
+          enableUserPrompt,
+          userPromptPriority,
+          size,
+          quality
+        }
       };
       
       console.log('=== 前端发送的生成请求 ===');
@@ -437,6 +571,40 @@ export default function GeneratePage() {
     setUserImages([]);
   };
 
+  const handlePreviewClose = () => {
+    setPreviewImage(null);
+    setZoomScale(1);
+    setZoomPosition({ x: 0, y: 0 });
+  };
+
+  const handleWheel = (e: React.WheelEvent) => {
+    if (previewImage) {
+      const delta = e.deltaY;
+      const scaleStep = 0.1;
+      const newScale = delta < 0 ? zoomScale + scaleStep : zoomScale - scaleStep;
+      setZoomScale(Math.max(0.1, Math.min(10, newScale)));
+    }
+  };
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (zoomScale > 1) {
+      setIsDragging(true);
+    }
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (isDragging) {
+      setZoomPosition(prev => ({
+        x: prev.x + e.movementX,
+        y: prev.y + e.movementY
+      }));
+    }
+  };
+
+  const handleMouseUp = () => {
+    setIsDragging(false);
+  };
+
   const handleLogout = () => {
     localStorage.removeItem('user');
     router.push('/auth');
@@ -463,20 +631,45 @@ export default function GeneratePage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-8"
-            onClick={() => setPreviewImage(null)}
+            className="fixed inset-0 z-[100] bg-black/90 flex items-center justify-center p-8 overflow-hidden backdrop-blur-sm"
+            onClick={handlePreviewClose}
+            onWheel={handleWheel}
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={handleMouseUp}
           >
-            <motion.img
-              initial={{ scale: 0.8 }}
-              animate={{ scale: 1 }}
-              exit={{ scale: 0.8 }}
-              src={previewImage}
-              alt="预览"
-              className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
-            />
+            <div 
+              className="relative transition-transform duration-200 ease-out"
+              style={{ 
+                transform: `translate(${zoomPosition.x}px, ${zoomPosition.y}px) scale(${zoomScale})`,
+                cursor: zoomScale > 1 ? (isDragging ? 'grabbing' : 'grab') : 'default'
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <motion.img
+                initial={{ scale: 0.8 }}
+                animate={{ scale: 1 }}
+                exit={{ scale: 0.8 }}
+                src={previewImage}
+                alt="预览"
+                className="max-w-[90vw] max-h-[90vh] object-contain rounded-lg shadow-2xl select-none"
+                draggable={false}
+              />
+            </div>
+
+            <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-4 px-4 py-2 bg-white/10 backdrop-blur-md rounded-full border border-white/20 text-white text-xs pointer-events-none">
+              <div className="flex items-center gap-1.5">
+                <div className="w-1.5 h-1.5 rounded-full bg-violet-400 animate-pulse" />
+                滚轮缩放: {Math.round(zoomScale * 100)}%
+              </div>
+              <div className="w-px h-3 bg-white/20" />
+              <div>左键按住可拖拽</div>
+            </div>
+
             <button
-              onClick={() => setPreviewImage(null)}
-              className="absolute top-4 right-4 p-2 bg-white/10 hover:bg-white/20 rounded-full text-white transition-colors"
+              onClick={handlePreviewClose}
+              className="absolute top-6 right-6 p-3 bg-white/10 hover:bg-red-500/50 hover:text-white rounded-full text-white transition-all border border-white/10 backdrop-blur-md"
             >
               <X className="w-6 h-6" />
             </button>
@@ -485,162 +678,209 @@ export default function GeneratePage() {
       </AnimatePresence>
 
       <header className={`sticky top-0 z-50 border-b backdrop-blur-xl transition-colors duration-500 ${darkMode ? 'bg-gray-950/80 border-gray-800' : 'bg-white/70 border-gray-200'}`}>
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center gap-4">
-          <button 
-            onClick={() => router.push('/templates')}
-            className={`p-2 rounded-lg transition-colors ${darkMode ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-100 text-gray-700'}`}
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </button>
-          <div className="flex-1">
-            <h1 className={`text-2xl font-bold transition-colors duration-500 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-              {template?.name || '图片生成'}
-            </h1>
-            <p className={`text-sm transition-colors duration-500 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-              {template?.mode === 'edit' ? '编辑模式' : '生成模式'}
-            </p>
+        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center relative">
+          <div className="flex items-center gap-4">
+            <button 
+              onClick={() => router.push('/templates')}
+              className={`p-2 rounded-lg transition-colors ${darkMode ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-100 text-gray-700'}`}
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+            <div className="hidden md:block">
+              <h1 className={`text-xl font-bold transition-colors duration-500 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                {template?.name || '图片生成'}
+              </h1>
+              <p className={`text-xs transition-colors duration-500 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                {template?.mode === 'edit' ? '编辑模式' : '生成模式'}
+              </p>
+            </div>
+          </div>
+
+          {/* Centered Logo - Enlarged by 20% (h-12 * 1.2 = h-14.4 -> h-14) */}
+          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+            <img 
+              src={darkMode ? "/img/white.png" : "/img/black.png"} 
+              alt="HAIPablo Logo" 
+              className="h-14 object-contain cursor-pointer hover:opacity-80 transition-opacity"
+              onClick={() => router.push('/')}
+            />
           </div>
           
-          <button
-            onClick={toggleDarkMode}
-            className={`p-2.5 rounded-xl transition-all duration-300 group ${
-              darkMode 
-                ? 'bg-gray-800 hover:bg-gray-700 text-amber-400 hover:text-amber-300' 
-                : 'bg-gray-100 hover:bg-gray-200 text-gray-700 hover:text-gray-900'
-            }`}
-          >
-            {darkMode ? (
-              <Sun className="w-5 h-5 group-hover:rotate-12 transition-transform" />
-            ) : (
-              <Moon className="w-5 h-5 group-hover:-rotate-12 transition-transform" />
-            )}
-          </button>
-
-          {user ? (
-            <div className="relative user-menu-container">
-              <button
-                onClick={() => setShowUserMenu(!showUserMenu)}
-                className="flex items-center gap-3 hover:opacity-80 transition-opacity"
-              >
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                  (user.role === 'admin' || user.username === 'admin')
-                    ? 'bg-gradient-to-br from-amber-500 to-orange-600' 
-                    : darkMode 
-                      ? 'bg-gradient-to-br from-gray-600 to-gray-700' 
-                      : 'bg-gradient-to-br from-gray-700 to-gray-800'
-                }`}>
-                  <User className="w-5 h-5 text-white" />
-                </div>
-                <div className="hidden md:block text-left">
-                  <p className={`text-sm font-medium transition-colors duration-500 ${darkMode ? 'text-white' : 'text-gray-900'}`}>{user.name || user.username}</p>
-                  <p className={`text-xs transition-colors duration-500 ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>@{user.username}</p>
-                </div>
-              </button>
-
-              <AnimatePresence>
-                {showUserMenu && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    className={`absolute right-0 top-full mt-2 w-56 rounded-xl shadow-lg border overflow-hidden transition-colors duration-500 ${
-                      darkMode 
-                        ? 'bg-gray-900 border-gray-800' 
-                        : 'bg-white border-gray-200'
-                    }`}
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <div className={`p-4 border-b transition-colors duration-500 ${
-                      darkMode 
-                        ? 'bg-gray-800/50 border-gray-700' 
-                        : 'bg-gray-50 border-gray-100'
-                    }`}>
-                      <div className="flex items-center gap-3">
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                          (user.role === 'admin' || user.username === 'admin')
-                            ? 'bg-gradient-to-br from-amber-500 to-orange-600' 
-                            : darkMode 
-                              ? 'bg-gradient-to-br from-gray-600 to-gray-700' 
-                              : 'bg-gradient-to-br from-gray-700 to-gray-800'
-                        }`}>
-                          <User className="w-5 h-5 text-white" />
-                        </div>
-                        <div>
-                          <p className={`font-semibold transition-colors duration-500 ${darkMode ? 'text-white' : 'text-gray-900'}`}>{user.name || user.username}</p>
-                          <p className={`text-xs transition-colors duration-500 ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>@{user.username}</p>
-                        </div>
-                      </div>
-                      {(user.role === 'admin' || user.username === 'admin') && (
-                        <div className="mt-3">
-                          <span className={`px-2 py-1 text-xs font-medium rounded-full flex items-center gap-1 w-fit ${
-                            darkMode 
-                              ? 'bg-amber-900/50 text-amber-400' 
-                              : 'bg-amber-100 text-amber-700'
-                          }`}>
-                            <Shield className="w-3 h-3" />
-                            管理员
-                          </span>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="p-2">
-                      <button
-                        onClick={() => router.push('/history')}
-                        className={`w-full px-4 py-2.5 text-left rounded-lg transition-colors flex items-center gap-3 ${
-                          darkMode 
-                            ? 'text-gray-300 hover:bg-gray-800 hover:text-white' 
-                            : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
-                        }`}
-                      >
-                        <History className="w-4 h-4" />
-                        我的历史
-                      </button>
-
-                      {(user.role === 'admin' || user.username === 'admin') && (
-                        <button
-                          onClick={() => router.push('/admin/users')}
-                          className={`w-full px-4 py-2.5 text-left rounded-lg transition-colors flex items-center gap-3 ${
-                            darkMode 
-                              ? 'text-amber-400 hover:bg-amber-950/30' 
-                              : 'text-amber-700 hover:bg-amber-50'
-                          }`}
-                        >
-                          <Shield className="w-4 h-4" />
-                          用户管理
-                        </button>
-                      )}
-
-                      <div className={`my-2 border-t transition-colors duration-500 ${darkMode ? 'border-gray-800' : 'border-gray-200'}`} />
-
-                      <button
-                        onClick={handleLogout}
-                        className={`w-full px-4 py-2.5 text-left rounded-lg transition-colors flex items-center gap-3 ${
-                          darkMode 
-                            ? 'text-red-400 hover:bg-red-950/30' 
-                            : 'text-red-600 hover:bg-red-50'
-                        }`}
-                      >
-                        <LogOut className="w-4 h-4" />
-                        退出登录
-                      </button>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-          ) : (
-            <button
-              onClick={() => router.push('/auth')}
-              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+          <div className="flex-1 flex items-center justify-end gap-4">
+            {user && (
+              <div className={`hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full border ${
                 darkMode 
-                  ? 'bg-white text-gray-900 hover:bg-gray-200' 
-                  : 'bg-gray-900 text-white hover:bg-gray-800'
+                  ? 'bg-violet-900/20 border-violet-800/50 text-violet-300' 
+                  : 'bg-violet-50 border-violet-200 text-violet-700'
+              }`}>
+                <Sparkles className="w-4 h-4" />
+                <span className="text-sm font-medium">潮能力: {user.credits ?? 0}</span>
+              </div>
+            )}
+            {user?.role === 'admin' && (
+              <span className={`hidden sm:flex px-2 py-1 text-xs font-medium rounded-full items-center gap-1 w-fit ${
+                darkMode 
+                  ? 'bg-amber-900/50 text-amber-400 border border-amber-800' 
+                  : 'bg-amber-50 text-amber-700 border border-amber-200'
+              }`}>
+                <Shield className="w-3 h-3" />
+                管理员
+              </span>
+            )}
+            {user?.role === 'sub_admin' && (
+              <span className={`hidden sm:flex px-2 py-1 text-xs font-medium rounded-full items-center gap-1 w-fit ${
+                darkMode 
+                  ? 'bg-blue-900/50 text-blue-400 border border-blue-800' 
+                  : 'bg-blue-50 text-blue-700 border border-blue-200'
+              }`}>
+                <Shield className="w-3 h-3" />
+                子管理员
+              </span>
+            )}
+
+            <button
+              onClick={toggleDarkMode}
+              className={`p-2.5 rounded-xl transition-all duration-300 group ${
+                darkMode 
+                  ? 'bg-gray-800 hover:bg-gray-700 text-amber-400 hover:text-amber-300' 
+                  : 'bg-gray-100 hover:bg-gray-200 text-gray-700 hover:text-gray-900'
               }`}
             >
-              登录
+              {darkMode ? (
+                <Sun className="w-5 h-5 group-hover:rotate-12 transition-transform" />
+              ) : (
+                <Moon className="w-5 h-5 group-hover:-rotate-12 transition-transform" />
+              )}
             </button>
-          )}
+
+            {user ? (
+              <div className="relative user-menu-container">
+                <button
+                  onClick={() => setShowUserMenu(!showUserMenu)}
+                  className="flex items-center gap-3 hover:opacity-80 transition-opacity"
+                >
+                  <UserAvatar user={user} size="lg" darkMode={darkMode} />
+                  <div className="hidden lg:block text-left">
+                    <p className={`text-sm font-medium transition-colors duration-500 ${darkMode ? 'text-white' : 'text-gray-900'}`}>{user.name || user.username}</p>
+                    <p className={`text-xs transition-colors duration-500 ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>{user.email || user.username}</p>
+                  </div>
+                </button>
+
+                <AnimatePresence>
+                  {showUserMenu && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      className={`absolute right-0 top-full mt-2 w-56 rounded-xl shadow-lg border overflow-hidden z-50 transition-colors duration-500 ${
+                        darkMode 
+                          ? 'bg-gray-900 border-gray-800' 
+                          : 'bg-white border-gray-200'
+                      }`}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <div className={`p-4 border-b transition-colors duration-500 ${
+                        darkMode 
+                          ? 'bg-gray-800/50 border-gray-700' 
+                          : 'bg-gray-50 border-gray-100'
+                      }`}>
+                        <div className="flex items-center gap-3">
+                          <UserAvatar user={user} size="lg" darkMode={darkMode} />
+                          <div>
+                            <p className={`font-semibold transition-colors duration-500 ${darkMode ? 'text-white' : 'text-gray-900'}`}>{user.name || user.username}</p>
+                            <p className={`text-xs transition-colors duration-500 ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>{user.email || user.username}</p>
+                          </div>
+                        </div>
+                        <div className="mt-3 flex items-center gap-2">
+                          <span className={`px-2 py-1 text-xs font-medium rounded-full flex items-center gap-1 w-fit ${
+                            darkMode 
+                              ? 'bg-violet-900/50 text-violet-200 border border-violet-800' 
+                              : 'bg-violet-50 text-violet-700 border border-violet-100'
+                          }`}>
+                            <Sparkles className="w-3 h-3" />
+                            潮能力: {user.credits ?? 0}
+                          </span>
+                          {user.role === 'admin' && (
+                            <span className={`px-2 py-1 text-xs font-medium rounded-full flex items-center gap-1 w-fit ${
+                              darkMode 
+                                ? 'bg-amber-900/50 text-amber-400' 
+                                : 'bg-amber-100 text-amber-700'
+                            }`}>
+                              <Shield className="w-3 h-3" />
+                              管理员
+                            </span>
+                          )}
+                          {user.role === 'sub_admin' && (
+                            <span className={`px-2 py-1 text-xs font-medium rounded-full flex items-center gap-1 w-fit ${
+                              darkMode 
+                                ? 'bg-blue-900/50 text-blue-400' 
+                                : 'bg-blue-100 text-blue-700'
+                            }`}>
+                              <Shield className="w-3 h-3" />
+                              子管理员
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="p-2">
+                        <button
+                          onClick={() => router.push('/history')}
+                          className={`w-full px-4 py-2.5 text-left rounded-lg transition-colors flex items-center gap-3 ${
+                            darkMode 
+                              ? 'text-gray-300 hover:bg-gray-800 hover:text-white' 
+                              : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
+                          }`}
+                        >
+                          <History className="w-4 h-4" />
+                          我的历史
+                        </button>
+
+                        {(user.role === 'admin' || user.role === 'sub_admin') && (
+                          <button
+                            onClick={() => router.push('/admin/users')}
+                            className={`w-full px-4 py-2.5 text-left rounded-lg transition-colors flex items-center gap-3 ${
+                              darkMode 
+                                ? 'text-amber-400 hover:bg-amber-950/30' 
+                                : 'text-amber-700 hover:bg-amber-50'
+                            }`}
+                          >
+                            <Shield className="w-4 h-4" />
+                            {user.role === 'admin' ? '用户管理' : '人员列表'}
+                          </button>
+                        )}
+
+                        <div className={`my-2 border-t transition-colors duration-500 ${darkMode ? 'border-gray-800' : 'border-gray-200'}`} />
+
+                        <button
+                          onClick={handleLogout}
+                          className={`w-full px-4 py-2.5 text-left rounded-lg transition-colors flex items-center gap-3 ${
+                            darkMode 
+                              ? 'text-red-400 hover:bg-red-950/30' 
+                              : 'text-red-600 hover:bg-red-50'
+                          }`}
+                        >
+                          <LogOut className="w-4 h-4" />
+                          退出登录
+                        </button>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            ) : (
+              <button
+                onClick={() => router.push('/auth')}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                  darkMode 
+                    ? 'bg-white text-gray-900 hover:bg-gray-200' 
+                    : 'bg-gray-900 text-white hover:bg-gray-800'
+                }`}
+              >
+                登录
+              </button>
+            )}
+          </div>
         </div>
       </header>
 
@@ -668,178 +908,221 @@ export default function GeneratePage() {
               )}
             </AnimatePresence>
 
-            <AnimatePresence>
-              {generating && (
-                <motion.div
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  className={`p-4 rounded-xl flex items-start gap-3 transition-colors duration-500 ${
-                    darkMode 
-                      ? 'bg-blue-900/30 border border-blue-800 text-blue-400' 
-                      : 'bg-blue-50 border border-blue-200 text-blue-700'
-                  }`}
-                >
-                  <Loader2 className="w-5 h-5 flex-shrink-0 mt-0.5 animate-spin" />
-                  <div>
-                    <p className="font-medium mb-1">正在生成中</p>
-                    <p className="text-sm">{generationStatus || '请稍候...'}</p>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            {template?.referenceImages && template.referenceImages.length > 0 && (
-              <div className={`rounded-2xl shadow-sm border p-6 transition-colors duration-500 ${
-                darkMode 
-                  ? 'bg-gray-900 border-gray-800' 
-                  : 'bg-white border-gray-200'
-              }`}>
-                <h2 className={`text-lg font-semibold mb-4 flex items-center gap-2 transition-colors duration-500 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                  <ImageIcon className={`w-5 h-5 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`} />
-                  选择参考图
-                </h2>
-                <p className={`text-sm mb-4 transition-colors duration-500 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                  请选择一张参考图作为模板
-                </p>
-                <div className="grid grid-cols-2 gap-3">
-                  {template.referenceImages.map((image, index) => (
-                    <div 
-                      key={image.id} 
-                      className={`relative cursor-pointer group rounded-lg overflow-hidden transition-all ${
-                        selectedPresetImage?.id === image.id
-                          ? 'ring-2 ring-violet-500 ring-offset-2'
-                          : 'hover:ring-2 hover:ring-gray-300'
-                      }`}
-                      onClick={() => setSelectedPresetImage(selectedPresetImage?.id === image.id ? null : image)}
-                    >
-                      <img
-                        src={image.url}
-                        alt={`预设参考图 ${index + 1}`}
-                        className="w-full h-32 object-contain"
-                        style={{ objectPosition: 'center top' }}
-                      />
-                      <div className={`absolute top-2 left-2 px-2 py-1 rounded text-xs font-medium ${
-                        selectedPresetImage?.id === image.id
-                          ? 'bg-violet-600 text-white'
-                          : 'bg-gray-800 text-white'
-                      }`}>
-                        {selectedPresetImage?.id === image.id ? '✓ 已选择' : `参考图${index + 1}`}
-                      </div>
-                      <p className={`text-xs mt-1 truncate ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>{image.name}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <div className={`rounded-2xl shadow-sm border p-6 transition-colors duration-500 ${
+            <div className={`rounded-2xl shadow-sm border p-8 transition-colors duration-500 ${
               darkMode 
                 ? 'bg-gray-900 border-gray-800' 
                 : 'bg-white border-gray-200'
-              }`}>
-              <h2 className={`text-lg font-semibold mb-4 flex items-center gap-2 transition-colors duration-500 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                <Upload className={`w-5 h-5 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`} />
-                上传主视觉
-              </h2>
-              <p className={`text-sm mb-4 transition-colors duration-500 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                上传您的主视觉图片（如果模板需要）
-              </p>
-
-              {userImages.length > 0 ? (
-                <div className="space-y-3">
-                  <div className="grid grid-cols-2 gap-3">
-                    {userImages.map((image, index) => (
-                      <div 
-                        key={image.id} 
-                        className={`relative cursor-pointer group rounded-lg overflow-hidden transition-all ${
-                          selectedUserImage?.id === image.id
-                            ? 'ring-2 ring-green-500 ring-offset-2'
-                            : 'hover:ring-2 hover:ring-gray-300'
-                        }`}
-                        onClick={() => setSelectedUserImage(selectedUserImage?.id === image.id ? null : image)}
-                      >
-                        <img
-                          src={image.url}
-                          alt={`用户上传 ${index + 1}`}
-                          className="w-full h-32 object-contain"
-                          style={{ objectPosition: 'center top' }}
-                        />
-                        <div className={`absolute top-2 left-2 px-2 py-1 rounded text-xs font-medium ${
-                          selectedUserImage?.id === image.id
-                            ? 'bg-green-600 text-white'
-                            : 'bg-green-600 text-white'
-                        }`}>
-                          {selectedUserImage?.id === image.id ? '✓ 已选择' : `参考图${index + 1}`}
-                        </div>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleRemoveImage(image.id);
-                          }}
-                          className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                        >
-                          <XCircle className="w-4 h-4" />
-                        </button>
+            }`}>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-start">
+                {/* 第一行：上传参考图 与 生成参数 */}
+                <div className={`${template?.showMainVisual !== false ? 'space-y-6' : 'hidden'}`}>
+                  <h2 className={`text-lg font-semibold mb-4 flex items-center gap-2 transition-colors duration-500 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                    <Upload className={`w-5 h-5 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`} />
+                    上传参考图
+                  </h2>
+                  {userImages.length > 0 ? (
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-2 gap-3">
+                        {userImages.map((image, index) => (
+                          <div 
+                            key={image.id} 
+                            className={`relative cursor-pointer group rounded-lg overflow-hidden transition-all ${
+                              selectedUserImage?.id === image.id
+                                ? 'ring-2 ring-green-500 ring-offset-2'
+                                : 'hover:ring-2 hover:ring-gray-300'
+                            }`}
+                            onClick={() => setSelectedUserImage(selectedUserImage?.id === image.id ? null : image)}
+                          >
+                            <img
+                                src={image.url}
+                                alt={`用户上传 ${index + 1}`}
+                                className="w-full h-24 object-contain"
+                                style={{ objectPosition: 'center' }}
+                              />
+                            <div className={`absolute top-1 left-1 px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                              selectedUserImage?.id === image.id ? 'bg-green-600 text-white' : 'bg-green-600 text-white'
+                            }`}>
+                              {selectedUserImage?.id === image.id ? '✓' : `图${index + 1}`}
+                            </div>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handleRemoveImage(image.id); }}
+                              className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                            >
+                              <XCircle className="w-3 h-3" />
+                            </button>
+                          </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
-                  <div className="flex gap-2">
-                    <label className={`flex-1 py-2 border-2 border-dashed rounded-lg text-center cursor-pointer transition-colors ${
-                      darkMode 
-                        ? 'border-gray-700 hover:border-gray-600 text-gray-400' 
-                        : 'border-gray-300 hover:border-gray-400 text-gray-600'
+                      <label className={`block py-2 border-2 border-dashed rounded-lg text-center cursor-pointer transition-colors ${
+                        darkMode ? 'border-gray-700 hover:border-gray-600 text-gray-400' : 'border-gray-300 hover:border-gray-400 text-gray-600'
+                      }`}>
+                        <input type="file" accept="image/*" multiple onChange={handleImageUpload} className="hidden" disabled={uploadingImage} />
+                        <span className="text-xs">{uploadingImage ? '上传中...' : '+ 添加图片'}</span>
+                      </label>
+                    </div>
+                  ) : (
+                    <div className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors ${
+                      darkMode ? 'border-gray-700 hover:border-gray-600' : 'border-gray-300 hover:border-gray-400'
                     }`}>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        multiple
-                        onChange={handleImageUpload}
-                        className="hidden"
-                        disabled={uploadingImage}
-                      />
-                      <span className="text-sm">
-                        {uploadingImage ? '上传中...' : '+ 添加更多图片'}
-                      </span>
-                    </label>
+                      <input type="file" accept="image/*" multiple onChange={handleImageUpload} className="hidden" id="user-image-upload" disabled={uploadingImage} />
+                      <label htmlFor="user-image-upload" className="cursor-pointer">
+                        <Upload className={`w-8 h-8 mx-auto mb-2 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`} />
+                        <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>点击上传参考图片</p>
+                      </label>
+                    </div>
+                  )}
+                </div>
+
+                <div className={`space-y-6 ${template?.showMainVisual === false ? 'md:col-span-2' : ''}`}>
+                  <h2 className={`text-lg font-semibold mb-4 transition-colors duration-500 ${darkMode ? 'text-white' : 'text-gray-900'}`}>生成参数</h2>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className={`block text-xs font-medium mb-1.5 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>输出尺寸</label>
+                      <select value={size} onChange={(e) => setSize(e.target.value)} className={`w-full px-3 py-2 rounded-lg border outline-none text-sm ${darkMode ? 'bg-gray-800 border-gray-700 text-white' : 'bg-white border-gray-200 text-gray-900'}`}>
+                        {SIZE_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className={`block text-xs font-medium mb-1.5 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>质量</label>
+                      <select value={quality} onChange={(e) => setQuality(e.target.value)} className={`w-full px-3 py-2 rounded-lg border outline-none text-sm ${darkMode ? 'bg-gray-800 border-gray-700 text-white' : 'bg-white border-gray-200 text-gray-900'}`}>
+                        {QUALITY_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+                      </select>
+                    </div>
                   </div>
                 </div>
-              ) : (
-                <div className={`border-2 border-dashed rounded-xl p-12 text-center transition-colors ${
-                  darkMode 
-                    ? 'border-gray-700 hover:border-gray-600' 
-                    : 'border-gray-300 hover:border-gray-400'
-                }`}>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    multiple
-                    onChange={handleImageUpload}
-                    className="hidden"
-                    id="user-image-upload"
-                    disabled={uploadingImage}
-                  />
-                  <label htmlFor="user-image-upload" className="cursor-pointer">
-                    {uploadingImage ? (
-                      <>
-                        <Loader2 className={`w-12 h-12 mx-auto mb-4 animate-spin ${darkMode ? 'text-gray-400' : 'text-gray-600'}`} />
-                        <p className={`mb-2 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>上传中...</p>
-                      </>
-                    ) : (
-                      <>
-                        <Upload className={`w-12 h-12 mx-auto mb-4 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`} />
-                        <p className={`mb-2 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>点击上传主视觉图片（可多选）</p>
-                      </>
-                    )}
-                    <p className={`text-sm ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
-                      支持 PNG, JPG, JPEG, WEBP 格式
-                    </p>
-                  </label>
-                </div>
-              )}
-            </div>
 
-            {template?.variables && template.variables.length > 0 && (
+                {/* 第二行：补充提示词 与 颜色配置 */}
+                <div className="pt-6 border-t border-dashed border-gray-200 dark:border-gray-700">
+                  {template?.allowUserPrompt !== false && (
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-6">
+                        <div className="flex items-center gap-2 cursor-pointer group" onClick={() => setEnableUserPrompt(!enableUserPrompt)}>
+                          <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${
+                            enableUserPrompt ? 'border-violet-500 bg-violet-500' : darkMode ? 'border-gray-600 bg-gray-800' : 'border-gray-300 bg-white'
+                          }`}>
+                            {enableUserPrompt && <div className="w-2 h-2 rounded-full bg-white" />}
+                          </div>
+                          <span className="text-sm font-medium">补充提示词</span>
+                        </div>
+                        {enableUserPrompt && (
+                          <div className="flex items-center gap-2 cursor-pointer group" onClick={() => setUserPromptPriority(!userPromptPriority)}>
+                            <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${
+                              userPromptPriority ? 'border-amber-500 bg-amber-500' : darkMode ? 'border-gray-600 bg-gray-800' : 'border-gray-300 bg-white'
+                            }`}>
+                              {userPromptPriority && <div className="w-2 h-2 rounded-full bg-white" />}
+                            </div>
+                            <span className="text-sm font-medium">高权重自定义</span>
+                          </div>
+                        )}
+                      </div>
+                      {enableUserPrompt && (
+                        <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="space-y-4">
+                          <div className="flex flex-col gap-3">
+                            <div className="relative w-full">
+                              {userPrompt && (
+                                <div className={`absolute inset-0 px-4 py-3 rounded-lg border pointer-events-none whitespace-pre-wrap break-words text-sm font-mono overflow-y-auto ${
+                                  darkMode 
+                                    ? 'bg-gray-800 border-gray-700 text-white' 
+                                    : 'bg-white border-gray-200 text-gray-900'
+                                }`}>
+                                  {userPrompt.split(/(指定色\d+)/).map((part, index) => /^指定色\d+$/.test(part) ? <span key={index} className="bg-violet-200 text-violet-900 rounded px-1 font-semibold">{part}</span> : <span key={index}>{part}</span>)}
+                                </div>
+                              )}
+                              <textarea value={userPrompt} onChange={(e) => handleUserPromptChange(e.target.value)} rows={3} className={`w-full px-4 py-3 rounded-lg border transition-colors duration-300 outline-none resize-none text-sm font-mono ${darkMode ? 'bg-transparent border-gray-700 text-white placeholder-gray-500' : 'bg-transparent border-gray-200 text-gray-900 placeholder-gray-400'} ${userPrompt ? 'relative z-10 bg-transparent' : ''}`} placeholder="请输入补充提示词..." style={userPrompt ? { color: 'transparent', caretColor: darkMode ? '#fff' : '#000' } : {}} />
+                            </div>
+                            {template?.enableSpecifiedColors && (
+                              <button type="button" onClick={handleAddNewColorMarker} className={`w-full py-2.5 rounded-lg text-sm font-medium transition-colors ${darkMode ? 'bg-violet-900/50 text-violet-300 hover:bg-violet-900/70 border border-violet-700' : 'bg-violet-100 text-violet-700 hover:bg-violet-200 border border-violet-300'}`}>
+                                指定颜色+
+                              </button>
+                            )}
+                          </div>
+                        </motion.div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                <div className="pt-6 border-t border-dashed border-gray-200 dark:border-gray-700">
+                  {enableUserPrompt && specifiedColors.length > 0 && (
+                    <div className={`p-4 rounded-xl border ${darkMode ? 'bg-gray-800/50 border-gray-700' : 'bg-violet-50/50 border-violet-100'}`}>
+                      <div className="flex items-center justify-between mb-3">
+                        <span className="text-sm font-medium">指定色配置</span>
+                        <span className="text-xs opacity-60">共 {specifiedColors.length} 个</span>
+                      </div>
+                      <div className="space-y-2">
+                        {specifiedColors.map((color, index) => (
+                          <div key={`${color.name}-${index}`} className={`flex items-center gap-3 p-2 rounded-lg ${darkMode ? 'bg-gray-900/50' : 'bg-white shadow-sm'}`}>
+                            <div className="relative flex-shrink-0">
+                              <div className="w-8 h-8 rounded-full border-2 border-gray-200 cursor-pointer shadow-inner" style={{ backgroundColor: color.color }} onClick={() => setSelectedColorIndex(selectedColorIndex === index ? null : index)}>
+                                <input type="color" value={color.color} onChange={(e) => handleColorValueChange(index, e.target.value)} className="absolute inset-0 opacity-0 cursor-pointer w-full h-full" />
+                              </div>
+                              <span className="absolute -top-1 -right-1 w-4 h-4 bg-violet-600 text-white text-[10px] rounded-full flex items-center justify-center font-bold">{color.name.replace('指定色', '')}</span>
+                            </div>
+                            <div className="flex-1 min-w-0 text-sm truncate">{color.label || color.name}</div>
+                            <input type="text" value={selectedColorIndex === index ? editingColorValue : color.color} onChange={(e) => { setEditingColorValue(e.target.value); handleColorValueChange(index, e.target.value); }} onFocus={() => { setSelectedColorIndex(index); setEditingColorValue(color.color); }} onBlur={() => setSelectedColorIndex(null)} className={`px-2 py-1 text-xs border rounded w-20 font-mono ${darkMode ? 'bg-gray-900 border-gray-700' : 'bg-white border-gray-200'}`} placeholder="#888888" />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* 第三行：选择参考图 与 模板信息 (等高) */}
+                <div className="col-span-1 md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-12 items-stretch pt-6 border-t border-dashed border-gray-200 dark:border-gray-700">
+                  {/* 选择参考图 */}
+                  <div className="flex flex-col">
+                    {template?.referenceImages && template.referenceImages.length > 0 && (
+                      <div className={`flex-1 p-4 rounded-xl border transition-colors ${darkMode ? 'bg-gray-800/50 border-gray-700' : 'bg-gray-50 border-gray-100'}`}>
+                        <h2 className={`text-base font-semibold mb-3 flex items-center gap-2 transition-colors duration-500 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                          <ImageIcon className={`w-4 h-4 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`} />
+                          选择参考图
+                        </h2>
+                        <div className="grid grid-cols-2 gap-3">
+                          {template.referenceImages.map((image, index) => (
+                            <div key={image.id} className={`relative cursor-pointer group rounded-lg overflow-hidden transition-all ${selectedPresetImage?.id === image.id ? 'ring-2 ring-violet-500 ring-offset-2' : 'hover:ring-2 hover:ring-gray-300'}`} onClick={() => setSelectedPresetImage(selectedPresetImage?.id === image.id ? null : image)}>
+                              <img src={image.url} alt={`参考图 ${index + 1}`} className="w-full h-24 object-contain" style={{ objectPosition: 'center' }} />
+                              <div className={`absolute top-1 left-1 px-1.5 py-0.5 rounded text-[10px] font-medium ${selectedPresetImage?.id === image.id ? 'bg-violet-600 text-white' : 'bg-gray-800 text-white'}`}>
+                                {selectedPresetImage?.id === image.id ? '✓' : `图${index + 1}`}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 模板信息 */}
+                  <div className="flex flex-col">
+                    {template && (
+                      <div className={`flex-1 p-4 rounded-xl border transition-colors flex flex-col ${darkMode ? 'bg-gray-800/50 border-gray-700' : 'bg-gray-50 border-gray-100'}`}>
+                        <h3 className={`text-base font-semibold mb-3 flex items-center gap-2 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                          <Info className={`w-4 h-4 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`} />
+                          模板信息
+                        </h3>
+                        <div className="grid grid-cols-2 gap-2 mb-4">
+                          {[
+                            { label: '模板名称', value: template.name },
+                            { label: '生成模式', value: template.mode === 'edit' ? '编辑' : '生成' },
+                            { label: '尺寸', value: template.defaultSize },
+                            { label: '质量', value: template.defaultQuality }
+                          ].map((item, idx) => (
+                            <div key={idx} className={`p-2 rounded-lg flex flex-col justify-center ${darkMode ? 'bg-gray-900/50' : 'bg-white shadow-sm border border-gray-100'}`}>
+                              <span className="text-[9px] uppercase tracking-wider font-semibold opacity-50">{item.label}</span>
+                              <span className="text-xs font-medium truncate">{item.value}</span>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="mt-auto">
+                          <button onClick={handleGenerate} disabled={generating || allImages.length === 0} className={`w-full py-3 text-base font-medium rounded-xl flex items-center justify-center gap-2 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg ${darkMode ? 'bg-white text-gray-900 hover:bg-gray-100' : 'bg-gray-900 text-white hover:bg-gray-800'}`}>
+                            {generating ? <><Loader2 className="w-5 h-5 animate-spin" />生成中...</> : <><Sparkles className="w-5 h-5" />开始生成</>}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>{template?.variables && template.variables.length > 0 && (
               <div className={`rounded-2xl shadow-sm border p-6 transition-colors duration-500 ${
                 darkMode 
                   ? 'bg-gray-900 border-gray-800' 
@@ -859,6 +1142,7 @@ export default function GeneratePage() {
                         {variable.label}
                         {variable.required && <span className="text-red-500 ml-1">*</span>}
                       </label>
+                      
                       {variable.type === 'textarea' ? (
                         <textarea
                           value={formData[variable.key] || ''}
@@ -871,9 +1155,104 @@ export default function GeneratePage() {
                           }`}
                           placeholder={variable.placeholder || `请输入${variable.label}`}
                         />
+                      ) : variable.type === 'color' ? (
+                        <div className="flex items-center gap-3">
+                          <div 
+                            className={`w-12 h-12 rounded-lg border-2 cursor-pointer shadow-inner relative overflow-hidden ${
+                              darkMode ? 'border-gray-700' : 'border-gray-200'
+                            }`}
+                            style={{ backgroundColor: formData[variable.key] || '#ffffff' }}
+                          >
+                            <input
+                              type="color"
+                              value={formData[variable.key] || '#ffffff'}
+                              onChange={(e) => handleFormChange(variable.key, e.target.value)}
+                              className="absolute inset-0 opacity-0 cursor-pointer w-full h-full scale-150"
+                            />
+                          </div>
+                          <input
+                            type="text"
+                            value={formData[variable.key] || ''}
+                            onChange={(e) => handleFormChange(variable.key, e.target.value)}
+                            className={`flex-1 px-4 py-3 rounded-lg border transition-colors duration-300 focus:ring-2 focus:ring-gray-500 focus:border-transparent outline-none font-mono ${
+                              darkMode 
+                                ? 'bg-gray-800 border-gray-700 text-white placeholder-gray-500' 
+                                : 'bg-white border-gray-200 text-gray-900 placeholder-gray-400'
+                            }`}
+                            placeholder="#FFFFFF"
+                          />
+                        </div>
+                      ) : variable.type === 'select' ? (
+                        <select
+                          value={formData[variable.key] || ''}
+                          onChange={(e) => handleFormChange(variable.key, e.target.value)}
+                          className={`w-full px-4 py-3 rounded-lg border transition-colors duration-300 focus:ring-2 focus:ring-gray-500 focus:border-transparent outline-none ${
+                            darkMode 
+                              ? 'bg-gray-800 border-gray-700 text-white' 
+                              : 'bg-white border-gray-200 text-gray-900'
+                          }`}
+                        >
+                          <option value="">请选择{variable.label}</option>
+                          {variable.options?.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                      ) : variable.type === 'image' ? (
+                        <div className="space-y-2">
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) => handleVariableImageUpload(variable.key, e)}
+                            className="hidden"
+                            id={`upload-${variable.key}`}
+                          />
+                          {variableImages[variable.key] ? (
+                            <div className="relative group rounded-xl overflow-hidden border border-gray-200 aspect-video bg-gray-50">
+                              <img
+                                src={variableImages[variable.key]?.url}
+                                alt={variable.label}
+                                className="w-full h-full object-contain"
+                              />
+                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                                <label
+                                  htmlFor={`upload-${variable.key}`}
+                                  className="p-2 bg-white text-gray-900 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors"
+                                >
+                                  更换
+                                </label>
+                                <button
+                                  onClick={() => setVariableImages(prev => ({ ...prev, [variable.key]: null }))}
+                                  className="p-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+                                >
+                                  删除
+                                </button>
+                              </div>
+                              <div className="absolute top-2 left-2 px-2 py-1 bg-violet-600 text-white text-[10px] font-bold rounded">
+                                参考图{(template.referenceImages?.length || 0) + (template.variables?.filter(v => v.type === 'image').findIndex(v => v.key === variable.key) || 0) + 1}
+                              </div>
+                            </div>
+                          ) : (
+                            <label
+                              htmlFor={`upload-${variable.key}`}
+                              className={`flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-xl cursor-pointer transition-colors ${
+                                darkMode 
+                                  ? 'border-gray-700 hover:border-violet-500/50 bg-gray-800/50' 
+                                  : 'border-gray-200 hover:border-violet-400 bg-gray-50'
+                              }`}
+                            >
+                              <Upload className="w-6 h-6 text-gray-400 mb-2" />
+                              <span className="text-xs text-gray-500">点击上传{variable.label}</span>
+                              <div className="mt-1 px-2 py-0.5 bg-gray-200 dark:bg-gray-700 rounded text-[10px] text-gray-500">
+                                将自动映射为: 参考图{(template.referenceImages?.length || 0) + (template.variables?.filter(v => v.type === 'image').findIndex(v => v.key === variable.key) || 0) + 1}
+                              </div>
+                            </label>
+                          )}
+                        </div>
                       ) : (
                         <input
-                          type="text"
+                          type={variable.type === 'number' ? 'number' : 'text'}
                           value={formData[variable.key] || ''}
                           onChange={(e) => handleFormChange(variable.key, e.target.value)}
                           className={`w-full px-4 py-3 rounded-lg border transition-colors duration-300 focus:ring-2 focus:ring-gray-500 focus:border-transparent outline-none ${
@@ -889,275 +1268,6 @@ export default function GeneratePage() {
                 </div>
               </div>
             )}
-
-            <div className={`rounded-2xl shadow-sm border p-6 transition-colors duration-500 ${
-              darkMode 
-                ? 'bg-gray-900 border-gray-800' 
-                : 'bg-white border-gray-200'
-            }`}>
-              <h2 className={`text-lg font-semibold mb-4 transition-colors duration-500 ${darkMode ? 'text-white' : 'text-gray-900'}`}>生成参数</h2>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className={`block text-sm font-medium mb-2 transition-colors duration-500 ${
-                    darkMode ? 'text-gray-300' : 'text-gray-700'
-                  }`}>
-                    输出尺寸
-                  </label>
-                  <select
-                    value={size}
-                    onChange={(e) => setSize(e.target.value)}
-                    className={`w-full px-4 py-3 rounded-lg border transition-colors duration-300 focus:ring-2 focus:ring-gray-500 focus:border-transparent outline-none ${
-                      darkMode 
-                        ? 'bg-gray-800 border-gray-700 text-white' 
-                        : 'bg-white border-gray-200 text-gray-900'
-                    }`}
-                  >
-                    {SIZE_OPTIONS.map(option => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className={`block text-sm font-medium mb-2 transition-colors duration-500 ${
-                    darkMode ? 'text-gray-300' : 'text-gray-700'
-                  }`}>
-                    质量
-                  </label>
-                  <select
-                    value={quality}
-                    onChange={(e) => setQuality(e.target.value)}
-                    className={`w-full px-4 py-3 rounded-lg border transition-colors duration-300 focus:ring-2 focus:ring-gray-500 focus:border-transparent outline-none ${
-                      darkMode 
-                        ? 'bg-gray-800 border-gray-700 text-white' 
-                        : 'bg-white border-gray-200 text-gray-900'
-                    }`}
-                  >
-                    {QUALITY_OPTIONS.map(option => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className={`mt-4 pt-4 border-t transition-colors duration-500 ${darkMode ? 'border-gray-800' : 'border-gray-200'}`}>
-                {template?.allowUserPrompt !== false && (
-                  <>
-                    <div className="flex items-center gap-3">
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={enableUserPrompt}
-                          onChange={(e) => setEnableUserPrompt(e.target.checked)}
-                          className={`w-4 h-4 rounded border ${
-                            darkMode 
-                              ? 'bg-gray-800 border-gray-600 text-gray-400 focus:ring-gray-500' 
-                              : 'text-gray-600 border-gray-300 focus:ring-gray-500'
-                          }`}
-                        />
-                        <span className={`text-sm font-medium transition-colors duration-500 ${
-                          darkMode ? 'text-gray-300' : 'text-gray-700'
-                        }`}>补充提示词</span>
-                      </label>
-                    </div>
-                    
-                    {enableUserPrompt && (
-                      <motion.div
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: 'auto' }}
-                        className="mt-4 space-y-3"
-                      >
-                        <div className="flex items-center justify-between">
-                        <div className="relative flex-1">
-                          {userPrompt && (
-                            <div 
-                              className={`absolute inset-0 px-4 py-3 rounded-lg border pointer-events-none whitespace-pre-wrap break-words text-sm font-mono overflow-y-auto ${
-                                darkMode 
-                                  ? 'bg-gray-800 border-gray-700' 
-                                  : 'bg-white border-gray-200'
-                              }`}
-                              style={{ color: 'transparent' }}
-                            >
-                              {userPrompt.split(/(指定色\d+)/).map((part, index) => {
-                                if (/^指定色\d+$/.test(part)) {
-                                  return (
-                                    <span key={index} className="bg-violet-200 text-violet-900 rounded px-1 font-semibold">
-                                      {part}
-                                    </span>
-                                  );
-                                }
-                                return <span key={index}>{part}</span>;
-                              })}
-                            </div>
-                          )}
-                          <textarea
-                            value={userPrompt}
-                            onChange={(e) => handleUserPromptChange(e.target.value)}
-                            rows={4}
-                            className={`w-full px-4 py-3 rounded-lg border transition-colors duration-300 focus:ring-2 focus:ring-gray-500 focus:border-transparent outline-none resize-none text-sm font-mono ${
-                              darkMode 
-                                ? 'bg-transparent border-gray-700 text-white placeholder-gray-500' 
-                                : 'bg-transparent border-gray-200 text-gray-900 placeholder-gray-400'
-                            } ${userPrompt ? 'relative z-10 bg-transparent' : ''}`}
-                            placeholder="请输入补充提示词..."
-                            style={userPrompt ? { 
-                              color: 'transparent', 
-                              caretColor: darkMode ? '#fff' : '#000',
-                              backgroundColor: 'transparent'
-                            } : {}}
-                          />
-                        </div>
-                          {(template?.enableSpecifiedColors) && (
-                            <button
-                              type="button"
-                              onClick={handleAddNewColorMarker}
-                              className={`ml-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
-                                darkMode
-                                  ? 'bg-violet-900/50 text-violet-300 hover:bg-violet-900/70 border border-violet-700'
-                                  : 'bg-violet-100 text-violet-700 hover:bg-violet-200 border border-violet-300'
-                              }`}
-                              title="点击添加指定色标记"
-                            >
-                              指定颜色+
-                            </button>
-                          )}
-                        </div>
-
-                        {specifiedColors.length > 0 && (
-                          <div className={`p-4 rounded-lg border ${
-                            darkMode ? 'bg-gray-800 border-gray-700' : 'bg-violet-50 border-violet-200'
-                          }`}>
-                            <div className="flex items-center justify-between mb-3">
-                              <span className={`text-sm font-medium ${
-                                darkMode ? 'text-gray-300' : 'text-violet-800'
-                              }`}>
-                                指定色配置
-                              </span>
-                              <span className={`text-xs ${
-                                darkMode ? 'text-gray-500' : 'text-violet-600'
-                              }`}>
-                                共 {specifiedColors.length} 个
-                              </span>
-                            </div>
-
-                            <div className="space-y-2">
-                              {specifiedColors.map((color, index) => (
-                                <div 
-                                  key={`${color.name}-${index}`}
-                                  className={`flex items-center gap-3 p-3 rounded-lg ${
-                                    darkMode ? 'bg-gray-900/50' : 'bg-white'
-                                  }`}
-                                >
-                                  <div className="relative flex-shrink-0">
-                                    <div
-                                      className="w-8 h-8 rounded-full border-2 border-gray-300 cursor-pointer shadow-inner transition-transform hover:scale-110"
-                                      style={{ backgroundColor: color.color }}
-                                      title="点击选择颜色"
-                                      onClick={() => setSelectedColorIndex(selectedColorIndex === index ? null : index)}
-                                    >
-                                      <input
-                                        type="color"
-                                        value={color.color}
-                                        onChange={(e) => handleColorValueChange(index, e.target.value)}
-                                        className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-                                      />
-                                    </div>
-                                    <span className="absolute -top-1 -right-1 w-4 h-4 bg-violet-600 text-white text-xs rounded-full flex items-center justify-center text-[10px] font-bold">
-                                      {color.name.replace('指定色', '')}
-                                    </span>
-                                  </div>
-
-                                  <div className="flex-1 min-w-0">
-                                    <span className={`text-sm font-medium ${
-                                      darkMode ? 'text-gray-400' : 'text-gray-700'
-                                    }`}>
-                                      {color.label || color.name}
-                                    </span>
-                                  </div>
-
-                                  <input
-                                    type="text"
-                                    value={selectedColorIndex === index ? editingColorValue : color.color}
-                                    onChange={(e) => {
-                                      setEditingColorValue(e.target.value);
-                                      handleColorValueChange(index, e.target.value);
-                                    }}
-                                    onFocus={() => {
-                                      setSelectedColorIndex(index);
-                                      setEditingColorValue(color.color);
-                                    }}
-                                    onBlur={() => {
-                                      setSelectedColorIndex(null);
-                                    }}
-                                    className={`px-2 py-1 text-xs border rounded w-24 font-mono ${
-                                      darkMode 
-                                        ? 'bg-gray-900 border-gray-700 text-gray-300' 
-                                        : 'bg-white border-gray-300 text-gray-800'
-                                    }`}
-                                    placeholder="#888888"
-                                  />
-                                </div>
-                              ))}
-                            </div>
-
-                            <p className={`text-xs mt-3 ${
-                              darkMode ? 'text-gray-500' : 'text-violet-600'
-                            }`}>
-                              💡 点击颜色圆形或输入十六进制颜色值来修改颜色
-                            </p>
-                          </div>
-                        )}
-                        
-                        <div className={`flex items-center gap-3 p-3 rounded-lg ${
-                          darkMode ? 'bg-amber-900/30' : 'bg-amber-50'
-                        }`}>
-                          <label className="flex items-center gap-2 cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={userPromptPriority}
-                              onChange={(e) => setUserPromptPriority(e.target.checked)}
-                              className="w-4 h-4 rounded border-amber-300 focus:ring-amber-500 text-amber-600"
-                            />
-                            <span className={`text-sm font-medium ${
-                              darkMode ? 'text-amber-400' : 'text-amber-800'
-                            }`}>
-                              重要：开启后补充提示词将放在预设提示词前面
-                            </span>
-                          </label>
-                        </div>
-                      </motion.div>
-                    )}
-                  </>
-                )}
-              </div>
-            </div>
-
-            <button
-              onClick={handleGenerate}
-              disabled={generating || allImages.length === 0}
-              className={`w-full py-4 text-lg font-medium rounded-lg flex items-center justify-center gap-2 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg ${
-                darkMode 
-                  ? 'bg-white text-gray-900 hover:bg-gray-200 shadow-gray-900/20' 
-                  : 'bg-gray-900 text-white hover:bg-gray-800 shadow-gray-200'
-              }`}
-            >
-              {generating ? (
-                <>
-                  <Loader2 className="w-6 h-6 animate-spin" />
-                  生成中...
-                </>
-              ) : (
-                <>
-                  <Sparkles className="w-6 h-6" />
-                  开始生成
-                </>
-              )}
-            </button>
 
             {allImages.length === 0 && (
               <p className={`text-sm text-center -mt-2 ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
@@ -1219,7 +1329,7 @@ export default function GeneratePage() {
                     </button>
                   </div>
 
-                  {(user.role === 'admin' || user.username === 'admin') && result.revisedPrompt && (
+                  {(user.role === 'admin' || user.role === 'sub_admin') && result.revisedPrompt && (
                     <div className={`p-4 rounded-lg border ${
                       darkMode 
                         ? 'bg-gray-800 border-gray-700' 
@@ -1289,45 +1399,8 @@ export default function GeneratePage() {
             )}
 
             {template && !result && (
-              <div className={`rounded-2xl p-6 border transition-colors duration-500 ${
-                darkMode 
-                  ? 'bg-gray-900 border-gray-800' 
-                  : 'bg-gray-50 border-gray-200'
-              }`}>
-                <h3 className={`text-lg font-semibold mb-4 flex items-center gap-2 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                  <Info className={`w-5 h-5 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`} />
-                  模板信息
-                </h3>
-                <div className={`rounded-lg p-4 space-y-3 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
-                  <div>
-                    <span className={`text-sm ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>模板名称：</span>
-                    <span className={`text-sm font-medium ml-2 ${darkMode ? 'text-white' : 'text-gray-900'}`}>{template.name}</span>
-                  </div>
-                  {template.description && (
-                    <div>
-                      <span className={`text-sm ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>模板描述：</span>
-                      <span className={`text-sm ml-2 ${darkMode ? 'text-gray-400' : 'text-gray-700'}`}>{template.description}</span>
-                    </div>
-                  )}
-                  <div>
-                    <span className={`text-sm ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>生成模式：</span>
-                    <span className={`text-sm font-medium ml-2 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                      {template.mode === 'edit' ? '图片编辑' : '图片生成'}
-                    </span>
-                  </div>
-                  <div>
-                    <span className={`text-sm ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>默认尺寸：</span>
-                    <span className={`text-sm font-medium ml-2 ${darkMode ? 'text-white' : 'text-gray-900'}`}>{template.defaultSize}</span>
-                  </div>
-                  <div>
-                    <span className={`text-sm ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>默认质量：</span>
-                    <span className={`text-sm font-medium ml-2 ${darkMode ? 'text-white' : 'text-gray-900'}`}>{template.defaultQuality}</span>
-                  </div>
-                  <div>
-                    <span className={`text-sm ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>预设参考图：</span>
-                    <span className={`text-sm font-medium ml-2 ${darkMode ? 'text-white' : 'text-gray-900'}`}>{template.referenceImages?.length || 0} 张</span>
-                  </div>
-                </div>
+              <div className="hidden">
+                {/* Removed from here and moved up to equal-height grid */}
               </div>
             )}
           </div>

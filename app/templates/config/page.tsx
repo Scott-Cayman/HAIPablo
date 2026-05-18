@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, Reorder, useDragControls } from 'framer-motion';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { UserAvatar } from '@/components/UserAvatar';
 import { 
   ArrowLeft, 
   Plus, 
@@ -18,7 +19,13 @@ import {
   History,
   LogOut,
   Moon,
-  Sun
+  Settings,
+  Type,
+  Palette,
+  Layout,
+  ChevronDown,
+  Trash2,
+  GripVertical
 } from 'lucide-react';
 import { SIZE_OPTIONS, QUALITY_OPTIONS } from '@/lib/types';
 
@@ -37,6 +44,17 @@ interface CoverImage {
 interface CoverMetadata {
   title?: string;
   description?: string;
+}
+
+interface TemplateVariable {
+  id: string;
+  key: string;
+  label: string;
+  type: 'text' | 'textarea' | 'number' | 'color' | 'select' | 'image';
+  placeholder?: string;
+  required?: boolean;
+  defaultValue?: string;
+  options?: Array<{ label: string; value: string }>;
 }
 
 const DEFAULT_PROMPT = '请将参考图1的画面应用到参考图2的模板样式中：\n\n要求：\n1. 保持参考图2的整体结构和布局\n2. 参考图1中的主要视觉元素应该清晰可见\n3. 颜色风格应该与参考图1保持一致\n4. 参考图2中的文字位置和大小保持不变\n5. 整体比例协调，美观大方';
@@ -92,12 +110,50 @@ export default function TemplateConfigPage() {
     allowUserPrompt: true,
     userPromptPriorityDefault: false,
     enableSpecifiedColors: false,
-    specifiedColors: [] as Array<{name: string; color: string; order: number; label?: string}>
+    specifiedColors: [] as Array<{name: string; color: string; order: number; label?: string}>,
+    variables: [] as TemplateVariable[],
+    showMainVisual: true
   });
+
+  const addVariable = () => {
+    const newVar: TemplateVariable = {
+      id: `var_${Date.now()}`,
+      key: `var_${formData.variables.length + 1}`,
+      label: `新字段 ${formData.variables.length + 1}`,
+      type: 'text',
+      placeholder: '请输入...',
+      required: true
+    };
+    setFormData(prev => ({
+      ...prev,
+      variables: [...prev.variables, newVar]
+    }));
+  };
+
+  const removeVariable = (id: string) => {
+    setFormData(prev => ({
+      ...prev,
+      variables: prev.variables.filter(v => v.id !== id)
+    }));
+  };
+
+  const updateVariable = (id: string, updates: Partial<TemplateVariable>) => {
+    setFormData(prev => ({
+      ...prev,
+      variables: prev.variables.map(v => v.id === id ? { ...v, ...updates } : v)
+    }));
+  };
+
+  const handleReorder = (newOrder: TemplateVariable[]) => {
+    setFormData(prev => ({
+      ...prev,
+      variables: newOrder
+    }));
+  };
 
   const [detectedColors, setDetectedColors] = useState<Array<{name: string; color: string; label?: string}>>([]);
 
-  const detectSpecifiedColors = (text: string) => {
+  const detectSpecifiedColors = (text: string, existingColors?: Array<{name: string; color: string; label?: string}>) => {
     const regex = /指定色(\d+)/g;
     const matches = [...text.matchAll(regex)];
     const detected: Array<{name: string; color: string; label?: string}> = [];
@@ -107,7 +163,17 @@ export default function TemplateConfigPage() {
       const name = match[0];
       if (!seen.has(name)) {
         seen.add(name);
-        detected.push({ name, color: '#888888' });
+        
+        // Preserve existing color and label if available
+        const sourceColors = existingColors || formData.specifiedColors;
+        const existingColor = detectedColors.find(c => c.name === name) 
+          || sourceColors.find(c => c.name === name);
+          
+        detected.push({ 
+          name, 
+          color: existingColor ? existingColor.color : '#888888',
+          label: existingColor ? existingColor.label : ''
+        });
       }
     });
 
@@ -137,7 +203,17 @@ export default function TemplateConfigPage() {
   };
 
   const addSpecifiedColor = () => {
-    const nextNum = formData.specifiedColors.length + 1;
+    const maxDetected = detectedColors.reduce((max, c) => {
+      const num = parseInt(c.name.replace('指定色', ''));
+      return num > max ? num : max;
+    }, 0);
+    const maxFormData = formData.specifiedColors.reduce((max, c) => {
+      const num = parseInt(c.name.replace('指定色', ''));
+      return num > max ? num : max;
+    }, 0);
+    
+    const nextNum = Math.max(maxDetected, maxFormData) + 1;
+    
     const newColor = {
       name: `指定色${nextNum}`,
       color: '#888888',
@@ -200,7 +276,9 @@ export default function TemplateConfigPage() {
           allowUserPrompt: data.allowUserPrompt !== false,
           userPromptPriorityDefault: data.userPromptPriorityDefault || false,
           enableSpecifiedColors: data.enableSpecifiedColors || false,
-          specifiedColors: data.specifiedColors || []
+          specifiedColors: data.specifiedColors || [],
+          variables: data.variables || [],
+          showMainVisual: data.showMainVisual !== false
         });
 
         if (data.featureGroupId) {
@@ -223,7 +301,7 @@ export default function TemplateConfigPage() {
         }
 
         if (data.enableSpecifiedColors) {
-          detectSpecifiedColors(data.promptTemplate || DEFAULT_PROMPT);
+          detectSpecifiedColors(data.promptTemplate || DEFAULT_PROMPT, data.specifiedColors);
         }
       } else if (response.status === 404) {
         alert('模板不存在，可能已被删除');
@@ -396,15 +474,21 @@ export default function TemplateConfigPage() {
         allowUserPrompt: formData.allowUserPrompt,
         userPromptPriorityDefault: formData.userPromptPriorityDefault,
         enableSpecifiedColors: formData.enableSpecifiedColors,
-        specifiedColors: formData.enableSpecifiedColors ? [...detectedColors, ...formData.specifiedColors.filter(
+        specifiedColors: formData.enableSpecifiedColors ? [...detectedColors.map(dc => ({
+          ...dc,
+          order: parseInt(dc.name.replace('指定色', '')) || 0
+        })), ...formData.specifiedColors.filter(
           sc => !detectedColors.find(dc => dc.name === sc.name)
-        )] : [],
+        )].sort((a, b) => a.order - b.order) : [],
+        variables: formData.variables,
+        showMainVisual: formData.showMainVisual,
         key: generateKey(formData.name),
         mode: 'edit',
         featureGroupId: featureGroupId,
         referenceImages: referenceImages,
         coverImage: coverImage,
-        coverMetadata: coverMetadata
+        coverMetadata: coverMetadata,
+        requesterId: user?.id
       };
 
       const response = await fetch(url, {
@@ -483,16 +567,10 @@ export default function TemplateConfigPage() {
                   onClick={() => setShowUserMenu(!showUserMenu)}
                   className="flex items-center gap-3 hover:opacity-80 transition-opacity"
                 >
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                    user.role === 'admin' 
-                      ? 'bg-gradient-to-br from-amber-500 to-orange-500' 
-                      : 'bg-gradient-to-br from-violet-600 to-purple-600'
-                  }`}>
-                    <User className="w-5 h-5 text-white" />
-                  </div>
+                  <UserAvatar user={user} size="lg" />
                   <div className="hidden md:block text-left">
                     <p className="text-sm font-medium text-gray-900">{user.name || user.username}</p>
-                    <p className="text-xs text-gray-500">@{user.username}</p>
+                    <p className="text-xs text-gray-500">{user.email || user.username}</p>
                   </div>
                 </button>
 
@@ -507,16 +585,10 @@ export default function TemplateConfigPage() {
                     >
                       <div className="p-4 bg-gradient-to-r from-violet-50 to-purple-50 border-b border-gray-100">
                         <div className="flex items-center gap-3">
-                          <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                            user.role === 'admin' 
-                              ? 'bg-gradient-to-br from-amber-500 to-orange-500' 
-                              : 'bg-gradient-to-br from-violet-600 to-purple-600'
-                          }`}>
-                            <User className="w-5 h-5 text-white" />
-                          </div>
+                          <UserAvatar user={user} size="lg" />
                           <div>
                             <p className="font-semibold text-gray-900">{user.name || user.username}</p>
-                            <p className="text-xs text-gray-500">@{user.username}</p>
+                            <p className="text-xs text-gray-500">{user.email || user.username}</p>
                           </div>
                         </div>
                         {user.role === 'admin' && (
@@ -892,6 +964,16 @@ export default function TemplateConfigPage() {
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
                       type="checkbox"
+                      name="showMainVisual"
+                      checked={formData.showMainVisual}
+                      onChange={handleChange}
+                      className="w-4 h-4 text-violet-600 rounded border-gray-300 focus:ring-violet-500"
+                    />
+                    <span className="text-sm text-gray-700">启用通用参考图上传</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
                       name="enabled"
                       checked={formData.enabled}
                       onChange={handleChange}
@@ -989,6 +1071,145 @@ export default function TemplateConfigPage() {
             transition={{ duration: 0.6, delay: 0.2 }}
             className="space-y-6"
           >
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900">自定义输入字段</h2>
+                  <p className="text-sm text-gray-600">添加让用户填写的表单项，使用 {"{{变量名}}"} 在提示词中引用</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={addVariable}
+                  className="p-2 bg-violet-600 text-white rounded-lg hover:bg-violet-700 transition-colors flex items-center gap-2 text-sm font-medium"
+                >
+                  <Plus className="w-4 h-4" />
+                  添加字段
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                {formData.variables.length === 0 ? (
+                  <div className="text-center py-8 border-2 border-dashed border-gray-100 rounded-xl">
+                    <Layout className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+                    <p className="text-sm text-gray-500">暂无自定义字段，点击右上角添加</p>
+                  </div>
+                ) : (
+                  <Reorder.Group axis="y" values={formData.variables} onReorder={handleReorder} className="space-y-4">
+                    {formData.variables.map((variable, index) => (
+                      <Reorder.Item 
+                        key={variable.id} 
+                        value={variable}
+                        className="p-4 bg-gray-50 rounded-xl border border-gray-200 relative group/var"
+                      >
+                        <div className="flex items-start gap-3">
+                          <div className="mt-8 cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-600 transition-colors">
+                            <GripVertical className="w-5 h-5" />
+                          </div>
+                          
+                          <div className="flex-1">
+                            <div className="flex items-start gap-4 mb-4">
+                              <div className="flex-1 grid grid-cols-2 gap-3">
+                                <div>
+                                  <label className="block text-xs font-medium text-gray-600 mb-1">字段名称 (Label)</label>
+                                  <input
+                                    type="text"
+                                    value={variable.label}
+                                    onChange={(e) => updateVariable(variable.id, { label: e.target.value })}
+                                    className="input-field text-sm bg-white"
+                                    placeholder="例如：喜报金额"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-xs font-medium text-gray-600 mb-1">变量名 (Key)</label>
+                                  <div className="flex items-center gap-1">
+                                    <span className="text-gray-400 font-mono">{"{{"}</span>
+                                    <input
+                                      type="text"
+                                      value={variable.key}
+                                      onChange={(e) => updateVariable(variable.id, { key: e.target.value.replace(/[^a-zA-Z0-9_]/g, '') })}
+                                      className="input-field text-sm bg-white font-mono flex-1"
+                                      placeholder="amount"
+                                    />
+                                    <span className="text-gray-400 font-mono">{"}}"}</span>
+                                  </div>
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => removeVariable(variable.id)}
+                                className="p-2 text-gray-400 hover:text-red-500 transition-colors mt-6"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+
+                            <div className="grid grid-cols-3 gap-3">
+                              <div>
+                                <label className="block text-xs font-medium text-gray-600 mb-1">输入类型</label>
+                                <select
+                                  value={variable.type}
+                                  onChange={(e) => updateVariable(variable.id, { type: e.target.value as any })}
+                                  className="input-field text-sm bg-white"
+                                >
+                                  <option value="text">文本输入 (Text)</option>
+                                  <option value="textarea">多行文本 (Textarea)</option>
+                                  <option value="number">数字输入 (Number)</option>
+                                  <option value="color">颜色选择 (Color)</option>
+                                  <option value="image">图片上传 (Image)</option>
+                                  <option value="select">下拉选择 (Select)</option>
+                                </select>
+                              </div>
+                              <div className="col-span-2">
+                                <label className="block text-xs font-medium text-gray-600 mb-1">占位提示 (Placeholder)</label>
+                                <input
+                                  type="text"
+                                  value={variable.placeholder}
+                                  onChange={(e) => updateVariable(variable.id, { placeholder: e.target.value })}
+                                  className="input-field text-sm bg-white"
+                                  placeholder="请输入内容..."
+                                />
+                              </div>
+                            </div>
+
+                            {variable.type === 'select' && (
+                              <div className="mt-3 p-3 bg-white rounded-lg border border-gray-200">
+                                <label className="block text-xs font-medium text-gray-600 mb-2">选项列表 (格式: 标签:值，每行一个)</label>
+                                <textarea
+                                  value={variable.options?.map(o => `${o.label}:${o.value}`).join('\n') || ''}
+                                  onChange={(e) => {
+                                    const lines = e.target.value.split('\n');
+                                    const options = lines.map(line => {
+                                      const [label, value] = line.split(':');
+                                      return { label: label || '', value: value || label || '' };
+                                    }).filter(o => o.label);
+                                    updateVariable(variable.id, { options });
+                                  }}
+                                  rows={3}
+                                  className="input-field text-sm resize-none"
+                                  placeholder="金:gold&#10;银:silver&#10;铜:bronze"
+                                />
+                              </div>
+                            )}
+
+                            <div className="mt-3 flex items-center gap-4">
+                              <label className="flex items-center gap-2 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={variable.required}
+                                  onChange={(e) => updateVariable(variable.id, { required: e.target.checked })}
+                                  className="w-3.5 h-3.5 text-violet-600 rounded border-gray-300"
+                                />
+                                <span className="text-xs text-gray-600">必填</span>
+                              </label>
+                            </div>
+                          </div>
+                        </div>
+                      </Reorder.Item>
+                    ))}
+                  </Reorder.Group>
+                )}
+              </div>
+            </div>
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
               <h2 className="text-lg font-semibold text-gray-900 mb-4">参考图管理</h2>
               <p className="text-sm text-gray-600 mb-4">

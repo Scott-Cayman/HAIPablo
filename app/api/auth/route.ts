@@ -89,7 +89,8 @@ export async function GET(request: NextRequest) {
       email: updatedUser.email,
       name: updatedUser.name,
       avatar: updatedUser.avatar,
-      role: updatedUser.role
+      role: updatedUser.role,
+      credits: updatedUser.credits
     });
   } catch (error) {
     console.error('登录失败:', error);

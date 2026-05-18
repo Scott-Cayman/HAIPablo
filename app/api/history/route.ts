@@ -5,21 +5,72 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const userId = searchParams.get('userId');
+    const requesterId = searchParams.get('requesterId');
+    const limit = parseInt(searchParams.get('limit') || '50');
+    const offset = parseInt(searchParams.get('offset') || '0');
 
-    if (!userId) {
+    // 如果指定了 userId，直接查询该用户的历史
+    if (userId) {
+      const histories = await prisma.generationHistory.findMany({
+        where: { userId },
+        include: {
+          user: {
+            select: {
+              name: true,
+              username: true,
+              email: true,
+              avatar: true
+            }
+          }
+        },
+        orderBy: { createdAt: 'desc' },
+        take: limit,
+        skip: offset
+      });
+      return NextResponse.json(histories);
+    }
+
+    // 如果没有 userId，检查 requesterId 是否是管理员，如果是则返回所有历史
+    if (requesterId) {
+      const requester = await prisma.user.findUnique({
+        where: { id: requesterId }
+      });
+
+      if (requester && (requester.role === 'admin' || requester.username === 'admin')) {
+        const histories = await prisma.generationHistory.findMany({
+          include: {
+            user: {
+              select: {
+                name: true,
+                username: true,
+                email: true,
+                avatar: true
+              }
+            }
+          },
+          orderBy: { createdAt: 'desc' },
+          take: limit,
+          skip: offset
+        });
+        
+        const total = await prisma.generationHistory.count();
+        
+        return NextResponse.json({
+          items: histories,
+          total
+        });
+      }
+
       return NextResponse.json(
-        { error: '缺少用户ID' },
-        { status: 400 }
+        { error: '权限不足' },
+        { status: 403 }
       );
     }
 
-    const histories = await prisma.generationHistory.findMany({
-      where: { userId },
-      orderBy: { createdAt: 'desc' },
-      take: 50
-    });
-
-    return NextResponse.json(histories);
+    return NextResponse.json(
+      { error: '缺少用户ID或请求者ID' },
+      { status: 400 }
+    );
   } catch (error) {
     console.error('获取历史记录失败:', error);
     return NextResponse.json(
@@ -32,7 +83,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { userId, templateId, templateName, prompt, variables, outputImageUrl, thumbnailUrl } = body;
+    const { userId, templateId, templateName, prompt, variables, configJson, outputImageUrl, thumbnailUrl } = body;
 
     if (!userId || !prompt) {
       return NextResponse.json(
@@ -48,6 +99,7 @@ export async function POST(request: NextRequest) {
         templateName: templateName || '未命名',
         prompt,
         variables: variables ? JSON.stringify(variables) : null,
+        configJson: configJson ? JSON.stringify(configJson) : null,
         outputImageUrl: outputImageUrl || null,
         thumbnailUrl: thumbnailUrl || null,
         status: outputImageUrl ? 'success' : 'failed'
@@ -55,10 +107,13 @@ export async function POST(request: NextRequest) {
     });
 
     return NextResponse.json(history, { status: 201 });
-  } catch (error) {
+  } catch (error: any) {
     console.error('保存历史记录失败:', error);
     return NextResponse.json(
-      { error: '保存历史记录失败' },
+      { 
+        error: '保存历史记录失败',
+        message: '处理请求时遇到问题' 
+      },
       { status: 500 }
     );
   }

@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
+import { UserAvatar } from '@/components/UserAvatar';
 import { 
   ArrowLeft, 
   User, 
@@ -26,7 +27,8 @@ import {
   ChevronDown,
   CheckSquare,
   Square,
-  Search
+  Search,
+  Sparkles
 } from 'lucide-react';
 
 interface UserData {
@@ -64,16 +66,20 @@ export default function AdminUsersPage() {
   const [showBackupModal, setShowBackupModal] = useState(false);
   const [showRestoreModal, setShowRestoreModal] = useState(false);
   const [showCreditsModal, setShowCreditsModal] = useState(false);
+  const [showRoleModal, setShowRoleModal] = useState(false);
   const [editingCreditsUser, setEditingCreditsUser] = useState<UserData | null>(null);
+  const [editingRoleUser, setEditingRoleUser] = useState<UserData | null>(null);
   const [newCredits, setNewCredits] = useState<number>(0);
+  const [newRole, setNewRole] = useState<string>('user');
   const [updatingCredits, setUpdatingCredits] = useState(false);
+  const [updatingRole, setUpdatingRole] = useState(false);
   const [backupLoading, setBackupLoading] = useState(false);
   const [restoreLoading, setRestoreLoading] = useState(false);
   const [backupMessage, setBackupMessage] = useState('');
   const [restoreMessage, setRestoreMessage] = useState('');
   const [restoreSuccess, setRestoreSuccess] = useState<any>(null);
 
-  const [activeTab, setActiveTab] = useState<'users' | 'departments'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'departments' | 'all_records'>('users');
   const [showCreateDeptModal, setShowCreateDeptModal] = useState(false);
   const [showAllocateModal, setShowAllocateModal] = useState(false);
   const [selectedDept, setSelectedDept] = useState<any>(null);
@@ -83,6 +89,12 @@ export default function AdminUsersPage() {
   const [syncingDingTalk, setSyncingDingTalk] = useState(false);
   const [selectedFilterDeptId, setSelectedFilterDeptId] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
+
+  const [allHistories, setAllHistories] = useState<any[]>([]);
+  const [totalHistories, setTotalHistories] = useState(0);
+  const [historyPage, setHistoryPage] = useState(1);
+  const [loadingAllHistories, setLoadingAllHistories] = useState(false);
+  const historyLimit = 50;
 
   const [expandedDepts, setExpandedDepts] = useState<Set<string>>(new Set());
   const [selectedDepts, setSelectedDepts] = useState<Set<string>>(new Set());
@@ -177,6 +189,30 @@ export default function AdminUsersPage() {
       setLoading(false);
     }
   };
+
+  const fetchAllHistories = async (page: number = 1) => {
+    if (!user) return;
+    setLoadingAllHistories(true);
+    try {
+      const offset = (page - 1) * historyLimit;
+      const response = await fetch(`/api/history?requesterId=${user.id}&limit=${historyLimit}&offset=${offset}`);
+      if (response.ok) {
+        const data = await response.json();
+        setAllHistories(data.items);
+        setTotalHistories(data.total);
+      }
+    } catch (error) {
+      console.error('获取全量历史记录失败:', error);
+    } finally {
+      setLoadingAllHistories(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'all_records' && user?.role === 'admin') {
+      fetchAllHistories(historyPage);
+    }
+  }, [activeTab, historyPage]);
 
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -286,6 +322,19 @@ export default function AdminUsersPage() {
     return formatDate(dateString);
   };
 
+  const formatFullTime = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleString('zh-CN', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false
+    });
+  };
+
   const handleBackup = async () => {
     setBackupLoading(true);
     setBackupMessage('');
@@ -379,6 +428,33 @@ export default function AdminUsersPage() {
       alert('更新算力失败');
     } finally {
       setUpdatingCredits(false);
+    }
+  };
+
+  const handleUpdateRole = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingRoleUser) return;
+    
+    setUpdatingRole(true);
+    try {
+      const response = await fetch(`/api/users/${editingRoleUser.id}/role`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role: newRole, requesterId: user.id })
+      });
+      
+      if (response.ok) {
+        setShowRoleModal(false);
+        fetchUsers(user.id);
+      } else {
+        const data = await response.json();
+        alert(data.error || '更新失败');
+      }
+    } catch (error) {
+      console.error('更新角色失败:', error);
+      alert('更新角色失败');
+    } finally {
+      setUpdatingRole(false);
     }
   };
 
@@ -589,12 +665,10 @@ export default function AdminUsersPage() {
                       style={{ marginLeft: `${(level + 1) * 24}px` }}
                     >
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-violet-100 to-purple-100 flex items-center justify-center">
-                          <User className="w-4 h-4 text-violet-600" />
-                        </div>
+                        <UserAvatar user={u} size="sm" />
                         <div>
                           <p className="text-sm font-medium text-gray-900">{u.name || u.username}</p>
-                          <p className="text-xs text-gray-500">@{u.username}</p>
+                          <p className="text-xs text-gray-500">{u.email || u.username}</p>
                         </div>
                       </div>
                       
@@ -698,7 +772,7 @@ export default function AdminUsersPage() {
         )}
       </AnimatePresence>
       <header className="glass sticky top-0 z-50 border-b border-white/20">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center relative">
           <div className="flex items-center gap-4">
             <button 
               onClick={() => router.push('/')}
@@ -706,45 +780,61 @@ export default function AdminUsersPage() {
             >
               <ArrowLeft className="w-5 h-5 text-gray-700" />
             </button>
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">用户管理</h1>
-              <p className="text-sm text-gray-600">管理系统用户账号</p>
+            <div className="hidden md:block">
+              <h1 className="text-xl font-bold text-gray-900">用户管理</h1>
+              <p className="text-xs text-gray-600">管理系统用户账号</p>
             </div>
           </div>
 
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => setShowBackupModal(true)}
-              className="btn-primary flex items-center gap-2 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700"
-            >
-              <Download className="w-5 h-5" />
-              备份
-            </button>
+          {/* Centered Logo - Enlarged by 20% */}
+          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+            <img 
+              src="/img/black.png" 
+              alt="HAIPablo Logo" 
+              className="h-14 object-contain cursor-pointer hover:opacity-80 transition-opacity"
+              onClick={() => router.push('/')}
+            />
+          </div>
 
-            <button
-              onClick={() => setShowRestoreModal(true)}
-              className="btn-primary flex items-center gap-2 bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-700 hover:to-amber-700"
-            >
-              <Upload className="w-5 h-5" />
-              恢复
-            </button>
+          <div className="flex-1 flex items-center justify-end gap-4">
+            {user.role === 'admin' && (
+              <>
+                <button
+                  onClick={() => setShowBackupModal(true)}
+                  className="hidden lg:flex btn-primary items-center gap-2 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700"
+                >
+                  <Download className="w-5 h-5" />
+                  备份
+                </button>
 
-            {activeTab === 'users' ? (
-              <button
-                onClick={() => setShowCreateModal(true)}
-                className="btn-primary flex items-center gap-2"
-              >
-                <Plus className="w-5 h-5" />
-                创建用户
-              </button>
-            ) : (
-              <button
-                onClick={() => setShowCreateDeptModal(true)}
-                className="btn-primary flex items-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
-              >
-                <Plus className="w-5 h-5" />
-                新建组
-              </button>
+                <button
+                  onClick={() => setShowRestoreModal(true)}
+                  className="hidden lg:flex btn-primary items-center gap-2 bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-700 hover:to-amber-700"
+                >
+                  <Upload className="w-5 h-5" />
+                  恢复
+                </button>
+              </>
+            )}
+
+            {user.role === 'admin' && (
+              activeTab === 'users' ? (
+                <button
+                  onClick={() => setShowCreateModal(true)}
+                  className="btn-primary flex items-center gap-2"
+                >
+                  <Plus className="w-5 h-5" />
+                  <span className="hidden sm:inline">创建用户</span>
+                </button>
+              ) : (
+                <button
+                  onClick={() => setShowCreateDeptModal(true)}
+                  className="btn-primary flex items-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
+                >
+                  <Plus className="w-5 h-5" />
+                  <span className="hidden sm:inline">新建组</span>
+                </button>
+              )
             )}
 
             {user && (
@@ -753,12 +843,10 @@ export default function AdminUsersPage() {
                   onClick={() => setShowUserMenu(!showUserMenu)}
                   className="flex items-center gap-3 hover:opacity-80 transition-opacity"
                 >
-                  <div className="w-10 h-10 bg-gradient-to-br from-amber-500 to-orange-500 rounded-full flex items-center justify-center">
-                    <User className="w-5 h-5 text-white" />
-                  </div>
-                  <div className="hidden md:block text-left">
+                  <UserAvatar user={user} size="lg" />
+                  <div className="hidden lg:block text-left">
                     <p className="text-sm font-medium text-gray-900">{user.name || user.username}</p>
-                    <p className="text-xs text-gray-500">@{user.username}</p>
+                    <p className="text-xs text-gray-500">{user.email || user.username}</p>
                   </div>
                 </button>
 
@@ -773,19 +861,29 @@ export default function AdminUsersPage() {
                     >
                       <div className="p-4 bg-gradient-to-r from-amber-50 to-orange-50 border-b border-gray-100">
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-gradient-to-br from-amber-500 to-orange-500 rounded-full flex items-center justify-center">
-                            <User className="w-5 h-5 text-white" />
-                          </div>
+                          <UserAvatar user={user} size="lg" className="bg-white" />
                           <div>
-                            <p className="font-semibold text-gray-900">{user.name || user.username}</p>
-                            <p className="text-xs text-gray-500">@{user.username}</p>
-                          </div>
+                                <p className="font-semibold text-gray-900">{user.name || user.username}</p>
+                                <p className="text-xs text-gray-500">{user.email || user.username}</p>
+                              </div>
                         </div>
-                        <div className="mt-3">
-                          <span className="px-2 py-1 bg-amber-100 text-amber-700 text-xs font-medium rounded-full flex items-center gap-1 w-fit">
-                            <Shield className="w-3 h-3" />
-                            管理员
+                        <div className="mt-3 flex items-center gap-2">
+                          <span className="px-2 py-1 bg-violet-100 text-violet-700 text-xs font-medium rounded-full flex items-center gap-1 w-fit">
+                            <Sparkles className="w-3 h-3" />
+                            潮能力: {user.credits ?? 0}
                           </span>
+                          {user.role === 'admin' && (
+                            <span className="px-2 py-1 bg-amber-100 text-amber-700 text-xs font-medium rounded-full flex items-center gap-1 w-fit">
+                              <Shield className="w-3 h-3" />
+                              管理员
+                            </span>
+                          )}
+                          {user.role === 'sub_admin' && (
+                            <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded-full flex items-center gap-1 w-fit">
+                              <Shield className="w-3 h-3" />
+                              子管理员
+                            </span>
+                          )}
                         </div>
                       </div>
 
@@ -803,7 +901,7 @@ export default function AdminUsersPage() {
                           className="w-full px-4 py-2.5 text-left text-amber-700 bg-amber-50 rounded-lg flex items-center gap-3 mt-1"
                         >
                           <Users className="w-4 h-4" />
-                          用户与部门管理
+                          {user.role === 'admin' ? '用户与部门管理' : '人员列表'}
                         </button>
 
                         <div className="my-2 border-t border-gray-100" />
@@ -856,6 +954,22 @@ export default function AdminUsersPage() {
                 />
               )}
             </button>
+            {user.role === 'admin' && (
+              <button
+                onClick={() => setActiveTab('all_records')}
+                className={`pb-4 text-sm font-medium transition-colors relative ${
+                  activeTab === 'all_records' ? 'text-violet-600' : 'text-gray-500 hover:text-gray-900'
+                }`}
+              >
+                全量记录
+                {activeTab === 'all_records' && (
+                  <motion.div
+                    layoutId="activeTab"
+                    className="absolute bottom-0 left-0 right-0 h-0.5 bg-violet-600"
+                  />
+                )}
+              </button>
+            )}
           </div>
 
           <div className="flex items-center gap-3 pb-2">
@@ -887,7 +1001,7 @@ export default function AdminUsersPage() {
               </>
             )}
 
-            {activeTab === 'departments' && selectedDepts.size > 0 && (
+            {activeTab === 'departments' && selectedDepts.size > 0 && user.role === 'admin' && (
               <button
                 onClick={() => {
                   setAllocateAmount(10);
@@ -900,18 +1014,20 @@ export default function AdminUsersPage() {
               </button>
             )}
             
-            <button
-              onClick={handleSyncDingTalk}
-              disabled={syncingDingTalk}
-              className="btn-primary flex items-center gap-2 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 py-1.5 px-4 text-sm disabled:opacity-50"
-            >
-              {syncingDingTalk ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21v-5h5"/></svg>
-              )}
-              同步
-            </button>
+            {user.role === 'admin' && (
+              <button
+                onClick={handleSyncDingTalk}
+                disabled={syncingDingTalk}
+                className="btn-primary flex items-center gap-2 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 py-1.5 px-4 text-sm disabled:opacity-50"
+              >
+                {syncingDingTalk ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21v-5h5"/></svg>
+                )}
+                同步
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -944,18 +1060,12 @@ export default function AdminUsersPage() {
             >
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center gap-3">
-                  <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
-                    userData.role === 'admin' 
-                      ? 'bg-gradient-to-br from-amber-500 to-orange-500' 
-                      : 'bg-gradient-to-br from-violet-600 to-purple-600'
-                  }`}>
-                    <User className="w-6 h-6 text-white" />
-                  </div>
+                  <UserAvatar user={userData} size="xl" className="bg-gray-50" />
                   <div>
                     <h3 className="font-semibold text-gray-900">
                       {userData.name || userData.username}
                     </h3>
-                    <p className="text-sm text-gray-500">@{userData.username}</p>
+                    <p className="text-sm text-gray-500">{userData.email || userData.username}</p>
                   </div>
                 </div>
                 
@@ -964,6 +1074,10 @@ export default function AdminUsersPage() {
                     <Shield className="w-3 h-3" />
                     管理员
                   </span>
+                ) : userData.role === 'sub_admin' ? (
+                  <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded-full">
+                    子管理员
+                  </span>
                 ) : (
                   <span className="px-2 py-1 bg-violet-100 text-violet-700 text-xs font-medium rounded-full">
                     普通用户
@@ -971,33 +1085,50 @@ export default function AdminUsersPage() {
                 )}
               </div>
 
-              {userData.email && (
-                <p className="text-sm text-gray-600 mb-2">
-                  📧 {userData.email}
-                </p>
-              )}
-
-              {userData.departmentId && (
-                <p className="text-sm text-gray-600 mb-2">
-                  🏢 部门: {departments.find(d => d.id === userData.departmentId)?.name || '未知'}
-                </p>
-              )}
+              <div className="flex items-center justify-between mb-2">
+                <div>
+                  {userData.email && (
+                    <p className="text-sm text-gray-600">
+                      📧 {userData.email}
+                    </p>
+                  )}
+                  {userData.departmentId && (
+                    <p className="text-sm text-gray-600">
+                      🏢 {departments.find(d => d.id === userData.departmentId)?.name || '未知部门'}
+                    </p>
+                  )}
+                </div>
+                {user.role === 'admin' && userData.id !== user.id && (
+                  <button
+                    onClick={() => {
+                      setEditingRoleUser(userData);
+                      setNewRole(userData.role);
+                      setShowRoleModal(true);
+                    }}
+                    className="text-[10px] text-violet-600 hover:text-violet-700 font-medium bg-violet-50 hover:bg-violet-100 px-2 py-1 rounded transition-colors"
+                  >
+                    修改身份
+                  </button>
+                )}
+              </div>
 
               <div className="flex items-center justify-between bg-violet-50 rounded-lg p-3 mb-4">
                 <div className="flex items-center gap-2">
                   <span className="text-xl font-bold text-violet-700">{userData.credits ?? 0}</span>
                   <span className="text-xs text-violet-600 font-medium">潮能力</span>
                 </div>
-                <button
-                  onClick={() => {
-                    setEditingCreditsUser(userData);
-                    setNewCredits(userData.credits ?? 0);
-                    setShowCreditsModal(true);
-                  }}
-                  className="text-xs bg-white text-violet-600 border border-violet-200 hover:bg-violet-100 px-3 py-1.5 rounded-md transition-colors font-medium"
-                >
-                  充值/修改
-                </button>
+                {user.role === 'admin' && (
+                  <button
+                    onClick={() => {
+                      setEditingCreditsUser(userData);
+                      setNewCredits(userData.credits ?? 0);
+                      setShowCreditsModal(true);
+                    }}
+                    className="text-xs bg-white text-violet-600 border border-violet-200 hover:bg-violet-100 px-3 py-1.5 rounded-md transition-colors font-medium"
+                  >
+                    充值/修改
+                  </button>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-4 mb-4">
@@ -1027,7 +1158,7 @@ export default function AdminUsersPage() {
                 </div>
               </div>
 
-              {userData.id !== user.id && userData.role !== 'admin' && (
+              {userData.id !== user.id && user.role === 'admin' && userData.role !== 'admin' && (
                 <button
                   onClick={() => handleDeleteUser(userData.id)}
                   className="w-full py-2 text-red-600 hover:bg-red-50 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
@@ -1039,36 +1170,156 @@ export default function AdminUsersPage() {
             </motion.div>
           ))}
           </div>
-        ) : departments.length > 0 ? (
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-            <div className="mb-6 flex items-center justify-between border-b border-gray-100 pb-4">
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900">部门架构</h3>
-                <p className="text-sm text-gray-500">勾选部门可以批量为部门下的所有人员分配潮能力</p>
+        ) : activeTab === 'departments' ? (
+          departments.length > 0 ? (
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+              <div className="mb-6 flex items-center justify-between border-b border-gray-100 pb-4">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">部门架构</h3>
+                  <p className="text-sm text-gray-500">勾选部门可以批量为部门下的所有人员分配潮能力</p>
+                </div>
+              </div>
+              
+              {/* 树状结构渲染 */}
+              <div className="max-w-3xl">
+                {renderDepartmentTree(null)}
               </div>
             </div>
-            
-            {/* 树状结构渲染 */}
-            <div className="max-w-3xl">
-              {renderDepartmentTree(null)}
+          ) : (
+            <div className="text-center py-16">
+              <div className="w-16 h-16 bg-violet-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <Users className="w-8 h-8 text-violet-500" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">暂无部门 / 组信息</h3>
+              <p className="text-gray-500 mb-6 max-w-md mx-auto">
+                目前系统还没有任何部门数据。你可以手动点击右上角的“新建组”来创建，或者等待用户通过钉钉登录时系统自动同步。
+              </p>
+              <button
+                onClick={() => setShowCreateDeptModal(true)}
+                className="btn-primary inline-flex items-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
+              >
+                <Plus className="w-5 h-5" />
+                新建组
+              </button>
             </div>
-          </div>
+          )
         ) : (
-          <div className="text-center py-16">
-            <div className="w-16 h-16 bg-violet-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-              <Users className="w-8 h-8 text-violet-500" />
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+            <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-white/50 backdrop-blur-sm sticky top-0 z-10">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">全量生成记录</h3>
+                <p className="text-sm text-gray-500">查看系统所有用户的生成历史和请求详情</p>
+              </div>
+              <div className="flex items-center gap-4">
+                <div className="text-sm text-gray-500">
+                  共 <span className="font-bold text-violet-600">{totalHistories}</span> 条记录
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setHistoryPage(p => Math.max(1, p - 1))}
+                    disabled={historyPage === 1 || loadingAllHistories}
+                    className="p-2 hover:bg-gray-100 rounded-lg disabled:opacity-30 transition-colors"
+                  >
+                    <ChevronRight className="w-5 h-5 rotate-180" />
+                  </button>
+                  <span className="text-sm font-medium w-12 text-center">
+                    {historyPage} / {Math.ceil(totalHistories / historyLimit) || 1}
+                  </span>
+                  <button
+                    onClick={() => setHistoryPage(p => p + 1)}
+                    disabled={historyPage >= Math.ceil(totalHistories / historyLimit) || loadingAllHistories}
+                    className="p-2 hover:bg-gray-100 rounded-lg disabled:opacity-30 transition-colors"
+                  >
+                    <ChevronRight className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
             </div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">暂无部门 / 组信息</h3>
-            <p className="text-gray-500 mb-6 max-w-md mx-auto">
-              目前系统还没有任何部门数据。你可以手动点击右上角的“新建组”来创建，或者等待用户通过钉钉登录时系统自动同步。
-            </p>
-            <button
-              onClick={() => setShowCreateDeptModal(true)}
-              className="btn-primary inline-flex items-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
-            >
-              <Plus className="w-5 h-5" />
-              新建组
-            </button>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-gray-50/50">
+                    <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">时间 / 用户</th>
+                    <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">模版 / 状态</th>
+                    <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">提示词 (Prompt)</th>
+                    <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider text-right">生成结果</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {loadingAllHistories ? (
+                    <tr>
+                      <td colSpan={4} className="px-6 py-12 text-center">
+                        <Loader2 className="w-8 h-8 animate-spin text-violet-600 mx-auto mb-2" />
+                        <p className="text-sm text-gray-500">正在加载记录...</p>
+                      </td>
+                    </tr>
+                  ) : allHistories.length === 0 ? (
+                    <tr>
+                      <td colSpan={4} className="px-6 py-12 text-center">
+                        <History className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+                        <p className="text-sm text-gray-500">暂无生成记录</p>
+                      </td>
+                    </tr>
+                  ) : (
+                    allHistories.map((item) => (
+                      <tr key={item.id} className="hover:bg-gray-50/50 transition-colors">
+                        <td className="px-6 py-4">
+                          <div className="flex flex-col gap-2">
+                            <span className="text-xs text-gray-400 font-mono">
+                              {formatFullTime(item.createdAt)}
+                            </span>
+                            <div className="flex items-center gap-2">
+                              <UserAvatar user={item.user} size="sm" />
+                              <div className="flex flex-col">
+                                <span className="text-sm font-medium text-gray-900">{item.user?.name || item.user?.username}</span>
+                                <span className="text-[10px] text-gray-400">{item.user?.email || '无邮箱'}</span>
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex flex-col gap-1.5">
+                            <span className="px-2 py-0.5 bg-violet-50 text-violet-600 text-[10px] rounded-full font-medium border border-violet-100 w-fit">
+                              {item.templateName || '未命名模版'}
+                            </span>
+                            <span className={`px-2 py-0.5 text-[10px] rounded-full font-medium border w-fit ${
+                              item.status === 'success' 
+                                ? 'bg-green-50 text-green-600 border-green-100' 
+                                : 'bg-red-50 text-red-600 border-red-100'
+                            }`}>
+                              {item.status === 'success' ? '生成成功' : '生成失败'}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <p className="text-sm text-gray-600 line-clamp-2 max-w-md" title={item.prompt}>
+                            {item.prompt}
+                          </p>
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          {item.thumbnailUrl || item.outputImageUrl ? (
+                            <div className="inline-block relative group">
+                              <img 
+                                src={item.thumbnailUrl || item.outputImageUrl} 
+                                alt="生成结果" 
+                                className="w-12 h-12 rounded-lg object-cover border border-gray-100 shadow-sm group-hover:shadow-md transition-shadow cursor-pointer"
+                                onClick={() => window.open(item.outputImageUrl, '_blank')}
+                              />
+                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center pointer-events-none">
+                                <ImageIcon className="w-4 h-4 text-white" />
+                              </div>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-gray-400">无图片</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </div>
@@ -1165,7 +1416,8 @@ export default function AdminUsersPage() {
                     className="input-field"
                   >
                     <option value="user">普通用户</option>
-                    <option value="admin">管理员</option>
+                    <option value="sub_admin">子管理员</option>
+                    <option value="admin">系统管理员</option>
                   </select>
                 </div>
 
@@ -1290,6 +1542,79 @@ export default function AdminUsersPage() {
                     </>
                   ) : (
                     '保存修改'
+                  )}
+                </button>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showRoleModal && editingRoleUser && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+            onClick={() => setShowRoleModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6"
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-bold text-gray-900">修改用户身份</h2>
+                <button
+                  onClick={() => setShowRoleModal(false)}
+                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  <X className="w-5 h-5 text-gray-500" />
+                </button>
+              </div>
+
+              <p className="text-sm text-gray-600 mb-6">
+                正在为用户 <span className="font-semibold text-gray-900">{editingRoleUser.name || editingRoleUser.username}</span> 修改身份权限。
+              </p>
+
+              <form onSubmit={handleUpdateRole} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    选择新身份
+                  </label>
+                  <select
+                    value={newRole}
+                    onChange={(e) => setNewRole(e.target.value)}
+                    className="input-field"
+                    required
+                  >
+                    <option value="user">普通用户</option>
+                    <option value="sub_admin">子管理员 (可管理模板)</option>
+                    <option value="admin">系统管理员 (全权限)</option>
+                  </select>
+                </div>
+
+                <div className="bg-amber-50 p-3 rounded-lg border border-amber-100">
+                  <p className="text-xs text-amber-700 leading-relaxed">
+                    💡 提示：管理员拥有最高权限，子管理员仅拥有模板和功能管理权限。请谨慎分配高权限角色。
+                  </p>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={updatingRole}
+                  className="w-full btn-primary py-2.5 flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  {updatingRole ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      保存中...
+                    </>
+                  ) : (
+                    '确认修改'
                   )}
                 </button>
               </form>
@@ -1496,24 +1821,38 @@ export default function AdminUsersPage() {
                             </div>
                           )}
                           <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-2">
+                            <div className="flex items-center justify-between gap-2 mb-2">
                               <h3 className="font-semibold text-gray-900 truncate">
                                 {history.templateName}
                               </h3>
-                              <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
-                                history.status === 'success'
-                                  ? 'bg-green-100 text-green-700'
-                                  : 'bg-red-100 text-red-700'
-                              }`}>
-                                {history.status === 'success' ? '成功' : '失败'}
-                              </span>
+                              <div className="flex items-center gap-2 flex-shrink-0">
+                                <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full ${
+                                  history.creditsUsed > 0 
+                                    ? 'bg-violet-100 text-violet-700' 
+                                    : 'bg-gray-100 text-gray-500'
+                                }`}>
+                                  消耗 {history.creditsUsed ?? (history.status === 'success' ? 1 : 0)} 潮能力
+                                </span>
+                                <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full ${
+                                  history.status === 'success'
+                                    ? 'bg-green-100 text-green-700'
+                                    : 'bg-red-100 text-red-700'
+                                }`}>
+                                  {history.status === 'success' ? '成功' : '失败'}
+                                </span>
+                              </div>
                             </div>
                             <p className="text-sm text-gray-600 line-clamp-2 mb-2">
                               {history.prompt}
                             </p>
-                            <p className="text-xs text-gray-400">
-                              {formatRelativeTime(history.createdAt)}
-                            </p>
+                            <div className="flex items-center justify-between">
+                              <p className="text-xs text-gray-400">
+                                {formatRelativeTime(history.createdAt)}
+                              </p>
+                              <p className="text-[10px] text-gray-300">
+                                {formatFullTime(history.createdAt)}
+                              </p>
+                            </div>
                           </div>
                         </div>
                       </div>
