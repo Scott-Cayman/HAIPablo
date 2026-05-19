@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import { UserAvatar } from '@/components/UserAvatar';
+import { AuthModal } from '@/components/AuthModal';
 import { 
   Sparkles, 
   Image, 
@@ -104,6 +105,7 @@ export default function HomePage() {
   });
   const [loading, setLoading] = useState(true);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -187,10 +189,18 @@ export default function HomePage() {
 };
 
   const handleViewTemplates = () => {
+    if (!user) {
+      setShowAuthModal(true);
+      return;
+    }
     router.push('/templates');
   };
 
   const handleFeatureClick = (path: string) => {
+    if (!user) {
+      setShowAuthModal(true);
+      return;
+    }
     router.push(path);
   };
 
@@ -204,6 +214,10 @@ export default function HomePage() {
   };
 
   const handleHistory = () => {
+    if (!user) {
+      setShowAuthModal(true);
+      return;
+    }
     router.push('/history');
   };
 
@@ -576,7 +590,10 @@ export default function HomePage() {
                 <span className="w-1 h-4 bg-indigo-500 rounded-full" />
                 常用模板
               </h3>
-              <button className="text-xs text-gray-400 hover:text-indigo-500 transition-colors flex items-center gap-0.5">
+              <button 
+                onClick={handleViewTemplates}
+                className="text-xs text-gray-400 hover:text-indigo-500 transition-colors flex items-center gap-0.5"
+              >
                 更多模板 <ChevronRight className="w-3 h-3" />
               </button>
             </div>
@@ -597,7 +614,9 @@ export default function HomePage() {
                   <p className="text-[10px] font-medium text-center text-gray-500 truncate">{item.name}</p>
                 </div>
               ))}
-              <div className={`aspect-[3/4.5] rounded-xl border border-dashed flex flex-col items-center justify-center gap-2 cursor-pointer transition-all duration-300 ${
+              <div 
+                onClick={handleViewTemplates}
+                className={`aspect-[3/4.5] rounded-xl border border-dashed flex flex-col items-center justify-center gap-2 cursor-pointer transition-all duration-300 ${
                 darkMode ? 'border-gray-800 hover:border-gray-700 hover:bg-gray-800/30' : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
               }`}>
                 <Plus className="w-5 h-5 text-gray-400" />
@@ -613,7 +632,10 @@ export default function HomePage() {
                 <span className="w-1 h-4 bg-blue-500 rounded-full" />
                 最近使用
               </h3>
-              <button className="text-xs text-gray-400 hover:text-blue-500 transition-colors flex items-center gap-0.5">
+              <button 
+                onClick={handleHistory}
+                className="text-xs text-gray-400 hover:text-blue-500 transition-colors flex items-center gap-0.5"
+              >
                 全部记录 <ChevronRight className="w-3 h-3" />
               </button>
             </div>
@@ -693,6 +715,12 @@ export default function HomePage() {
           </p>
         </div>
       </footer>
+
+      <AuthModal 
+        isOpen={showAuthModal} 
+        onClose={() => setShowAuthModal(false)} 
+        darkMode={darkMode} 
+      />
     </div>
   );
 }

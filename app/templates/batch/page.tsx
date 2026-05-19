@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { 
-  ArrowLeft, 
+import { UserAvatar } from '@/components/UserAvatar';
+import {
+  ArrowLeft,
   Upload,
   Sparkles,
   Loader2,
@@ -12,13 +13,19 @@ import {
   XCircle,
   Download,
   Image as ImageIcon,
-  RotateCcw,
   Info,
   Eye,
   X,
   Layers,
   Archive,
-  RefreshCw
+  RefreshCw,
+  Palette,
+  SlidersHorizontal,
+  Moon,
+  Sun,
+  Shield,
+  History,
+  LogOut
 } from 'lucide-react';
 import { SIZE_OPTIONS, QUALITY_OPTIONS } from '@/lib/types';
 
@@ -26,6 +33,23 @@ interface ReferenceImage {
   id: string;
   url: string;
   name: string;
+}
+
+interface TemplateVariable {
+  key: string;
+  label: string;
+  type: 'text' | 'textarea' | 'number' | 'color' | 'select' | 'image';
+  required?: boolean;
+  placeholder?: string;
+  options?: Array<{ label: string; value: string }>;
+}
+
+interface SpecifiedColor {
+  name: string;
+  color: string;
+  order: number;
+  label?: string;
+  text?: string;
 }
 
 interface Template {
@@ -38,15 +62,11 @@ interface Template {
   defaultQuality: string;
   mode: 'generation' | 'edit';
   referenceImages: ReferenceImage[];
-  variables: Array<{
-    key: string;
-    label: string;
-    type: string;
-    required?: boolean;
-    placeholder?: string;
-  }>;
+  variables: TemplateVariable[];
   allowUserPrompt?: boolean;
   userPromptPriorityDefault?: boolean;
+  enableSpecifiedColors?: boolean;
+  specifiedColors?: Array<{ name: string; color: string; order: number; label?: string }>;
 }
 
 interface TemplateCardState {
@@ -55,10 +75,55 @@ interface TemplateCardState {
   enableUserPrompt: boolean;
   userPromptPriority: boolean;
   userPrompt: string;
+  specifiedColors: SpecifiedColor[];
   result: any;
   generating: boolean;
   error: string;
   generationStatus: string;
+}
+
+const HEX_COLOR_REGEX = /^#[0-9A-Fa-f]{6}$/;
+
+function extractSpecifiedColorNames(text: string) {
+  const matches = [...text.matchAll(/指定色(\d+)/g)];
+  return Array.from(new Set(matches.map((match) => match[0])));
+}
+
+function buildSpecifiedColors(
+  template: Template,
+  userPrompt = '',
+  existingColors: SpecifiedColor[] = []
+): SpecifiedColor[] {
+  if (!template.enableSpecifiedColors) return [];
+
+  const templateColorNames = (template.specifiedColors || []).map((color) => color.name);
+  const detectedColorNames = extractSpecifiedColorNames(`${template.promptTemplate || ''}\n${userPrompt}`);
+  const allColorNames = Array.from(new Set([...templateColorNames, ...detectedColorNames]));
+
+  return allColorNames
+    .map((name) => {
+      const templateColor = template.specifiedColors?.find((color) => color.name === name);
+      const existingColor = existingColors.find((color) => color.name === name);
+      const safeColor =
+        existingColor?.color && HEX_COLOR_REGEX.test(existingColor.color)
+          ? existingColor.color
+          : templateColor?.color && HEX_COLOR_REGEX.test(templateColor.color)
+            ? templateColor.color
+            : '#888888';
+
+      return {
+        name,
+        color: safeColor,
+        text: existingColor?.text || safeColor,
+        order: parseInt(name.replace('指定色', ''), 10) || templateColor?.order || 0,
+        label: existingColor?.label ?? templateColor?.label ?? ''
+      };
+    })
+    .sort((a, b) => a.order - b.order);
+}
+
+function toSerializableSpecifiedColors(colors: SpecifiedColor[]) {
+  return colors.map(({ name, color, order, label }) => ({ name, color, order, label }));
 }
 
 export default function BatchGeneratePage() {
@@ -66,39 +131,42 @@ export default function BatchGeneratePage() {
   const searchParams = useSearchParams();
   const templateIdsParam = searchParams.get('templateIds');
   const templateIds = templateIdsParam ? JSON.parse(decodeURIComponent(templateIdsParam)) : [];
-  const [user, setUser] = useState<any>(null);
 
-  const [templates, setTemplates] = useState<Template[]>([]);
+  const [user, setUser] = useState<any>(null);
+  const [darkMode, setDarkMode] = useState(false);
+  const [showUserMenu, setShowUserMenu] = useState(false);
   const [loading, setLoading] = useState(true);
   const [kvImage, setKvImage] = useState<{ id: string; url: string; name: string } | null>(null);
   const [uploadingKv, setUploadingKv] = useState(false);
   const [cards, setCards] = useState<TemplateCardState[]>([]);
   const [size, setSize] = useState('auto');
   const [quality, setQuality] = useState('medium');
-  const [allGenerated, setAllGenerated] = useState(false);
   const [batchGenerating, setBatchGenerating] = useState(false);
   const [batchProgress, setBatchProgress] = useState({ current: 0, total: 0 });
   const [previewImage, setPreviewImage] = useState<string | null>(null);
-  
-  // 预览图片缩放和拖拽状态
   const [zoomScale, setZoomScale] = useState(1);
   const [zoomPosition, setZoomPosition] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
-
   const [showInsufficientCredits, setShowInsufficientCredits] = useState(false);
   const hasFetched = useRef(false);
 
   useEffect(() => {
+    const savedDarkMode = localStorage.getItem('darkMode');
+    if (savedDarkMode === 'true') {
+      setDarkMode(true);
+      document.documentElement.classList.add('dark');
+    }
+
     const userData = localStorage.getItem('user');
     if (userData) {
       const parsedUser = JSON.parse(userData);
       setUser(parsedUser);
-      // Fetch latest user data for credits
+
       fetch(`/api/users?requesterId=${parsedUser.id}`)
-        .then(res => res.json())
-        .then(users => {
+        .then((res) => res.json())
+        .then((users) => {
           if (Array.isArray(users)) {
-            const me = users.find((u: any) => u.id === parsedUser.id);
+            const me = users.find((item: any) => item.id === parsedUser.id);
             if (me) {
               const updatedUser = { ...parsedUser, credits: me.credits };
               setUser(updatedUser);
@@ -107,12 +175,24 @@ export default function BatchGeneratePage() {
           }
         })
         .catch(console.error);
+    } else {
+      router.push('/auth');
     }
-    
+
     if (templateIds.length > 0 && !hasFetched.current) {
       hasFetched.current = true;
       fetchTemplates();
     }
+
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('.user-menu-container')) {
+        setShowUserMenu(false);
+      }
+    };
+
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
   }, []);
 
   useEffect(() => {
@@ -125,33 +205,62 @@ export default function BatchGeneratePage() {
   const fetchTemplates = async () => {
     setLoading(true);
     try {
-      const promises = templateIds.map((id: string) => 
-        fetch(`/api/templates/${id}`).then(res => res.json())
-      );
+      const promises = templateIds.map((id: string) => fetch(`/api/templates/${id}`).then((res) => res.json()));
       const results = await Promise.all(promises);
-      const validResults = results.filter(r => r && r.id);
-      setTemplates(validResults);
+      const validResults = results.filter((result) => result && result.id);
 
       const initialCards: TemplateCardState[] = validResults.map((template: Template) => ({
         template,
-        formData: template.variables?.reduce((acc: Record<string, string>, v: any) => {
-          acc[v.key] = '';
-          return acc;
-        }, {}) || {},
+        formData:
+          template.variables?.reduce((acc: Record<string, string>, variable) => {
+            acc[variable.key] = '';
+            return acc;
+          }, {}) || {},
         enableUserPrompt: template.allowUserPrompt !== false,
         userPromptPriority: template.userPromptPriorityDefault || false,
         userPrompt: '',
+        specifiedColors: buildSpecifiedColors(template, '', []),
         result: null,
         generating: false,
         error: '',
         generationStatus: ''
       }));
+
       setCards(initialCards);
     } catch (error) {
       console.error('获取模板失败:', error);
     } finally {
       setLoading(false);
     }
+  };
+
+  const toggleDarkMode = () => {
+    setDarkMode(!darkMode);
+    localStorage.setItem('darkMode', (!darkMode).toString());
+    document.documentElement.classList.toggle('dark');
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('user');
+    router.push('/auth');
+  };
+
+  const refreshCredits = () => {
+    if (!user) return;
+
+    fetch(`/api/users?requesterId=${user.id}`)
+      .then((res) => res.json())
+      .then((users) => {
+        if (Array.isArray(users)) {
+          const me = users.find((item: any) => item.id === user.id);
+          if (me) {
+            const updatedUser = { ...user, credits: me.credits };
+            setUser(updatedUser);
+            localStorage.setItem('user', JSON.stringify(updatedUser));
+          }
+        }
+      })
+      .catch(console.error);
   };
 
   const handleKvImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -188,100 +297,236 @@ export default function BatchGeneratePage() {
     setKvImage(null);
   };
 
-  const handleCardFormChange = (index: number, key: string, value: string) => {
-    setCards(prev => prev.map((card, i) => 
-      i === index ? { ...card, formData: { ...card.formData, [key]: value } } : card
-    ));
+  const handleCardFormChange = (cardIndex: number, key: string, value: string) => {
+    setCards((prev) =>
+      prev.map((card, index) =>
+        index === cardIndex ? { ...card, formData: { ...card.formData, [key]: value } } : card
+      )
+    );
+  };
+
+  const handleUserPromptToggle = (cardIndex: number, checked: boolean) => {
+    setCards((prev) =>
+      prev.map((card, index) => (index === cardIndex ? { ...card, enableUserPrompt: checked } : card))
+    );
+  };
+
+  const handleUserPromptPriorityToggle = (cardIndex: number) => {
+    setCards((prev) =>
+      prev.map((card, index) =>
+        index === cardIndex ? { ...card, userPromptPriority: !card.userPromptPriority } : card
+      )
+    );
+  };
+
+  const handleUserPromptChange = (cardIndex: number, value: string) => {
+    setCards((prev) =>
+      prev.map((card, index) => {
+        if (index !== cardIndex) return card;
+
+        return {
+          ...card,
+          userPrompt: value,
+          specifiedColors: buildSpecifiedColors(card.template, value, card.specifiedColors)
+        };
+      })
+    );
+  };
+
+  const handleSpecifiedColorPickerChange = (cardIndex: number, colorName: string, value: string) => {
+    setCards((prev) =>
+      prev.map((card, index) => {
+        if (index !== cardIndex) return card;
+
+        return {
+          ...card,
+          specifiedColors: card.specifiedColors.map((color) =>
+            color.name === colorName ? { ...color, color: value, text: value } : color
+          )
+        };
+      })
+    );
+  };
+
+  const handleSpecifiedColorTextChange = (cardIndex: number, colorName: string, value: string) => {
+    setCards((prev) =>
+      prev.map((card, index) => {
+        if (index !== cardIndex) return card;
+
+        return {
+          ...card,
+          specifiedColors: card.specifiedColors.map((color) => {
+            if (color.name !== colorName) return color;
+            return {
+              ...color,
+              text: value,
+              color: HEX_COLOR_REGEX.test(value) ? value : color.color
+            };
+          })
+        };
+      })
+    );
+  };
+
+  const handleSpecifiedColorTextBlur = (cardIndex: number, colorName: string) => {
+    setCards((prev) =>
+      prev.map((card, index) => {
+        if (index !== cardIndex) return card;
+
+        return {
+          ...card,
+          specifiedColors: card.specifiedColors.map((color) => {
+            if (color.name !== colorName) return color;
+            return {
+              ...color,
+              text: HEX_COLOR_REGEX.test(color.text || '') ? color.text : color.color
+            };
+          })
+        };
+      })
+    );
   };
 
   const getRenderedPrompt = (card: TemplateCardState) => {
     if (!card.template.promptTemplate) return '';
-    
+
     let prompt = card.template.promptTemplate;
+
     for (const [key, value] of Object.entries(card.formData)) {
-      if (value) {
-        const regex = new RegExp(`{{${key}}}`, 'g');
-        prompt = prompt.replace(regex, value);
-      }
+      const regex = new RegExp(`{{${key}}}`, 'g');
+      prompt = prompt.replace(regex, value || '');
     }
-    
+
     if (card.enableUserPrompt && card.userPrompt.trim()) {
-      if (card.userPromptPriority) {
-        prompt = card.userPrompt.trim() + '\n\n' + prompt;
-      } else {
-        prompt = prompt + '\n\n' + card.userPrompt.trim();
-      }
+      prompt = card.userPromptPriority
+        ? `${card.userPrompt.trim()}\n\n${prompt}`
+        : `${prompt}\n\n${card.userPrompt.trim()}`;
     }
-    
+
+    card.specifiedColors.forEach((color) => {
+      const regex = new RegExp(color.name, 'g');
+      prompt = prompt.replace(regex, color.color);
+    });
+
     return prompt;
   };
 
-  const handleGenerateSingle = async (index: number) => {
-    const card = cards[index];
+  const generateCard = async (card: TemplateCardState) => {
+    const renderedPrompt = getRenderedPrompt(card);
+
+    const requestData = {
+      userId: user?.id,
+      templateId: card.template.id,
+      templateName: card.template.name,
+      mode: card.template.mode || 'generation',
+      promptTemplate: renderedPrompt,
+      negativePrompt: card.template.negativePrompt,
+      variables: card.formData,
+      size,
+      quality,
+      referenceImages: card.template.referenceImages?.map((img) => img.url) || [],
+      images: kvImage ? [kvImage.url] : [],
+      userPrompt: card.enableUserPrompt ? card.userPrompt : null,
+      userPromptPriority: card.userPromptPriority,
+      config: {
+        formData: card.formData,
+        userPrompt: card.userPrompt,
+        enableUserPrompt: card.enableUserPrompt,
+        userPromptPriority: card.userPromptPriority,
+        size,
+        quality,
+        specifiedColors: toSerializableSpecifiedColors(card.specifiedColors)
+      }
+    };
+
+    console.log('=== 批量发送生成请求 ===');
+    console.log('请求数据:', JSON.stringify(requestData, null, 2));
+
+    const response = await fetch('/api/image/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(requestData)
+    });
+
+    return {
+      response,
+      data: await response.json()
+    };
+  };
+
+  const handleGenerateSingle = async (cardIndex: number) => {
+    const card = cards[cardIndex];
+    if (!card) return;
 
     if (!kvImage) {
-      setCards(prev => prev.map((c, i) => 
-        i === index ? { ...c, error: '请上传主视觉图片' } : c
-      ));
+      setCards((prev) =>
+        prev.map((item, index) => (index === cardIndex ? { ...item, error: '请先上传主视觉图片' } : item))
+      );
       return;
     }
 
     const renderedPrompt = getRenderedPrompt(card);
-    if (!renderedPrompt || !renderedPrompt.trim()) {
-      setCards(prev => prev.map((c, i) => 
-        i === index ? { ...c, error: '模板缺少提示词，请联系管理员检查模板配置' } : c
-      ));
+    if (!renderedPrompt.trim()) {
+      setCards((prev) =>
+        prev.map((item, index) =>
+          index === cardIndex ? { ...item, error: '模板缺少提示词，请联系管理员检查模板配置' } : item
+        )
+      );
       return;
     }
 
-    setCards(prev => prev.map((c, i) => 
-      i === index ? { ...c, generating: true, error: '', result: null, generationStatus: '正在生成...' } : c
-    ));
+    setCards((prev) =>
+      prev.map((item, index) =>
+        index === cardIndex
+          ? {
+              ...item,
+              generating: true,
+              error: '',
+              result: null,
+              generationStatus: '正在生成中...'
+            }
+          : item
+      )
+    );
 
     try {
-      const requestData = {
-        userId: user?.id,
-        templateId: card.template.id,
-        templateName: card.template.name,
-        mode: card.template.mode || 'generation',
-        promptTemplate: renderedPrompt,
-        negativePrompt: card.template.negativePrompt,
-        variables: card.formData,
-        size,
-        quality,
-        referenceImages: card.template.referenceImages ? card.template.referenceImages.map((img: any) => img.url) : [],
-        images: [kvImage.url],
-        userPrompt: card.enableUserPrompt ? card.userPrompt : null,
-        userPromptPriority: card.userPromptPriority
-      };
-
-      console.log('=== 批量发送生成请求 ===');
-      console.log('请求数据:', JSON.stringify(requestData, null, 2));
-
-      const response = await fetch('/api/image/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestData)
-      });
-
-      const data = await response.json();
+      const { response, data } = await generateCard(card);
 
       if (response.ok && data.success) {
-        setCards(prev => prev.map((c, i) => 
-          i === index ? { ...c, generating: false, generationStatus: '', result: data } : c
-        ));
+        setCards((prev) =>
+          prev.map((item, index) =>
+            index === cardIndex ? { ...item, generating: false, generationStatus: '', result: data } : item
+          )
+        );
+        refreshCredits();
       } else {
-        setCards(prev => prev.map((c, i) => 
-          i === index ? { ...c, generating: false, generationStatus: '', error: data.message || data.error || '生成失败' } : c
-        ));
+        setCards((prev) =>
+          prev.map((item, index) =>
+            index === cardIndex
+              ? {
+                  ...item,
+                  generating: false,
+                  generationStatus: '',
+                  error: data.message || data.error || '生成失败'
+                }
+              : item
+          )
+        );
       }
-
-      checkAllGenerated();
     } catch (error: any) {
       console.error('生成失败:', error);
-      setCards(prev => prev.map((c, i) => 
-        i === index ? { ...c, generating: false, generationStatus: '', error: '网络错误：' + (error.message || '请检查网络连接') } : c
-      ));
+      setCards((prev) =>
+        prev.map((item, index) =>
+          index === cardIndex
+            ? {
+                ...item,
+                generating: false,
+                generationStatus: '',
+                error: `网络错误：${error.message || '请检查网络连接'}`
+              }
+            : item
+        )
+      );
     }
   };
 
@@ -299,100 +544,97 @@ export default function BatchGeneratePage() {
     setBatchGenerating(true);
     setBatchProgress({ current: 0, total: cards.length });
 
-    const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+    const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-    const generateWithDelay = async (index: number) => {
-      setBatchProgress(prev => ({ ...prev, current: index + 1 }));
+    const generateWithDelay = async (card: TemplateCardState, index: number) => {
+      setCards((prev) =>
+        prev.map((item, itemIndex) =>
+          itemIndex === index
+            ? {
+                ...item,
+                generating: true,
+                error: '',
+                result: null,
+                generationStatus: '排队处理中...'
+              }
+            : item
+        )
+      );
+
+      setBatchProgress((prev) => ({ ...prev, current: index + 1 }));
+
       if (index > 0) {
         const randomDelay = Math.floor(Math.random() * 5000) + 5000;
         await delay(randomDelay);
       }
-      await handleGenerateSingle(index);
+
+      try {
+        const { response, data } = await generateCard(card);
+
+        if (response.ok && data.success) {
+          setCards((prev) =>
+            prev.map((item, itemIndex) =>
+              itemIndex === index ? { ...item, generating: false, generationStatus: '', result: data } : item
+            )
+          );
+        } else {
+          setCards((prev) =>
+            prev.map((item, itemIndex) =>
+              itemIndex === index
+                ? {
+                    ...item,
+                    generating: false,
+                    generationStatus: '',
+                    error: data.message || data.error || '生成失败'
+                  }
+                : item
+            )
+          );
+        }
+      } catch (error: any) {
+        console.error('批量生成失败:', error);
+        setCards((prev) =>
+          prev.map((item, itemIndex) =>
+            itemIndex === index
+              ? {
+                  ...item,
+                  generating: false,
+                  generationStatus: '',
+                  error: `网络错误：${error.message || '请检查网络连接'}`
+                }
+              : item
+          )
+        );
+      }
     };
 
-    await Promise.all(cards.map((_, index) => generateWithDelay(index)));
-
+    await Promise.all(cards.map((card, index) => generateWithDelay(card, index)));
     setBatchGenerating(false);
-    
-    // 生成结束后更新一下最新的算力
-    if (user) {
-      fetch(`/api/users?requesterId=${user.id}`)
-        .then(res => res.json())
-        .then(users => {
-          if (Array.isArray(users)) {
-            const me = users.find((u: any) => u.id === user.id);
-            if (me) {
-              const updatedUser = { ...user, credits: me.credits };
-              setUser(updatedUser);
-              localStorage.setItem('user', JSON.stringify(updatedUser));
-            }
-          }
-        })
-        .catch(console.error);
-    }
+    refreshCredits();
   };
 
-  const checkAllGenerated = () => {
-    const allDone = cards.every(card => card.result !== null);
-    setAllGenerated(allDone);
-  };
-
-  const handleRegenerateSingle = (index: number) => {
-    setCards(prev => prev.map((c, i) => 
-      i === index ? { ...c, result: null, error: '' } : c
-    ));
-    handleGenerateSingle(index);
+  const handleRegenerateSingle = async (cardIndex: number) => {
+    setCards((prev) =>
+      prev.map((item, index) => (index === cardIndex ? { ...item, result: null, error: '' } : item))
+    );
+    await handleGenerateSingle(cardIndex);
   };
 
   const handleDownloadSingle = (card: TemplateCardState) => {
-    if (card.result?.imageUrl) {
-      const link = document.createElement('a');
-      link.href = card.result.imageUrl;
-      link.download = `${card.template.name}_${Date.now()}.png`;
-      link.target = '_blank';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    }
-  };
+    if (!card.result?.imageUrl) return;
 
-  const handlePreviewClose = () => {
-    setPreviewImage(null);
-    setZoomScale(1);
-    setZoomPosition({ x: 0, y: 0 });
-  };
-
-  const handleWheel = (e: React.WheelEvent) => {
-    if (previewImage) {
-      const delta = e.deltaY;
-      const scaleStep = 0.1;
-      const newScale = delta < 0 ? zoomScale + scaleStep : zoomScale - scaleStep;
-      setZoomScale(Math.max(0.1, Math.min(10, newScale)));
-    }
-  };
-
-  const handleMouseDown = (e: React.MouseEvent) => {
-    if (zoomScale > 1) {
-      setIsDragging(true);
-    }
-  };
-
-  const handleMouseMove = (e: React.MouseEvent) => {
-    if (isDragging) {
-      setZoomPosition(prev => ({
-        x: prev.x + e.movementX,
-        y: prev.y + e.movementY
-      }));
-    }
-  };
-
-  const handleMouseUp = () => {
-    setIsDragging(false);
+    const link = document.createElement('a');
+    link.href = card.result.imageUrl;
+    link.download = `${card.template.name}_${Date.now()}.png`;
+    link.target = '_blank';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   const handleBatchDownload = async () => {
-    const generatedCards = cards.filter(card => card.result?.imageUrl);
-    
+    const generatedCards = cards.filter((card) => card.result?.imageUrl);
+
     if (generatedCards.length === 0) {
       alert('没有可下载的图片');
       return;
@@ -408,53 +650,172 @@ export default function BatchGeneratePage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          images: generatedCards.map(card => ({
+          images: generatedCards.map((card) => ({
             url: card.result.imageUrl,
             name: card.template.name
           }))
         })
       });
 
-      if (response.ok) {
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `批量生成_${Date.now()}.zip`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        window.URL.revokeObjectURL(url);
-      } else {
+      if (!response.ok) {
         const data = await response.json();
         alert(data.message || '下载失败，请重试');
+        return;
       }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `批量生成_${Date.now()}.zip`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
     } catch (error) {
       console.error('批量下载失败:', error);
       alert('批量下载失败，请重试');
     }
   };
 
+  const handlePreviewClose = () => {
+    setPreviewImage(null);
+    setZoomScale(1);
+    setZoomPosition({ x: 0, y: 0 });
+  };
+
+  const handleWheel = (e: React.WheelEvent) => {
+    if (!previewImage) return;
+
+    const scaleStep = 0.1;
+    const nextScale = e.deltaY < 0 ? zoomScale + scaleStep : zoomScale - scaleStep;
+    setZoomScale(Math.max(0.1, Math.min(10, nextScale)));
+  };
+
+  const handleMouseDown = () => {
+    if (zoomScale > 1) {
+      setIsDragging(true);
+    }
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isDragging) return;
+
+    setZoomPosition((prev) => ({
+      x: prev.x + e.movementX,
+      y: prev.y + e.movementY
+    }));
+  };
+
+  const handleMouseUp = () => {
+    setIsDragging(false);
+  };
+
+  const generatedCount = cards.filter((card) => card.result).length;
+
+  const renderVariableField = (card: TemplateCardState, cardIndex: number, variable: TemplateVariable) => {
+    const commonClassName =
+      `w-full rounded-2xl border px-4 py-3 text-sm outline-none transition-all placeholder:text-slate-400 focus:border-violet-300 focus:ring-4 focus:ring-violet-100 ${
+        darkMode ? 'border-gray-700 bg-gray-800 text-white' : 'border-slate-200 bg-white text-slate-800'
+      }`;
+
+    if (variable.type === 'textarea') {
+      return (
+        <textarea
+          value={card.formData[variable.key] || ''}
+          onChange={(e) => handleCardFormChange(cardIndex, variable.key, e.target.value)}
+          rows={3}
+          className={`${commonClassName} resize-none`}
+          placeholder={variable.placeholder || `请输入${variable.label}`}
+        />
+      );
+    }
+
+    if (variable.type === 'select') {
+      return (
+        <select
+          value={card.formData[variable.key] || ''}
+          onChange={(e) => handleCardFormChange(cardIndex, variable.key, e.target.value)}
+          className={commonClassName}
+        >
+          <option value="">请选择{variable.label}</option>
+          {variable.options?.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      );
+    }
+
+    if (variable.type === 'color') {
+      const currentColor = HEX_COLOR_REGEX.test(card.formData[variable.key] || '')
+        ? card.formData[variable.key]
+        : '#ffffff';
+
+      return (
+        <div className="flex items-center gap-3">
+          <div
+            className="relative h-11 w-11 overflow-hidden rounded-2xl border border-slate-200 shadow-inner"
+            style={{ backgroundColor: currentColor }}
+          >
+            <input
+              type="color"
+              value={currentColor}
+              onChange={(e) => handleCardFormChange(cardIndex, variable.key, e.target.value)}
+              className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+            />
+          </div>
+          <input
+            type="text"
+            value={card.formData[variable.key] || ''}
+            onChange={(e) => handleCardFormChange(cardIndex, variable.key, e.target.value)}
+            className={`${commonClassName} font-mono`}
+            placeholder={variable.placeholder || '#FFFFFF'}
+          />
+        </div>
+      );
+    }
+
+    if (variable.type === 'image') {
+      return (
+        <div className={`rounded-2xl border border-dashed px-4 py-3 text-sm ${darkMode ? 'border-gray-700 bg-gray-800/70 text-gray-400' : 'border-slate-200 bg-slate-50 text-slate-400'}`}>
+          批量页暂不支持图片字段，请使用单独生成页处理该模板。
+        </div>
+      );
+    }
+
+    return (
+      <input
+        type={variable.type === 'number' ? 'number' : 'text'}
+        value={card.formData[variable.key] || ''}
+        onChange={(e) => handleCardFormChange(cardIndex, variable.key, e.target.value)}
+        className={commonClassName}
+        placeholder={variable.placeholder || `请输入${variable.label}`}
+      />
+    );
+  };
+
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-violet-50 flex items-center justify-center">
+      <div className={`flex min-h-screen items-center justify-center transition-colors duration-500 ${darkMode ? 'bg-gray-950' : 'bg-[radial-gradient(circle_at_top,#f5f0ff,transparent_32%),linear-gradient(180deg,#fcfbff_0%,#f5f4fa_100%)]'}`}>
         <div className="text-center">
-          <Loader2 className="w-12 h-12 animate-spin text-violet-600 mx-auto mb-4" />
-          <p className="text-gray-600">加载模板中...</p>
+          <Loader2 className={`mx-auto mb-4 h-12 w-12 animate-spin ${darkMode ? 'text-white' : 'text-violet-600'}`} />
+          <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-slate-500'}`}>加载模板中...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-violet-50">
+    <div className={`min-h-screen transition-colors duration-500 ${darkMode ? 'bg-gray-950 text-white' : 'bg-[radial-gradient(circle_at_top,#f5f0ff,transparent_28%),linear-gradient(180deg,#fcfbff_0%,#f3f2f8_100%)] text-slate-900'}`}>
       <AnimatePresence>
         {previewImage && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] bg-black/90 flex items-center justify-center p-8 overflow-hidden backdrop-blur-sm"
+            className="fixed inset-0 z-[100] flex items-center justify-center overflow-hidden bg-black/90 p-8 backdrop-blur-sm"
             onClick={handlePreviewClose}
             onWheel={handleWheel}
             onMouseDown={handleMouseDown}
@@ -462,9 +823,9 @@ export default function BatchGeneratePage() {
             onMouseUp={handleMouseUp}
             onMouseLeave={handleMouseUp}
           >
-            <div 
+            <div
               className="relative transition-transform duration-200 ease-out"
-              style={{ 
+              style={{
                 transform: `translate(${zoomPosition.x}px, ${zoomPosition.y}px) scale(${zoomScale})`,
                 cursor: zoomScale > 1 ? (isDragging ? 'grabbing' : 'grab') : 'default'
               }}
@@ -476,25 +837,25 @@ export default function BatchGeneratePage() {
                 exit={{ scale: 0.8 }}
                 src={previewImage}
                 alt="预览"
-                className="max-w-[90vw] max-h-[90vh] object-contain rounded-lg shadow-2xl select-none"
+                className="max-h-[90vh] max-w-[90vw] select-none rounded-lg object-contain shadow-2xl"
                 draggable={false}
               />
             </div>
 
-            <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-4 px-4 py-2 bg-white/10 backdrop-blur-md rounded-full border border-white/20 text-white text-xs pointer-events-none">
+            <div className="pointer-events-none absolute bottom-8 left-1/2 flex -translate-x-1/2 items-center gap-4 rounded-full border border-white/20 bg-white/10 px-4 py-2 text-xs text-white backdrop-blur-md">
               <div className="flex items-center gap-1.5">
-                <div className="w-1.5 h-1.5 rounded-full bg-violet-400 animate-pulse" />
+                <div className="h-1.5 w-1.5 rounded-full bg-violet-400" />
                 滚轮缩放: {Math.round(zoomScale * 100)}%
               </div>
-              <div className="w-px h-3 bg-white/20" />
+              <div className="h-3 w-px bg-white/20" />
               <div>左键按住可拖拽</div>
             </div>
 
             <button
               onClick={handlePreviewClose}
-              className="absolute top-6 right-6 p-3 bg-white/10 hover:bg-red-500/50 hover:text-white rounded-full text-white transition-all border border-white/10 backdrop-blur-md"
+              className="absolute right-6 top-6 rounded-full border border-white/10 bg-white/10 p-3 text-white transition-all hover:bg-red-500/50"
             >
-              <X className="w-6 h-6" />
+              <X className="h-6 w-6" />
             </button>
           </motion.div>
         )}
@@ -506,7 +867,7 @@ export default function BatchGeneratePage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[70] bg-black/50 flex items-center justify-center p-4"
+            className="fixed inset-0 z-[70] flex items-center justify-center bg-black/45 p-4"
             onClick={() => setShowInsufficientCredits(false)}
           >
             <motion.div
@@ -514,18 +875,19 @@ export default function BatchGeneratePage() {
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
               onClick={(e) => e.stopPropagation()}
-              className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 text-center"
+              className="w-full max-w-sm rounded-[28px] border border-white/60 bg-white p-6 text-center shadow-[0_24px_80px_-32px_rgba(15,23,42,0.35)]"
             >
-              <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <XCircle className="w-8 h-8 text-red-600" />
+              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-red-100">
+                <XCircle className="h-8 w-8 text-red-500" />
               </div>
-              <h2 className="text-xl font-bold text-gray-900 mb-2">潮能力不足</h2>
-              <p className="text-sm text-gray-600 mb-6">
-                当前批量生成需要 <span className="font-bold text-violet-600">{cards.length}</span> 点潮能力，您当前仅剩 <span className="font-bold text-red-600">{user?.credits ?? 0}</span> 点，请联系管理员充值后再试。
+              <h2 className="mb-2 text-xl font-bold text-slate-900">潮能力不足</h2>
+              <p className="mb-6 text-sm leading-6 text-slate-500">
+                当前批量生成需要 <span className="font-bold text-violet-600">{cards.length}</span> 点潮能力，
+                您当前仅剩 <span className="font-bold text-red-500">{user?.credits ?? 0}</span> 点。
               </p>
               <button
                 onClick={() => setShowInsufficientCredits(false)}
-                className="w-full btn-primary py-2.5"
+                className="w-full rounded-2xl bg-gradient-to-r from-violet-600 to-fuchsia-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-violet-200"
               >
                 我知道了
               </button>
@@ -534,90 +896,210 @@ export default function BatchGeneratePage() {
         )}
       </AnimatePresence>
 
-      <header className="glass sticky top-0 z-50 border-b border-white/20">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+      <header className={`sticky top-0 z-50 border-b backdrop-blur-xl transition-colors duration-500 ${darkMode ? 'bg-gray-950/80 border-gray-800' : 'bg-white/75 border-white/60'}`}>
+        <div className="mx-auto flex w-[min(96vw,1880px)] items-center relative px-6 py-4 2xl:px-8">
           <div className="flex items-center gap-4">
-            <button 
-              onClick={() => {
-                setPreviewImage(null);
-                router.push('/templates');
-              }}
-              className="p-2 hover:bg-violet-100 rounded-lg transition-colors"
+            <button
+              onClick={() => router.push('/templates')}
+              className={`p-2 rounded-lg transition-colors ${darkMode ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-100 text-gray-700'}`}
             >
-              <ArrowLeft className="w-5 h-5 text-gray-700" />
+              <ArrowLeft className="w-5 h-5" />
             </button>
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">批量生成</h1>
-              <p className="text-sm text-gray-600">{cards.length} 个模板待生成</p>
+            <div className="hidden md:block">
+              <p className="text-xs font-medium uppercase tracking-[0.24em] text-violet-500">Batch Studio</p>
+              <h1 className={`text-xl font-bold transition-colors duration-500 ${darkMode ? 'text-white' : 'text-gray-900'}`}>批量生成</h1>
+              <p className={`text-xs transition-colors duration-500 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>{cards.length} 个模板待生成</p>
             </div>
           </div>
-          
-          <div className="flex items-center gap-3">
-            {cards.some(c => c.result) && (
+
+          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+            <img
+              src={darkMode ? '/img/white.png' : '/img/black.png'}
+              alt="HAIPablo Logo"
+              className="h-14 object-contain cursor-pointer hover:opacity-80 transition-opacity"
+              onClick={() => router.push('/')}
+            />
+          </div>
+
+          <div className="flex-1 flex items-center justify-end gap-4">
+            {cards.some((card) => card.result) && (
               <button
                 onClick={handleBatchDownload}
-                className="px-4 py-2 bg-violet-600 text-white rounded-lg hover:bg-violet-700 transition-colors flex items-center gap-2"
+                className={`hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full border transition-colors ${darkMode ? 'bg-violet-900/20 border-violet-800/50 text-violet-300 hover:bg-violet-900/30' : 'bg-violet-50 border-violet-200 text-violet-700 hover:bg-violet-100'}`}
               >
-                <Archive className="w-5 h-5" />
+                <Archive className="w-4 h-4" />
                 批量下载
               </button>
             )}
-            <div className="flex items-center gap-2 px-4 py-2 bg-green-100 text-green-700 rounded-lg">
-              <CheckCircle className="w-5 h-5" />
-              <span className="text-sm font-medium">
-                已生成 {cards.filter(c => c.result).length} / {cards.length}
-              </span>
+            <div className={`hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full border ${darkMode ? 'bg-violet-900/20 border-violet-800/50 text-violet-300' : 'bg-violet-50 border-violet-200 text-violet-700'}`}>
+              <Sparkles className="w-4 h-4" />
+              <span className="text-sm font-medium">潮能力: {user?.credits ?? 0}</span>
             </div>
+            <div className={`hidden sm:flex px-2 py-1 text-xs font-medium rounded-full items-center gap-1 w-fit ${darkMode ? 'bg-violet-900/30 text-violet-200 border border-violet-800' : 'bg-violet-50 text-violet-700 border border-violet-200'}`}>
+              已完成 {generatedCount}/{cards.length}
+            </div>
+            {user?.role === 'admin' && (
+              <span className={`hidden sm:flex px-2 py-1 text-xs font-medium rounded-full items-center gap-1 w-fit ${darkMode ? 'bg-amber-900/50 text-amber-400 border border-amber-800' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>
+                <Shield className="w-3 h-3" />
+                管理员
+              </span>
+            )}
+            {user?.role === 'sub_admin' && (
+              <span className={`hidden sm:flex px-2 py-1 text-xs font-medium rounded-full items-center gap-1 w-fit ${darkMode ? 'bg-blue-900/50 text-blue-400 border border-blue-800' : 'bg-blue-50 text-blue-700 border border-blue-200'}`}>
+                <Shield className="w-3 h-3" />
+                子管理员
+              </span>
+            )}
+            <button
+              onClick={toggleDarkMode}
+              className={`p-2.5 rounded-xl transition-all duration-300 group ${darkMode ? 'bg-gray-800 hover:bg-gray-700 text-amber-400 hover:text-amber-300' : 'bg-gray-100 hover:bg-gray-200 text-gray-700 hover:text-gray-900'}`}
+            >
+              {darkMode ? (
+                <Sun className="w-5 h-5 group-hover:rotate-12 transition-transform" />
+              ) : (
+                <Moon className="w-5 h-5 group-hover:-rotate-12 transition-transform" />
+              )}
+            </button>
+            {user && (
+              <div className="relative user-menu-container">
+                <button
+                  onClick={() => setShowUserMenu(!showUserMenu)}
+                  className="flex items-center gap-3 hover:opacity-80 transition-opacity"
+                >
+                  <UserAvatar user={user} size="lg" darkMode={darkMode} />
+                  <div className="hidden lg:block text-left">
+                    <p className={`text-sm font-medium transition-colors duration-500 ${darkMode ? 'text-white' : 'text-gray-900'}`}>{user.name || user.username}</p>
+                    <p className="text-xs transition-colors duration-500 text-gray-500">{user.email || user.username}</p>
+                  </div>
+                </button>
+
+                <AnimatePresence>
+                  {showUserMenu && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      className={`absolute right-0 top-full mt-2 w-56 rounded-xl shadow-lg border overflow-hidden z-50 transition-colors duration-500 ${darkMode ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200'}`}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <div className={`p-4 border-b transition-colors duration-500 ${darkMode ? 'bg-gray-800/50 border-gray-700' : 'bg-gray-50 border-gray-100'}`}>
+                        <div className="flex items-center gap-3">
+                          <UserAvatar user={user} size="lg" darkMode={darkMode} />
+                          <div>
+                            <p className={`font-semibold transition-colors duration-500 ${darkMode ? 'text-white' : 'text-gray-900'}`}>{user.name || user.username}</p>
+                            <p className="text-xs transition-colors duration-500 text-gray-500">{user.email || user.username}</p>
+                          </div>
+                        </div>
+                        <div className="mt-3 flex items-center gap-2">
+                          <span className={`px-2 py-1 text-xs font-medium rounded-full flex items-center gap-1 w-fit ${darkMode ? 'bg-violet-900/50 text-violet-200 border border-violet-800' : 'bg-violet-50 text-violet-700 border border-violet-100'}`}>
+                            <Sparkles className="w-3 h-3" />
+                            潮能力: {user.credits ?? 0}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="p-2">
+                        <button
+                          onClick={() => router.push('/history')}
+                          className={`w-full px-4 py-2.5 text-left rounded-lg transition-colors flex items-center gap-3 ${darkMode ? 'text-gray-300 hover:bg-gray-800 hover:text-white' : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'}`}
+                        >
+                          <History className="w-4 h-4" />
+                          我的历史
+                        </button>
+                        {(user.role === 'admin' || user.role === 'sub_admin') && (
+                          <button
+                            onClick={() => router.push('/admin/users')}
+                            className={`w-full px-4 py-2.5 text-left rounded-lg transition-colors flex items-center gap-3 ${darkMode ? 'text-amber-400 hover:bg-amber-950/30' : 'text-amber-700 hover:bg-amber-50'}`}
+                          >
+                            <Shield className="w-4 h-4" />
+                            {user.role === 'admin' ? '用户管理' : '人员列表'}
+                          </button>
+                        )}
+                        <div className={`my-2 border-t transition-colors duration-500 ${darkMode ? 'border-gray-800' : 'border-gray-200'}`} />
+                        <button
+                          onClick={handleLogout}
+                          className={`w-full px-4 py-2.5 text-left rounded-lg transition-colors flex items-center gap-3 ${darkMode ? 'text-red-400 hover:bg-red-950/30' : 'text-red-600 hover:bg-red-50'}`}
+                        >
+                          <LogOut className="w-4 h-4" />
+                          退出登录
+                        </button>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            )}
           </div>
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto px-6 py-8">
-        <div className="mb-12 space-y-8">
-          <div className="bg-white rounded-[2rem] shadow-sm border border-gray-100 p-8 hover:shadow-md transition-shadow">
-            <h2 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-violet-100 flex items-center justify-center">
-                <Upload className="w-6 h-6 text-violet-600" />
+      <main className="mx-auto w-[min(96vw,1880px)] px-6 py-8 2xl:px-8">
+        <section className="mb-8 grid gap-6 xl:grid-cols-[1.45fr_1fr] 2xl:grid-cols-[1.55fr_1fr]">
+          <div className="relative overflow-hidden rounded-[32px] border border-white/60 bg-white/90 p-6 shadow-[0_24px_80px_-36px_rgba(109,40,217,0.35)]">
+            <div className="absolute right-6 top-6 grid grid-cols-4 gap-1 opacity-40">
+              {Array.from({ length: 12 }).map((_, index) => (
+                <span key={index} className="h-1.5 w-1.5 rounded-full bg-violet-200" />
+              ))}
+            </div>
+
+            <div className="mb-5 flex items-start justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-600 to-fuchsia-500 text-white shadow-lg shadow-violet-200">
+                  <Upload className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-[0.24em] text-violet-400">Step 01</p>
+                  <h2 className="text-xl font-bold text-slate-900">上传主视觉</h2>
+                </div>
               </div>
-              第一步：上传主视觉图片
-            </h2>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
-              <div>
-                <p className="text-gray-600 mb-6 leading-relaxed">
-                  上传一张主视觉图片（KV），系统将以此作为所有模板的核心参考。支持产品图、海报图等各种视觉素材。
+              <div className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-600">
+                {kvImage ? '素材已就绪' : '等待上传'}
+              </div>
+            </div>
+
+            <div className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr] 2xl:grid-cols-[0.82fr_1.18fr]">
+              <div className="space-y-4">
+                <p className="text-sm leading-7 text-slate-500">
+                  上传一张统一主视觉图，作为所有模板的共同参考素材。推荐使用完整成图或主体清晰的产品图。
                 </p>
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
+                    <p className="text-[11px] uppercase tracking-[0.2em] text-slate-400">模板数</p>
+                    <p className="mt-1 text-lg font-semibold text-slate-900">{cards.length}</p>
+                  </div>
+                  <div className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
+                    <p className="text-[11px] uppercase tracking-[0.2em] text-slate-400">潮能力</p>
+                    <p className="mt-1 text-lg font-semibold text-slate-900">{user?.credits ?? 0}</p>
+                  </div>
+                </div>
+
                 {kvImage && (
-                  <div className="flex items-center gap-3 p-4 bg-green-50 rounded-2xl border border-green-100">
-                    <CheckCircle className="w-6 h-6 text-green-500" />
-                    <div>
-                      <p className="text-sm font-bold text-green-900">已上传成功</p>
-                      <p className="text-xs text-green-600">{kvImage.name}</p>
-                    </div>
+                  <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                    已上传素材：{kvImage.name}
                   </div>
                 )}
               </div>
 
               <div className="relative">
                 {kvImage ? (
-                  <div className="relative group">
+                  <div className="group relative overflow-hidden rounded-[28px] border border-violet-100 bg-white p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
                     <img
                       src={kvImage.url}
                       alt="主视觉"
-                      className="w-full h-64 object-cover rounded-2xl border border-gray-100 shadow-inner"
+                      className="h-72 w-full rounded-[22px] object-cover"
                     />
-                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-2xl flex items-center justify-center">
+                    <div className="absolute inset-0 flex items-center justify-center bg-slate-950/35 opacity-0 transition-opacity group-hover:opacity-100">
                       <button
                         onClick={handleRemoveKvImage}
-                        className="px-4 py-2 bg-red-500 text-white rounded-xl hover:bg-red-600 transition-colors flex items-center gap-2 font-bold"
+                        className="rounded-2xl bg-white px-4 py-2 text-sm font-semibold text-slate-900 shadow-lg transition-transform hover:scale-[1.02]"
                       >
-                        <X className="w-4 h-4" />
-                        移除并重新上传
+                        重新上传
                       </button>
                     </div>
                   </div>
                 ) : (
-                  <div className="border-2 border-dashed border-gray-200 rounded-[2rem] p-12 text-center hover:border-violet-400 hover:bg-violet-50/30 transition-all group">
+                  <div className="rounded-[28px] border border-dashed border-violet-200 bg-[linear-gradient(180deg,rgba(247,244,255,0.9),rgba(255,255,255,0.95))] p-6">
                     <input
                       type="file"
                       accept="image/*"
@@ -626,23 +1108,18 @@ export default function BatchGeneratePage() {
                       id="kv-upload"
                       disabled={uploadingKv}
                     />
-                    <label htmlFor="kv-upload" className="cursor-pointer block">
-                      {uploadingKv ? (
-                        <div className="space-y-4">
-                          <div className="w-16 h-16 border-4 border-violet-100 border-t-violet-600 rounded-full animate-spin mx-auto" />
-                          <p className="text-violet-600 font-bold">正在上传素材...</p>
-                        </div>
-                      ) : (
-                        <div className="space-y-4">
-                          <div className="w-20 h-20 bg-gray-50 rounded-3xl flex items-center justify-center mx-auto group-hover:scale-110 transition-transform shadow-sm">
-                            <Upload className="w-10 h-10 text-gray-300 group-hover:text-violet-400" />
-                          </div>
-                          <div>
-                            <p className="text-gray-900 font-bold text-lg">点击或拖拽上传</p>
-                            <p className="text-sm text-gray-400">支持 PNG, JPG, WEBP (最大 20MB)</p>
-                          </div>
-                        </div>
-                      )}
+                    <label htmlFor="kv-upload" className="block cursor-pointer text-center">
+                      <div className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-[24px] bg-white shadow-[0_16px_40px_-28px_rgba(109,40,217,0.55)]">
+                        {uploadingKv ? (
+                          <Loader2 className="h-9 w-9 animate-spin text-violet-600" />
+                        ) : (
+                          <Upload className="h-9 w-9 text-violet-400" />
+                        )}
+                      </div>
+                      <p className="text-lg font-semibold text-slate-900">
+                        {uploadingKv ? '正在上传素材...' : '点击上传主视觉图片'}
+                      </p>
+                      <p className="mt-2 text-sm text-slate-400">支持 PNG / JPG / WEBP，建议使用高清素材</p>
                     </label>
                   </div>
                 )}
@@ -650,117 +1127,119 @@ export default function BatchGeneratePage() {
             </div>
           </div>
 
-          <div className="bg-white rounded-[2rem] shadow-sm border border-gray-100 p-8 hover:shadow-md transition-shadow">
-            <h2 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center">
-                <Sparkles className="w-6 h-6 text-purple-600" />
+          <div className="rounded-[32px] border border-white/60 bg-white/90 p-6 shadow-[0_24px_80px_-36px_rgba(109,40,217,0.25)]">
+            <div className="mb-5 flex items-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-600 to-fuchsia-500 text-white shadow-lg shadow-violet-200">
+                <SlidersHorizontal className="h-5 w-5" />
               </div>
-              第二步：统一生成配置
-            </h2>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              <div className="space-y-2">
-                <label className="block text-sm font-bold text-gray-700 ml-1">
-                  输出尺寸
-                </label>
+              <div>
+                <p className="text-xs font-medium uppercase tracking-[0.24em] text-violet-400">Step 02</p>
+                <h2 className="text-xl font-bold text-slate-900">统一配置</h2>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="rounded-[24px] border border-slate-100 bg-slate-50 p-4">
+                <label className="mb-2 block text-sm font-semibold text-slate-700">输出尺寸</label>
                 <div className="relative">
                   <select
                     value={size}
                     onChange={(e) => setSize(e.target.value)}
-                    className="w-full px-5 py-4 bg-gray-50 border border-gray-200 rounded-2xl focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all outline-none appearance-none font-medium text-gray-900"
+                    className="w-full appearance-none rounded-2xl border border-slate-200 bg-white px-4 py-3 pr-11 text-sm font-medium text-slate-900 outline-none transition-all focus:border-violet-300 focus:ring-4 focus:ring-violet-100"
                   >
-                    {SIZE_OPTIONS.map(option => (
+                    {SIZE_OPTIONS.map((option) => (
                       <option key={option.value} value={option.value}>
                         {option.label}
                       </option>
                     ))}
                   </select>
-                  <div className="absolute right-5 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
-                    <Layers className="w-5 h-5" />
-                  </div>
+                  <Layers className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                 </div>
               </div>
-              
-              <div className="space-y-2">
-                <label className="block text-sm font-bold text-gray-700 ml-1">
-                  生成质量
-                </label>
+
+              <div className="rounded-[24px] border border-slate-100 bg-slate-50 p-4">
+                <label className="mb-2 block text-sm font-semibold text-slate-700">生成质量</label>
                 <div className="relative">
                   <select
                     value={quality}
                     onChange={(e) => setQuality(e.target.value)}
-                    className="w-full px-5 py-4 bg-gray-50 border border-gray-200 rounded-2xl focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all outline-none appearance-none font-medium text-gray-900"
+                    className="w-full appearance-none rounded-2xl border border-slate-200 bg-white px-4 py-3 pr-11 text-sm font-medium text-slate-900 outline-none transition-all focus:border-violet-300 focus:ring-4 focus:ring-violet-100"
                   >
-                    {QUALITY_OPTIONS.map(option => (
+                    {QUALITY_OPTIONS.map((option) => (
                       <option key={option.value} value={option.value}>
                         {option.label}
                       </option>
                     ))}
                   </select>
-                  <div className="absolute right-5 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
-                    <Sparkles className="w-5 h-5" />
-                  </div>
+                  <Sparkles className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                </div>
+              </div>
+
+              <div className="rounded-[24px] border border-violet-100 bg-violet-50/70 p-4">
+                <div className="flex items-start gap-3 text-sm text-violet-800">
+                  <Info className="mt-0.5 h-4 w-4 shrink-0" />
+                  <p>批量模式会将当前尺寸与质量配置应用到所有模板卡片，并保留各自的提示词与指定色设置。</p>
                 </div>
               </div>
             </div>
 
-            <div className="mt-10 flex flex-col items-center gap-4">
-              <button
-                onClick={handleGenerateAll}
-                disabled={!kvImage || batchGenerating}
-                className="group relative px-12 py-5 bg-gradient-to-r from-violet-600 via-purple-600 to-indigo-600 text-white rounded-[2rem] hover:shadow-2xl hover:shadow-violet-200 transition-all flex items-center gap-4 text-xl font-bold disabled:opacity-50 disabled:grayscale disabled:cursor-not-allowed transform active:scale-95 overflow-hidden"
-              >
-                <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300" />
-                {batchGenerating ? (
-                  <>
-                    <div className="w-7 h-7 border-4 border-white/30 border-t-white rounded-full animate-spin" />
-                    <span>正在批量创作中 ({batchProgress.current}/{batchProgress.total})</span>
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="w-7 h-7" />
-                    <span>一键开启批量生成</span>
-                  </>
-                )}
-              </button>
-              <p className="text-sm text-gray-400 flex items-center gap-2">
-                <Info className="w-4 h-4" />
-                将会根据以上配置为所有待生成模板开启任务
-              </p>
-            </div>
+            <button
+              onClick={handleGenerateAll}
+              disabled={!kvImage || batchGenerating || cards.length === 0}
+              className="mt-6 flex w-full items-center justify-center gap-3 rounded-[22px] bg-gradient-to-r from-violet-600 to-fuchsia-500 px-5 py-4 text-base font-semibold text-white shadow-[0_22px_45px_-24px_rgba(124,58,237,0.75)] transition-all disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {batchGenerating ? (
+                <>
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                  正在批量创作 ({batchProgress.current}/{batchProgress.total})
+                </>
+              ) : (
+                <>
+                  <Sparkles className="h-5 w-5" />
+                  立即批量生成
+                </>
+              )}
+            </button>
           </div>
-        </div>
+        </section>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {cards.map((card, index) => (
+        <section className="grid gap-6 xl:grid-cols-2 2xl:gap-8">
+          {cards.map((card, cardIndex) => (
             <motion.div
               key={card.template.id}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.1 }}
-              className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-xl hover:shadow-violet-500/5 transition-all duration-300"
+              transition={{ delay: cardIndex * 0.06 }}
+              className="overflow-hidden rounded-[32px] border border-white/70 bg-white/90 shadow-[0_28px_90px_-38px_rgba(109,40,217,0.28)]"
             >
-              <div className="p-6 border-b border-gray-100 bg-gradient-to-r from-violet-50 to-purple-50">
-                <div className="flex items-center justify-between">
+              <div className="relative border-b border-violet-100/70 bg-[linear-gradient(180deg,rgba(247,244,255,0.92),rgba(245,244,250,0.88))] px-6 py-5">
+                <div className="absolute right-6 top-5 grid grid-cols-4 gap-1 opacity-50">
+                  {Array.from({ length: 12 }).map((_, index) => (
+                    <span key={index} className="h-1 w-1 rounded-full bg-violet-200" />
+                  ))}
+                </div>
+
+                <div className="flex items-start justify-between gap-4">
                   <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
-                      <Layers className="w-6 h-6 text-white" />
+                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-600 to-fuchsia-500 text-white shadow-lg shadow-violet-200">
+                      <Layers className="h-5 w-5" />
                     </div>
                     <div>
-                      <h3 className="text-xl font-semibold text-gray-900">{card.template.name}</h3>
-                      <p className="text-sm text-gray-600">{card.template.description}</p>
+                      <h3 className="text-2xl font-bold text-slate-900">{card.template.name}</h3>
+                      <p className="mt-1 text-sm text-slate-500">{card.template.description || '当前模板已准备好，可直接生成。'}</p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
+
+                  <div className="flex flex-col items-end gap-2">
                     {card.result && (
-                      <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm font-medium flex items-center gap-1">
-                        <CheckCircle className="w-4 h-4" />
+                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+                        <CheckCircle className="h-3.5 w-3.5" />
                         已生成
                       </span>
                     )}
                     {card.generating && (
-                      <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm font-medium flex items-center gap-1">
-                        <Loader2 className="w-4 h-4 animate-spin" />
+                      <span className="inline-flex items-center gap-1 rounded-full bg-violet-50 px-3 py-1 text-xs font-semibold text-violet-700">
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
                         生成中
                       </span>
                     )}
@@ -768,204 +1247,254 @@ export default function BatchGeneratePage() {
                 </div>
               </div>
 
-              <div className="p-8">
-                <div className="flex flex-col xl:flex-row gap-8">
-                  <div className="flex-1 space-y-6">
-                    <div className="space-y-4">
-                      <h4 className="text-sm font-bold text-gray-800 flex items-center gap-2 uppercase tracking-wider">
-                        <Info className="w-4 h-4 text-violet-600" />
-                        配置选项
-                      </h4>
-                      
-                      {card.template.variables && card.template.variables.length > 0 && (
-                        <div className="grid grid-cols-1 gap-4 bg-slate-50/50 p-4 rounded-2xl border border-slate-100">
-                          {card.template.variables.map((variable) => (
-                            <div key={variable.key} className="space-y-1.5">
-                              <label className="block text-xs font-bold text-gray-500 ml-1">
+              <div className="grid lg:grid-cols-[minmax(0,1fr)_340px] 2xl:grid-cols-[minmax(0,1fr)_380px]">
+                <div className="border-b border-slate-100 px-6 py-6 lg:border-b-0 lg:border-r">
+                  <div className="grid gap-6">
+                    <div>
+                      <div className="mb-4 flex items-center gap-2">
+                        <span className="h-5 w-1 rounded-full bg-violet-500" />
+                        <span className="text-lg font-bold text-slate-900">配置选项</span>
+                      </div>
+
+                      <div className="space-y-3">
+                        {card.template.variables?.length > 0 ? (
+                          card.template.variables.map((variable) => (
+                            <div
+                              key={variable.key}
+                              className="rounded-[22px] border border-slate-100 bg-slate-50/80 p-4"
+                            >
+                              <label className="mb-2 block text-sm font-semibold text-slate-700">
                                 {variable.label}
-                                {variable.required && <span className="text-red-500 ml-1">*</span>}
+                                {variable.required && <span className="ml-1 text-red-500">*</span>}
                               </label>
-                              {variable.type === 'textarea' ? (
-                                <textarea
-                                  value={card.formData[variable.key] || ''}
-                                  onChange={(e) => handleCardFormChange(index, variable.key, e.target.value)}
-                                  rows={3}
-                                  className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all outline-none text-sm resize-none shadow-sm"
-                                  placeholder={variable.placeholder || `请输入${variable.label}`}
-                                />
-                              ) : (
-                                <input
-                                  type="text"
-                                  value={card.formData[variable.key] || ''}
-                                  onChange={(e) => handleCardFormChange(index, variable.key, e.target.value)}
-                                  className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all outline-none text-sm shadow-sm"
-                                  placeholder={variable.placeholder || `请输入${variable.label}`}
-                                />
-                              )}
+                              {renderVariableField(card, cardIndex, variable)}
                             </div>
-                          ))}
-                        </div>
-                      )}
+                          ))
+                        ) : (
+                          <div className="rounded-[22px] border border-slate-100 bg-slate-50/80 p-4 text-sm text-slate-400">
+                            当前模板没有额外输入字段，保持默认配置即可。
+                          </div>
+                        )}
+                      </div>
                     </div>
 
                     {card.template.allowUserPrompt !== false && (
-                      <div className="pt-4 border-t border-gray-100 space-y-3">
-                        <label className="flex items-center gap-3 p-3 bg-violet-50/50 rounded-xl cursor-pointer hover:bg-violet-50 transition-colors border border-violet-100/50">
+                      <div className="space-y-3">
+                        <label className="flex cursor-pointer items-center justify-between rounded-[22px] border border-violet-100 bg-violet-50/70 p-4 transition-colors hover:bg-violet-50">
+                          <div>
+                            <p className="text-sm font-semibold text-slate-900">启用自定义提示词</p>
+                            <p className="mt-1 text-xs text-slate-400">开启后可为当前模板追加独立描述</p>
+                          </div>
                           <input
                             type="checkbox"
                             checked={card.enableUserPrompt}
-                            onChange={(e) => setCards(prev => prev.map((c, i) => 
-                              i === index ? { ...c, enableUserPrompt: e.target.checked } : c
-                            ))}
-                            className="w-5 h-5 text-violet-600 rounded-lg border-gray-300 focus:ring-violet-500 transition-all"
+                            onChange={(e) => handleUserPromptToggle(cardIndex, e.target.checked)}
+                            className="h-4 w-4 rounded border-violet-300 text-violet-600 focus:ring-violet-500"
                           />
-                          <span className="text-sm font-bold text-violet-900">启用自定义提示词</span>
                         </label>
-                        
-                        {card.enableUserPrompt && (
-                          <motion.div 
-                            initial={{ opacity: 0, height: 0 }}
-                            animate={{ opacity: 1, height: 'auto' }}
-                            className="space-y-3 overflow-hidden"
-                          >
-                            <textarea
-                              value={card.userPrompt}
-                              onChange={(e) => setCards(prev => prev.map((c, i) => 
-                                i === index ? { ...c, userPrompt: e.target.value } : c
-                              ))}
-                              rows={3}
-                              className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all outline-none text-sm resize-none shadow-sm"
-                              placeholder="在这里输入额外的提示词描述..."
+
+                        <div
+                          onClick={() => handleUserPromptPriorityToggle(cardIndex)}
+                          className="flex cursor-pointer items-center justify-between rounded-[22px] border border-violet-100 bg-white px-4 py-3 transition-colors hover:border-violet-200"
+                        >
+                          <div>
+                            <p className="text-sm font-semibold text-slate-900">优先</p>
+                            <p className="mt-1 text-xs text-slate-400">优先时会把补充提示词放到模板提示词前面</p>
+                          </div>
+                          <div className={`relative h-6 w-11 rounded-full transition-colors ${card.userPromptPriority ? 'bg-violet-500' : 'bg-slate-200'}`}>
+                            <motion.div
+                              animate={{ x: card.userPromptPriority ? 22 : 2 }}
+                              transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+                              className="absolute top-1 h-4 w-4 rounded-full bg-white shadow"
                             />
-                            
-                            <div className="flex items-center gap-3 bg-amber-50/50 p-3 rounded-xl border border-amber-100">
-                              <label className="flex items-center gap-2 cursor-pointer">
-                                <input
-                                  type="checkbox"
-                                  checked={card.userPromptPriority}
-                                  onChange={(e) => setCards(prev => prev.map((c, i) => 
-                                    i === index ? { ...c, userPromptPriority: e.target.checked } : c
-                                  ))}
-                                  className="w-4 h-4 text-amber-600 rounded border-amber-300 focus:ring-amber-500"
-                                />
-                                <span className="text-xs font-bold text-amber-800">
-                                  优先使用此提示词
-                                </span>
-                              </label>
-                            </div>
-                          </motion.div>
-                        )}
+                          </div>
+                        </div>
+
+                        <textarea
+                          value={card.userPrompt}
+                          onChange={(e) => handleUserPromptChange(cardIndex, e.target.value)}
+                          rows={4}
+                          disabled={!card.enableUserPrompt}
+                          className="w-full resize-none rounded-[22px] border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 outline-none transition-all placeholder:text-slate-400 focus:border-violet-300 focus:ring-4 focus:ring-violet-100 disabled:cursor-not-allowed disabled:bg-slate-50"
+                          placeholder="在这里输入额外的提示词描述..."
+                        />
                       </div>
                     )}
 
-                    <div className="pt-2">
-                      <button
-                        onClick={() => handleGenerateSingle(index)}
-                        disabled={!kvImage || card.generating}
-                        className="w-full py-4 bg-gradient-to-r from-violet-600 to-purple-600 text-white rounded-2xl hover:from-violet-700 hover:to-purple-700 transition-all flex items-center justify-center gap-3 font-bold shadow-lg shadow-violet-200 disabled:opacity-50 disabled:grayscale disabled:cursor-not-allowed transform active:scale-[0.98]"
-                      >
-                        {card.generating ? (
-                          <>
-                            <Loader2 className="w-5 h-5 animate-spin" />
-                            正在创作中...
-                          </>
-                        ) : (
-                          <>
-                            <Sparkles className="w-5 h-5" />
-                            立即生成
-                          </>
-                        )}
-                      </button>
-                    </div>
+                    {card.specifiedColors.length > 0 && (
+                      <div className="rounded-[22px] border border-violet-100 bg-violet-50/60 p-4">
+                        <div className="mb-3 flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <Palette className="h-4 w-4 text-violet-500" />
+                            <span className="text-sm font-semibold text-slate-900">自定义颜色</span>
+                          </div>
+                          <span className="text-xs text-slate-400">共 {card.specifiedColors.length} 个</span>
+                        </div>
+
+                        <div className="space-y-2">
+                          {card.specifiedColors.map((color) => (
+                            <div
+                              key={color.name}
+                              className="flex items-center gap-3 rounded-2xl border border-violet-100 bg-white px-3 py-2.5 shadow-sm"
+                            >
+                              <div className="relative shrink-0">
+                                <div
+                                  className="h-8 w-8 rounded-full border-2 border-slate-200 shadow-inner"
+                                  style={{ backgroundColor: color.color }}
+                                >
+                                  <input
+                                    type="color"
+                                    value={HEX_COLOR_REGEX.test(color.color) ? color.color : '#888888'}
+                                    onChange={(e) =>
+                                      handleSpecifiedColorPickerChange(cardIndex, color.name, e.target.value)
+                                    }
+                                    className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                                  />
+                                </div>
+                                <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-violet-600 text-[10px] font-bold text-white">
+                                  {color.name.replace('指定色', '')}
+                                </span>
+                              </div>
+
+                              <div className="min-w-0 flex-1">
+                                <p className="truncate text-sm text-slate-800">{color.label || color.name}</p>
+                              </div>
+
+                              <input
+                                type="text"
+                                value={color.text || color.color}
+                                onChange={(e) =>
+                                  handleSpecifiedColorTextChange(cardIndex, color.name, e.target.value)
+                                }
+                                onBlur={() => handleSpecifiedColorTextBlur(cardIndex, color.name)}
+                                className="w-24 rounded-xl border border-slate-200 bg-white px-2 py-1.5 text-xs font-mono text-slate-700 outline-none transition-all focus:border-violet-300 focus:ring-4 focus:ring-violet-100"
+                                placeholder="#888888"
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    <button
+                      onClick={() => handleGenerateSingle(cardIndex)}
+                      disabled={!kvImage || card.generating || batchGenerating}
+                      className="flex w-full items-center justify-center gap-2 rounded-[20px] bg-gradient-to-r from-violet-600 to-fuchsia-500 px-4 py-4 text-base font-semibold text-white shadow-[0_18px_40px_-24px_rgba(124,58,237,0.75)] transition-all disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {card.generating ? (
+                        <>
+                          <Loader2 className="h-5 w-5 animate-spin" />
+                          正在生成
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="h-5 w-5" />
+                          立即生成
+                        </>
+                      )}
+                    </button>
 
                     {card.error && (
-                      <motion.div 
-                        initial={{ opacity: 0, scale: 0.95 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        className="p-4 bg-red-50 border border-red-100 rounded-2xl text-red-700 text-sm flex items-start gap-3"
-                      >
-                        <XCircle className="w-5 h-5 shrink-0 mt-0.5" />
+                      <div className="flex items-start gap-3 rounded-[22px] border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
+                        <XCircle className="mt-0.5 h-4 w-4 shrink-0" />
                         <p>{card.error}</p>
-                      </motion.div>
-                    )}
-                  </div>
-
-                  <div className="w-full xl:w-80 shrink-0 space-y-4">
-                    <h4 className="text-sm font-bold text-gray-800 flex items-center gap-2 uppercase tracking-wider">
-                      <ImageIcon className="w-4 h-4 text-violet-600" />
-                      预览效果
-                    </h4>
-                    
-                    {card.result ? (
-                      <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm space-y-4">
-                        <div className="relative group cursor-pointer overflow-hidden rounded-xl border border-gray-100 shadow-inner" onClick={() => setPreviewImage(card.result.imageUrl)}>
-                          <img
-                            src={card.result.imageUrl}
-                            alt={`${card.template.name} 生成结果`}
-                            className="w-full h-auto min-h-[200px] max-h-[400px] object-contain transform group-hover:scale-105 transition-transform duration-500"
-                          />
-                          <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all">
-                            <div className="p-3 bg-white/20 backdrop-blur-md rounded-full border border-white/30 text-white">
-                              <Eye className="w-6 h-6" />
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex gap-3">
-                          <button
-                            onClick={() => handleDownloadSingle(card)}
-                            className="flex-1 py-2.5 bg-violet-600 text-white rounded-xl hover:bg-violet-700 transition-all flex items-center justify-center gap-2 text-sm font-bold shadow-md shadow-violet-100"
-                          >
-                            <Download className="w-4 h-4" />
-                            下载结果
-                          </button>
-                          <button
-                            onClick={() => handleRegenerateSingle(index)}
-                            className="flex-1 py-2.5 bg-white text-gray-700 border border-gray-200 rounded-xl hover:bg-gray-50 transition-all flex items-center justify-center gap-2 text-sm font-bold"
-                          >
-                            <RefreshCw className="w-4 h-4" />
-                            重试
-                          </button>
-                        </div>
-                        {card.result.revisedPrompt && (user?.role === 'admin' || user?.role === 'sub_admin') && (
-                          <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
-                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">PROMPT</p>
-                            <p className="text-xs text-gray-500 line-clamp-2 italic leading-relaxed">{card.result.revisedPrompt}</p>
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="bg-slate-50/50 rounded-2xl p-8 border-2 border-dashed border-slate-200 flex flex-col items-center justify-center min-h-[300px] text-center space-y-4">
-                        {card.generating ? (
-                          <div className="space-y-4 flex flex-col items-center">
-                            <div className="relative">
-                              <div className="w-16 h-16 border-4 border-violet-100 border-t-violet-600 rounded-full animate-spin" />
-                              <Sparkles className="absolute inset-0 m-auto w-6 h-6 text-violet-400 animate-pulse" />
-                            </div>
-                            <div className="space-y-1">
-                              <p className="text-sm font-bold text-violet-900">{card.generationStatus || '正在构思中...'}</p>
-                              <p className="text-xs text-gray-400">预计需要 15-30 秒</p>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="space-y-3">
-                            <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center mx-auto shadow-sm border border-slate-100">
-                              <ImageIcon className="w-8 h-8 text-slate-300" />
-                            </div>
-                            <div>
-                              <p className="text-sm font-bold text-slate-400">等待生成</p>
-                              <p className="text-xs text-slate-300">点击左侧生成按钮开始创作</p>
-                            </div>
-                          </div>
-                        )}
                       </div>
                     )}
                   </div>
                 </div>
+
+                <div className="px-6 py-6">
+                  <div className="mb-4 flex items-center gap-2">
+                    <span className="h-5 w-1 rounded-full bg-violet-500" />
+                    <span className="text-lg font-bold text-slate-900">预览效果</span>
+                  </div>
+
+                  {card.result ? (
+                    <div className="space-y-4">
+                      <div
+                        className="group relative cursor-pointer overflow-hidden rounded-[24px] border border-violet-100 bg-white p-3 shadow-sm"
+                        onClick={() => setPreviewImage(card.result.imageUrl)}
+                      >
+                        <img
+                          src={card.result.imageUrl}
+                          alt={`${card.template.name} 生成结果`}
+                          className="max-h-[340px] min-h-[280px] w-full rounded-[18px] object-contain"
+                        />
+                        <div className="absolute inset-0 flex items-center justify-center bg-slate-950/30 opacity-0 transition-opacity group-hover:opacity-100">
+                          <div className="rounded-full border border-white/30 bg-white/20 p-3 text-white backdrop-blur">
+                            <Eye className="h-5 w-5" />
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <button
+                          onClick={() => handleDownloadSingle(card)}
+                          className="flex items-center justify-center gap-2 rounded-2xl bg-violet-600 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-violet-700"
+                        >
+                          <Download className="h-4 w-4" />
+                          下载结果
+                        </button>
+                        <button
+                          onClick={() => handleRegenerateSingle(cardIndex)}
+                          disabled={batchGenerating}
+                          className="flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          <RefreshCw className="h-4 w-4" />
+                          重新生成
+                        </button>
+                      </div>
+
+                      {card.result.revisedPrompt && (user?.role === 'admin' || user?.role === 'sub_admin') && (
+                        <div className="rounded-2xl border border-slate-100 bg-slate-50 p-3">
+                          <p className="mb-1 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">
+                            Prompt
+                          </p>
+                          <p className="line-clamp-3 text-xs italic leading-5 text-slate-500">
+                            {card.result.revisedPrompt}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="flex min-h-[420px] flex-col rounded-[26px] border-2 border-dashed border-violet-200 bg-[linear-gradient(180deg,rgba(250,248,255,0.96),rgba(255,255,255,0.96))] p-6">
+                      <div className="mb-6 flex items-center justify-between text-xs text-slate-400">
+                        <span>待生成区域</span>
+                        <span>{card.generating ? card.generationStatus || '处理中...' : '等待中'}</span>
+                      </div>
+
+                      <div className="flex flex-1 flex-col items-center justify-center text-center">
+                        {card.generating ? (
+                          <>
+                            <div className="relative mb-6">
+                              <div className="h-16 w-16 animate-spin rounded-full border-4 border-violet-100 border-t-violet-500" />
+                              <Sparkles className="absolute inset-0 m-auto h-5 w-5 text-violet-400" />
+                            </div>
+                            <p className="text-lg font-bold text-violet-700">正在生成</p>
+                            <p className="mt-2 text-sm text-slate-400">请稍候，系统正在生成当前模板效果图</p>
+                          </>
+                        ) : (
+                          <>
+                            <div className="relative mb-6">
+                              <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-[22px] border border-violet-200 bg-white shadow-[0_18px_40px_-28px_rgba(124,58,237,0.45)]">
+                                <ImageIcon className="h-9 w-9 text-violet-300" />
+                              </div>
+                              <span className="absolute -right-2 top-1 h-2 w-2 rounded-full bg-violet-200" />
+                              <span className="absolute left-1 top-7 h-1.5 w-1.5 rounded-full bg-violet-200" />
+                            </div>
+                            <p className="text-2xl font-bold text-violet-700">等待生成</p>
+                            <p className="mt-2 text-sm leading-6 text-slate-400">点击左侧生成按钮开始创作</p>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             </motion.div>
           ))}
-        </div>
-      </div>
+        </section>
+      </main>
     </div>
   );
 }

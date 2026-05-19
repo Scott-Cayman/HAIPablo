@@ -54,6 +54,9 @@ interface Template {
   coverMetadata?: {
     title?: string;
     description?: string;
+    badge?: string;
+    specialTemplateType?: string;
+    specialTemplateLabel?: string;
   };
 }
 
@@ -95,6 +98,9 @@ export default function TemplatesPage() {
   const [saving, setSaving] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const router = useRouter();
+  const canManage = user?.role === 'admin' || user?.role === 'sub_admin';
+  const isAdmin = user?.role === 'admin';
+  const isSubAdmin = user?.role === 'sub_admin';
 
   const availableIcons = [
     { key: 'Layers', component: Layers, name: '图层' },
@@ -187,6 +193,8 @@ export default function TemplatesPage() {
           }
         })
         .catch(console.error);
+    } else {
+      router.push('/auth');
     }
     fetchFeatureGroups();
   }, []);
@@ -214,7 +222,7 @@ export default function TemplatesPage() {
   const handleEditTemplate = (e: React.MouseEvent, template: Template) => {
     e.stopPropagation();
     
-    if (!user || (user.role !== 'admin' && user.role !== 'sub_admin')) {
+    if (!canManage) {
       alert('权限不足，无法编辑模板');
       return;
     }
@@ -225,7 +233,7 @@ export default function TemplatesPage() {
   const handleDeleteTemplate = async (e: React.MouseEvent, template: Template) => {
     e.stopPropagation();
     
-    if (!user || (user.role !== 'admin' && user.role !== 'sub_admin')) {
+    if (!canManage) {
       alert('权限不足，无法删除模板');
       return;
     }
@@ -252,7 +260,7 @@ export default function TemplatesPage() {
   };
 
   const handleNewTemplate = () => {
-    if (!user || (user.role !== 'admin' && user.role !== 'sub_admin')) {
+    if (!canManage) {
       alert('权限不足，无法创建模板');
       return;
     }
@@ -260,7 +268,7 @@ export default function TemplatesPage() {
   };
 
   const handleAddGroup = () => {
-    if (!user || (user.role !== 'admin' && user.role !== 'sub_admin')) {
+    if (!canManage) {
       alert('权限不足，无法添加功能分类');
       return;
     }
@@ -304,7 +312,7 @@ export default function TemplatesPage() {
   };
 
   const handleEditGroup = (group: FeatureGroup) => {
-    if (!user || (user.role !== 'admin' && user.role !== 'sub_admin')) {
+    if (!canManage) {
       alert('权限不足，无法编辑功能分类');
       return;
     }
@@ -355,7 +363,7 @@ export default function TemplatesPage() {
   };
 
   const handleDeleteGroup = async (group: FeatureGroup) => {
-    if (!user || (user.role !== 'admin' && user.role !== 'sub_admin')) {
+    if (!canManage) {
       alert('权限不足，无法删除功能分类');
       return;
     }
@@ -406,7 +414,7 @@ export default function TemplatesPage() {
   return (
     <div className={`min-h-screen transition-colors duration-500 ${darkMode ? 'bg-gray-950' : 'bg-gradient-to-br from-slate-100 via-gray-50 to-slate-100'}`}>
       <header className={`sticky top-0 z-50 border-b backdrop-blur-xl transition-colors duration-500 ${darkMode ? 'bg-gray-950/80 border-gray-800' : 'bg-white/70 border-gray-200'}`}>
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center relative">
+        <div className="mx-auto flex w-[min(96vw,1880px)] items-center relative px-6 py-4 2xl:px-8">
           <div className="flex items-center gap-4">
             <button 
               onClick={() => router.push('/')}
@@ -502,7 +510,7 @@ export default function TemplatesPage() {
                             <Sparkles className="w-3 h-3" />
                             潮能力: {user.credits ?? 0}
                           </span>
-                          {user.role === 'admin' && (
+                          {isAdmin && (
                             <span className={`px-2 py-1 text-xs font-medium rounded-full flex items-center gap-1 w-fit ${
                               darkMode 
                                 ? 'bg-amber-900/50 text-amber-400' 
@@ -512,7 +520,7 @@ export default function TemplatesPage() {
                               管理员
                             </span>
                           )}
-                          {user.role === 'sub_admin' && (
+                          {isSubAdmin && (
                             <span className={`px-2 py-1 text-xs font-medium rounded-full flex items-center gap-1 w-fit ${
                               darkMode 
                                 ? 'bg-blue-900/50 text-blue-400' 
@@ -538,7 +546,7 @@ export default function TemplatesPage() {
                           我的历史
                         </button>
 
-                        {(user.role === 'admin' || user.role === 'sub_admin') && (
+                        {canManage && (
                           <button
                             onClick={() => router.push('/admin/users')}
                             className={`w-full px-4 py-2.5 text-left rounded-lg transition-colors flex items-center gap-3 mt-1 ${
@@ -548,7 +556,7 @@ export default function TemplatesPage() {
                             }`}
                           >
                             <Users className="w-4 h-4" />
-                            {user.role === 'admin' ? '用户与部门管理' : '人员列表'}
+                            {isAdmin ? '用户与部门管理' : '人员列表'}
                           </button>
                         )}
 
@@ -575,7 +583,7 @@ export default function TemplatesPage() {
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto px-6 py-8">
+      <div className="mx-auto w-[min(96vw,1880px)] px-6 py-8 2xl:px-8">
         <div className="grid grid-cols-12 gap-8">
           <motion.div 
             initial={{ opacity: 0, x: -20 }}
@@ -639,7 +647,7 @@ export default function TemplatesPage() {
                         </div>
                       </motion.button>
                       
-                      {(user.role === 'admin' || user.role === 'sub_admin') && (
+                      {canManage && (
                         <div className={`absolute top-2 right-2 flex gap-1 transition-opacity ${
                           isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
                         }`}>
@@ -685,7 +693,7 @@ export default function TemplatesPage() {
                   );
                 })}
                 
-                {(user.role === 'admin' || user.role === 'sub_admin') && (
+                {canManage && (
                   <motion.button
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -747,7 +755,7 @@ export default function TemplatesPage() {
                       <LayersIcon className="w-4 h-4" />
                       {batchMode ? '取消批量' : '批量生成'}
                     </button>
-                    {(user.role === 'admin' || user.role === 'sub_admin') && (
+                    {canManage && (
                       <button 
                         onClick={handleNewTemplate}
                         className={`px-4 py-2 rounded-lg transition-colors flex items-center gap-2 ${
@@ -845,7 +853,7 @@ export default function TemplatesPage() {
                                   <Sparkles className={`w-5 h-5 ${darkMode ? 'text-gray-300' : 'text-gray-600'}`} />
                                 </div>
                               </div>
-                              {(user.role === 'admin' || user.role === 'sub_admin') && !batchMode && (
+                              {canManage && !batchMode && (
                                 <div className="flex gap-1">
                                   <button
                                     onClick={(e) => handleEditTemplate(e, template)}
@@ -876,6 +884,14 @@ export default function TemplatesPage() {
                             <h3 className={`text-base font-semibold mb-2 line-clamp-1 h-6 transition-colors duration-500 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
                               {template.name}
                             </h3>
+
+                            {template.coverMetadata?.specialTemplateType && (
+                              <div className="mb-2">
+                                <span className="inline-flex items-center rounded-full bg-emerald-100 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 border border-emerald-200">
+                                  {template.coverMetadata.badge || '特殊模板'}
+                                </span>
+                              </div>
+                            )}
                             
                             <p className={`text-sm mb-3 line-clamp-2 h-10 transition-colors duration-500 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
                               {template.description || ' '}
@@ -969,7 +985,7 @@ export default function TemplatesPage() {
                     </div>
                     <h3 className={`text-xl font-semibold mb-3 transition-colors duration-500 ${darkMode ? 'text-white' : 'text-gray-900'}`}>该分类下暂无模板</h3>
                     <p className={`mb-6 transition-colors duration-500 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>创建一个新模板开始使用</p>
-                    {(user.role === 'admin' || user.role === 'sub_admin') && (
+                    {canManage && (
                       <button
                         onClick={handleNewTemplate}
                         className={`px-6 py-3 rounded-lg transition-colors inline-flex items-center gap-2 ${

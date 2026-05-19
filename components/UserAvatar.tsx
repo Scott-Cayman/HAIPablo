@@ -6,7 +6,7 @@ interface UserAvatarProps {
   user?: {
     username?: string;
     role?: string;
-    name?: string;
+    name?: string | null;
   } | null;
   size?: 'sm' | 'md' | 'lg' | 'xl';
   className?: string;

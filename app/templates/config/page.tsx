@@ -28,6 +28,11 @@ import {
   GripVertical
 } from 'lucide-react';
 import { SIZE_OPTIONS, QUALITY_OPTIONS } from '@/lib/types';
+import {
+  SPECIAL_TEMPLATE_3D_RENDER,
+  THREE_D_AI_RENDER_PRESET,
+  type SpecialTemplateOption
+} from '@/lib/special-template-presets';
 
 interface ReferenceImage {
   id: string;
@@ -44,6 +49,9 @@ interface CoverImage {
 interface CoverMetadata {
   title?: string;
   description?: string;
+  badge?: string;
+  specialTemplateType?: string;
+  specialTemplateLabel?: string;
 }
 
 interface TemplateVariable {
@@ -54,7 +62,11 @@ interface TemplateVariable {
   placeholder?: string;
   required?: boolean;
   defaultValue?: string;
-  options?: Array<{ label: string; value: string }>;
+  options?: SpecialTemplateOption[];
+  multiSelect?: boolean;
+  maxSelections?: number;
+  section?: string;
+  sectionDescription?: string;
 }
 
 const DEFAULT_PROMPT = '请将参考图1的画面应用到参考图2的模板样式中：\n\n要求：\n1. 保持参考图2的整体结构和布局\n2. 参考图1中的主要视觉元素应该清晰可见\n3. 颜色风格应该与参考图1保持一致\n4. 参考图2中的文字位置和大小保持不变\n5. 整体比例协调，美观大方';
@@ -128,6 +140,28 @@ export default function TemplateConfigPage() {
       ...prev,
       variables: [...prev.variables, newVar]
     }));
+  };
+
+  const applyThreeDAIRenderPreset = () => {
+    setFormData(prev => ({
+      ...prev,
+      name: THREE_D_AI_RENDER_PRESET.name,
+      description: THREE_D_AI_RENDER_PRESET.description,
+      promptTemplate: THREE_D_AI_RENDER_PRESET.promptTemplate,
+      negativePrompt: THREE_D_AI_RENDER_PRESET.negativePrompt,
+      defaultSize: THREE_D_AI_RENDER_PRESET.defaultSize,
+      defaultQuality: THREE_D_AI_RENDER_PRESET.defaultQuality,
+      enabled: true,
+      allowUserPrompt: THREE_D_AI_RENDER_PRESET.allowUserPrompt,
+      userPromptPriorityDefault: THREE_D_AI_RENDER_PRESET.userPromptPriorityDefault,
+      enableSpecifiedColors: false,
+      specifiedColors: [],
+      variables: THREE_D_AI_RENDER_PRESET.variables,
+      showMainVisual: THREE_D_AI_RENDER_PRESET.showMainVisual
+    }));
+    setReferenceImages([]);
+    setCoverImage(null);
+    setCoverMetadata(THREE_D_AI_RENDER_PRESET.coverMetadata);
   };
 
   const removeVariable = (id: string) => {
@@ -295,6 +329,7 @@ export default function TemplateConfigPage() {
 
         if (data.coverMetadata) {
           setCoverMetadata({
+            ...data.coverMetadata,
             title: data.coverMetadata.title || '',
             description: data.coverMetadata.description || ''
           });
@@ -422,7 +457,7 @@ export default function TemplateConfigPage() {
 
   const handleRemoveCover = () => {
     setCoverImage(null);
-    setCoverMetadata({ title: '', description: '' });
+    setCoverMetadata(prev => ({ ...prev, title: '', description: '' }));
   };
 
   const handleCoverMetadataChange = (field: keyof CoverMetadata, value: string) => {
@@ -525,9 +560,9 @@ export default function TemplateConfigPage() {
   }
 
   return (
-    <div className="min-h-screen transition-colors duration-500 {darkMode ? 'bg-gray-950' : 'bg-gradient-to-br from-slate-100 via-gray-50 to-slate-100'}">
+    <div className={`min-h-screen transition-colors duration-500 ${darkMode ? 'bg-gray-950' : 'bg-gradient-to-br from-slate-100 via-gray-50 to-slate-100'}`}>
       <header className="glass sticky top-0 z-50 border-b border-white/20">
-        <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
+        <div className="mx-auto flex w-[min(96vw,1880px)] items-center justify-between px-6 py-4 2xl:px-8">
           <div className="flex items-center gap-4">
             <button 
               onClick={() => router.push('/templates')}
@@ -543,6 +578,13 @@ export default function TemplateConfigPage() {
             </div>
           </div>
           <div className="flex items-center gap-4">
+            <button
+              type="button"
+              onClick={applyThreeDAIRenderPreset}
+              className="px-4 py-2 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors text-sm font-medium"
+            >
+              载入 3D AI 渲染特殊模板
+            </button>
             <button
               onClick={handleSave}
               disabled={saving}
@@ -639,7 +681,7 @@ export default function TemplateConfigPage() {
         </div>
       </header>
 
-      <div className="max-w-6xl mx-auto px-6 py-8">
+      <div className="mx-auto w-[min(96vw,1880px)] px-6 py-8 2xl:px-8">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           <motion.div
             initial={{ opacity: 0, x: -20 }}
@@ -664,6 +706,27 @@ export default function TemplateConfigPage() {
                     placeholder="例如：签到板生成"
                   />
                 </div>
+
+                {coverMetadata.specialTemplateType === SPECIAL_TEMPLATE_3D_RENDER && (
+                  <div className="rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50 p-4">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <p className="text-xs font-semibold tracking-[0.2em] text-emerald-700 uppercase">
+                          特殊模板
+                        </p>
+                        <h3 className="mt-1 text-base font-semibold text-gray-900">
+                          {coverMetadata.specialTemplateLabel || '3D AI 渲染'}
+                        </h3>
+                        <p className="mt-1 text-sm text-gray-600">
+                          该模板会在生成页启用专用的结构化表单，适合白膜、草图、线稿的 3D 渲染场景。
+                        </p>
+                      </div>
+                      <span className="rounded-full bg-emerald-600 px-3 py-1 text-xs font-semibold text-white">
+                        {coverMetadata.badge || '特殊模板'}
+                      </span>
+                    </div>
+                  </div>
+                )}
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -1173,6 +1236,30 @@ export default function TemplateConfigPage() {
 
                             {variable.type === 'select' && (
                               <div className="mt-3 p-3 bg-white rounded-lg border border-gray-200">
+                                <div className="grid grid-cols-2 gap-3 mb-3">
+                                  <label className="flex items-center gap-2 cursor-pointer">
+                                    <input
+                                      type="checkbox"
+                                      checked={variable.multiSelect || false}
+                                      onChange={(e) => updateVariable(variable.id, { multiSelect: e.target.checked })}
+                                      className="w-3.5 h-3.5 text-violet-600 rounded border-gray-300"
+                                    />
+                                    <span className="text-xs text-gray-600">允许多选</span>
+                                  </label>
+                                  <div>
+                                    <label className="block text-xs font-medium text-gray-600 mb-1">最多选择</label>
+                                    <input
+                                      type="number"
+                                      min={1}
+                                      value={variable.maxSelections || ''}
+                                      onChange={(e) => updateVariable(variable.id, {
+                                        maxSelections: e.target.value ? Number(e.target.value) : undefined
+                                      })}
+                                      className="input-field text-sm"
+                                      placeholder="例如：3"
+                                    />
+                                  </div>
+                                </div>
                                 <label className="block text-xs font-medium text-gray-600 mb-2">选项列表 (格式: 标签:值，每行一个)</label>
                                 <textarea
                                   value={variable.options?.map(o => `${o.label}:${o.value}`).join('\n') || ''}
