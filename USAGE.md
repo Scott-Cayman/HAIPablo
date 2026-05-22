@@ -131,7 +131,7 @@ HAIPablo/
 ## ⚙️ 环境变量
 
 ```env
-DATABASE_URL="file:./dev.db"
+DATABASE_URL="postgresql://postgres:postgres@113.59.125.17:5458/haiPablodb"
 GPT_IMAGE_API_BASE_URL="https://api.jyf.ai"
 GPT_IMAGE_API_KEY="your-api-key"
 STORAGE_DRIVER="local"

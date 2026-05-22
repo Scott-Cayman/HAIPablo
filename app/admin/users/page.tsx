@@ -145,19 +145,27 @@ export default function AdminUsersPage() {
   const [departments, setDepartments] = useState<any[]>([]);
 
   useEffect(() => {
-    const userData = localStorage.getItem('user');
-    if (userData) {
-      const user = JSON.parse(userData);
-      setUser(user);
-      if (user.role === 'admin' || user.username === 'admin') {
-        fetchUsers(user.id);
-        fetchDepartments();
-      } else {
-        router.push('/');
+    const fetchUser = async () => {
+      try {
+        const res = await fetch('/api/auth/me');
+        if (res.ok) {
+          const userData = await res.json();
+          setUser(userData);
+          if (userData.role === 'admin' || userData.username === 'admin') {
+            fetchUsers(userData.id);
+            fetchDepartments();
+          } else {
+            router.push('/');
+          }
+        } else {
+          router.push('/auth');
+        }
+      } catch {
+        router.push('/auth');
       }
-    } else {
-      router.push('/auth');
-    }
+    };
+
+    fetchUser();
   }, []);
 
   const fetchDepartments = async () => {
@@ -276,8 +284,12 @@ export default function AdminUsersPage() {
     });
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('user');
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+    } catch (err) {
+      console.error('登出失败:', err);
+    }
     router.push('/auth');
   };
 

@@ -258,12 +258,20 @@ export default function GeneratePage() {
       document.documentElement.classList.add('dark');
     }
 
-    const userData = localStorage.getItem('user');
-    if (userData) {
-      setUser(JSON.parse(userData));
-    } else {
-      router.push('/auth');
-    }
+    const fetchUser = async () => {
+      try {
+        const res = await fetch('/api/auth/me');
+        if (res.ok) {
+          setUser(await res.json());
+        } else {
+          router.push('/auth');
+        }
+      } catch {
+        router.push('/auth');
+      }
+    };
+
+    fetchUser();
     
     if (templateId) {
       fetchTemplate();
@@ -1253,8 +1261,12 @@ export default function GeneratePage() {
     setIsDragging(false);
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('user');
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+    } catch (err) {
+      console.error('登出失败:', err);
+    }
     router.push('/auth');
   };
 

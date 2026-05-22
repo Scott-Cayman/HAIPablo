@@ -1,9 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-
-function hashPassword(password: string): string {
-  return Buffer.from(password).toString('base64');
-}
+import { createToken, setAuthCookie } from '@/lib/auth';
 
 export async function POST(request: NextRequest) {
   try {
@@ -173,15 +170,13 @@ export async function POST(request: NextRequest) {
     });
 
     if (!user) {
-      // 自动记录邮箱为账号密码默认12345678
-      const defaultPassword = hashPassword('12345678');
       const accountEmail = userEmail || `${unionId}@dingtalk.local`;
-      
+
       user = await prisma.user.create({
         data: {
           username: accountEmail,
           email: accountEmail,
-          password: defaultPassword,
+          password: '',
           name: nick,
           avatar: avatarUrl,
           dingtalkUnionId: unionId,
@@ -191,7 +186,6 @@ export async function POST(request: NextRequest) {
         },
       });
     } else {
-      // Update dingtalk info if missing
       user = await prisma.user.update({
         where: { id: user.id },
         data: {
@@ -204,16 +198,15 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Return user info for frontend to save in localStorage
-    return NextResponse.json({
-      id: user.id,
+    const token = await createToken({
+      userId: user.id,
       username: user.username,
-      email: user.email,
-      name: user.name,
-      avatar: user.avatar,
       role: user.role,
-      credits: user.credits,
     });
+
+    await setAuthCookie(request, token);
+
+    return NextResponse.json({ success: true });
   } catch (error) {
     console.error('DingTalk callback error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

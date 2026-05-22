@@ -25,7 +25,7 @@
 
 - Node.js 18+
 - npm 或 yarn
-- SQLite（内置，无需单独安装）
+- PostgreSQL（需自备数据库服务，可通过 Docker 或云 RDS 部署）
 
 ### 安装步骤
 
@@ -49,7 +49,7 @@
    
    项目根目录已包含 `.env` 文件，配置如下：
    ```env
-   DATABASE_URL="file:./dev.db"
+   DATABASE_URL="postgresql://postgres:postgres@113.59.125.17:5458/haiPablodb"
    GPT_IMAGE_API_BASE_URL="https://api.jyf.ai"
    GPT_IMAGE_API_KEY="sk-nN3PuvBju1rD1p9Cj2WSLFR8KcOcKEnU87pP1HKwpU83ydwW"
    STORAGE_DRIVER="local"

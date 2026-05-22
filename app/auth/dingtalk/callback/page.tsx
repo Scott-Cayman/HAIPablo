@@ -46,9 +46,6 @@ function CallbackContent() {
           throw new Error(data.error || '登录失败');
         }
 
-        // 保存用户信息并跳转
-        localStorage.setItem('user', JSON.stringify(data));
-        // 强制刷新以更新全局状态
         window.location.href = '/';
       } catch (err: any) {
         setError(err.message || '登录异常，请重试');

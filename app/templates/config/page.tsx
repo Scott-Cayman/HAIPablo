@@ -269,11 +269,19 @@ export default function TemplateConfigPage() {
   };
 
   useEffect(() => {
-    const userData = localStorage.getItem('user');
-    if (userData) {
-      setUser(JSON.parse(userData));
-    }
-    
+    const fetchUser = async () => {
+      try {
+        const res = await fetch('/api/auth/me');
+        if (res.ok) {
+          setUser(await res.json());
+        }
+      } catch (err) {
+        console.error('获取用户失败:', err);
+      }
+    };
+
+    fetchUser();
+
     if (isEditing && templateId) {
       fetchTemplate();
     }
@@ -291,8 +299,12 @@ export default function TemplateConfigPage() {
     return () => document.removeEventListener('click', handleClickOutside);
   }, []);
 
-  const handleLogout = () => {
-    localStorage.removeItem('user');
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+    } catch (err) {
+      console.error('登出失败:', err);
+    }
     router.push('/auth');
   };
 

@@ -107,27 +107,27 @@ export default function LoginPage() {
     if (isResetPassword) {
       return handleResetPassword(e);
     }
-    
+
     e.preventDefault();
     setLoading(true);
     setError('');
     setSuccessMsg('');
 
     try {
-      const url = isLogin ? '/api/auth' : '/api/auth';
-      const method = isLogin ? 'GET' : 'POST';
-
       let response;
 
       if (isLogin) {
-        const params = new URLSearchParams({
-          username: formData.username,
-          password: formData.password
+        response = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            username: formData.username,
+            password: formData.password
+          })
         });
-        response = await fetch(`${url}?${params}`, { method });
       } else {
-        response = await fetch(url, {
-          method,
+        response = await fetch('/api/auth', {
+          method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(formData)
         });
@@ -139,7 +139,6 @@ export default function LoginPage() {
         throw new Error(data.error || '操作失败');
       }
 
-      localStorage.setItem('user', JSON.stringify(data));
       router.push('/');
     } catch (error: any) {
       setError(error.message);

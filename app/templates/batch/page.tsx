@@ -157,27 +157,20 @@ export default function BatchGeneratePage() {
       document.documentElement.classList.add('dark');
     }
 
-    const userData = localStorage.getItem('user');
-    if (userData) {
-      const parsedUser = JSON.parse(userData);
-      setUser(parsedUser);
+    const fetchUser = async () => {
+      try {
+        const res = await fetch('/api/auth/me');
+        if (res.ok) {
+          setUser(await res.json());
+        } else {
+          router.push('/auth');
+        }
+      } catch {
+        router.push('/auth');
+      }
+    };
 
-      fetch(`/api/users?requesterId=${parsedUser.id}`)
-        .then((res) => res.json())
-        .then((users) => {
-          if (Array.isArray(users)) {
-            const me = users.find((item: any) => item.id === parsedUser.id);
-            if (me) {
-              const updatedUser = { ...parsedUser, credits: me.credits };
-              setUser(updatedUser);
-              localStorage.setItem('user', JSON.stringify(updatedUser));
-            }
-          }
-        })
-        .catch(console.error);
-    } else {
-      router.push('/auth');
-    }
+    fetchUser();
 
     if (templateIds.length > 0 && !hasFetched.current) {
       hasFetched.current = true;
@@ -240,27 +233,24 @@ export default function BatchGeneratePage() {
     document.documentElement.classList.toggle('dark');
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('user');
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+    } catch (err) {
+      console.error('登出失败:', err);
+    }
     router.push('/auth');
   };
 
-  const refreshCredits = () => {
-    if (!user) return;
-
-    fetch(`/api/users?requesterId=${user.id}`)
-      .then((res) => res.json())
-      .then((users) => {
-        if (Array.isArray(users)) {
-          const me = users.find((item: any) => item.id === user.id);
-          if (me) {
-            const updatedUser = { ...user, credits: me.credits };
-            setUser(updatedUser);
-            localStorage.setItem('user', JSON.stringify(updatedUser));
-          }
-        }
-      })
-      .catch(console.error);
+  const refreshCredits = async () => {
+    try {
+      const res = await fetch('/api/auth/me');
+      if (res.ok) {
+        setUser(await res.json());
+      }
+    } catch (err) {
+      console.error('刷新用户信息失败:', err);
+    }
   };
 
   const handleKvImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {

@@ -112,14 +112,22 @@ export default function HistoryPage() {
   }, [histories, templates, selectedMainCategory, selectedSubCategory]);
 
   useEffect(() => {
-    const userData = localStorage.getItem('user');
-    if (userData) {
-      const user = JSON.parse(userData);
-      setUser(user);
-      fetchHistory(user.id);
-    } else {
-      router.push('/auth');
-    }
+    const fetchUser = async () => {
+      try {
+        const res = await fetch('/api/auth/me');
+        if (res.ok) {
+          const userData = await res.json();
+          setUser(userData);
+          fetchHistory(userData.id);
+        } else {
+          router.push('/auth');
+        }
+      } catch {
+        router.push('/auth');
+      }
+    };
+
+    fetchUser();
   }, []);
 
   useEffect(() => {
@@ -154,8 +162,12 @@ export default function HistoryPage() {
     }
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('user');
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+    } catch (err) {
+      console.error('登出失败:', err);
+    }
     router.push('/auth');
   };
 

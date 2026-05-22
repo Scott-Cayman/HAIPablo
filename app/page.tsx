@@ -124,27 +124,20 @@ export default function HomePage() {
 
   useEffect(() => {
     setMounted(true);
-    
-    const userData = localStorage.getItem('user');
-    if (userData) {
-      const parsedUser = JSON.parse(userData);
-      setUser(parsedUser);
-      // Fetch latest user data for credits
-      fetch(`/api/users?requesterId=${parsedUser.id}`)
-        .then(res => res.json())
-        .then(users => {
-          if (Array.isArray(users)) {
-            const me = users.find((u: any) => u.id === parsedUser.id);
-            if (me) {
-              const updatedUser = { ...parsedUser, credits: me.credits };
-              setUser(updatedUser);
-              localStorage.setItem('user', JSON.stringify(updatedUser));
-            }
-          }
-        })
-        .catch(console.error);
-    }
-    
+
+    const fetchUser = async () => {
+      try {
+        const res = await fetch('/api/auth/me');
+        if (res.ok) {
+          const userData = await res.json();
+          setUser(userData);
+        }
+      } catch (err) {
+        console.error('获取用户失败:', err);
+      }
+    };
+
+    fetchUser();
     fetchStats();
   }, []);
 
@@ -216,8 +209,12 @@ export default function HomePage() {
     router.push('/auth');
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('user');
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+    } catch (err) {
+      console.error('登出失败:', err);
+    }
     setUser(null);
   };
 
