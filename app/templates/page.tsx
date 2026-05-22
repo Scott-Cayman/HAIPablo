@@ -92,12 +92,6 @@ export default function TemplatesPage() {
   const [showAddGroupModal, setShowAddGroupModal] = useState(false);
   const [showEditGroupModal, setShowEditGroupModal] = useState(false);
   const [editingGroup, setEditingGroup] = useState<FeatureGroup | null>(null);
-  const [showDeleteTemplateModal, setShowDeleteTemplateModal] = useState(false);
-  const [pendingDeleteTemplate, setPendingDeleteTemplate] = useState<Template | null>(null);
-  const [deleteChallenge, setDeleteChallenge] = useState<{ a: number; b: number } | null>(null);
-  const [deleteAnswer, setDeleteAnswer] = useState('');
-  const [deleteError, setDeleteError] = useState('');
-  const [deletingTemplate, setDeletingTemplate] = useState(false);
   const [newGroupData, setNewGroupData] = useState({
     name: '',
     key: '',
@@ -252,57 +246,6 @@ export default function TemplatesPage() {
     router.push(`/templates/config?id=${template.id}`);
   };
 
-  const closeDeleteTemplateModal = () => {
-    setShowDeleteTemplateModal(false);
-    setPendingDeleteTemplate(null);
-    setDeleteChallenge(null);
-    setDeleteAnswer('');
-    setDeleteError('');
-    setDeletingTemplate(false);
-  };
-
-  const openDeleteTemplateModal = (template: Template) => {
-    const a = Math.floor(Math.random() * 90) + 10;
-    const b = Math.floor(Math.random() * 90) + 10;
-    setPendingDeleteTemplate(template);
-    setDeleteChallenge({ a, b });
-    setDeleteAnswer('');
-    setDeleteError('');
-    setShowDeleteTemplateModal(true);
-  };
-
-  const confirmDeleteTemplate = async () => {
-    if (!pendingDeleteTemplate || !deleteChallenge || !user?.id) return;
-
-    const expected = deleteChallenge.a * deleteChallenge.b;
-    const parsed = parseInt(deleteAnswer.trim(), 10);
-    if (!Number.isFinite(parsed) || parsed !== expected) {
-      setDeleteError('答案不正确');
-      return;
-    }
-
-    setDeletingTemplate(true);
-    setDeleteError('');
-
-    try {
-      const response = await fetch(`/api/templates/${pendingDeleteTemplate.id}?requesterId=${user.id}`, {
-        method: 'DELETE'
-      });
-
-      if (!response.ok) {
-        throw new Error('删除失败');
-      }
-
-      closeDeleteTemplateModal();
-      alert('模板删除成功');
-      fetchFeatureGroups(user.id);
-    } catch (error) {
-      console.error('删除模板失败:', error);
-      setDeleteError('删除失败，请重试');
-      setDeletingTemplate(false);
-    }
-  };
-
   const handleDeleteTemplate = async (e: React.MouseEvent, template: Template) => {
     e.stopPropagation();
     
@@ -310,8 +253,33 @@ export default function TemplatesPage() {
       alert('权限不足，无法删除模板');
       return;
     }
+    
+    const a = Math.floor(Math.random() * 90) + 10;
+    const b = Math.floor(Math.random() * 90) + 10;
+    const expected = a * b;
+    const input = window.prompt(`删除校验：请输入 ${a} × ${b} 的答案，确认删除模板「${template.name}」。\n取消则不删除。`);
+    if (input === null) return;
+    const parsed = parseInt(input.trim(), 10);
+    if (!Number.isFinite(parsed) || parsed !== expected) {
+      alert('答案不正确，已取消删除');
+      return;
+    }
 
-    openDeleteTemplateModal(template);
+    try {
+      const response = await fetch(`/api/templates/${template.id}?requesterId=${user.id}`, {
+        method: 'DELETE'
+      });
+
+      if (response.ok) {
+        alert('模板删除成功');
+        fetchFeatureGroups(user.id);
+      } else {
+        throw new Error('删除失败');
+      }
+    } catch (error) {
+      console.error('删除模板失败:', error);
+      alert('删除失败，请重试');
+    }
   };
 
   const handleNewTemplate = () => {
@@ -1436,121 +1404,6 @@ export default function TemplatesPage() {
                     <>
                       <Edit className="w-4 h-4" />
                       保存修改
-                    </>
-                  )}
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {showDeleteTemplateModal && pendingDeleteTemplate && deleteChallenge && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-            onClick={closeDeleteTemplateModal}
-          >
-            <motion.div
-              initial={{ scale: 0.96, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.96, opacity: 0 }}
-              className={`rounded-2xl shadow-2xl w-full max-w-md overflow-hidden transition-colors duration-500 ${
-                darkMode ? 'bg-gray-900' : 'bg-white'
-              }`}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className={`p-6 border-b flex items-start justify-between transition-colors duration-500 ${
-                darkMode ? 'border-gray-800' : 'border-gray-100'
-              }`}>
-                <div>
-                  <h3 className={`text-xl font-semibold transition-colors duration-500 ${darkMode ? 'text-white' : 'text-gray-900'}`}>删除模板</h3>
-                  <p className={`text-sm mt-1 transition-colors duration-500 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                    输入校验答案后才可删除：{deleteChallenge.a} × {deleteChallenge.b}
-                  </p>
-                </div>
-                <button
-                  onClick={closeDeleteTemplateModal}
-                  className={`p-2 rounded-lg transition-colors ${
-                    darkMode ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-100 text-gray-600'
-                  }`}
-                  type="button"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              <div className="p-6 space-y-4">
-                <div className={`rounded-xl border p-3 text-sm transition-colors duration-500 ${
-                  darkMode ? 'border-gray-800 bg-gray-950/40 text-gray-300' : 'border-gray-200 bg-gray-50 text-gray-700'
-                }`}>
-                  将永久删除模板「{pendingDeleteTemplate.name}」，此操作不可恢复。
-                </div>
-
-                <div>
-                  <label className={`block text-sm font-medium mb-2 transition-colors duration-500 ${
-                    darkMode ? 'text-gray-300' : 'text-gray-700'
-                  }`}>
-                    校验答案
-                  </label>
-                  <input
-                    value={deleteAnswer}
-                    onChange={(e) => {
-                      setDeleteAnswer(e.target.value);
-                      if (deleteError) setDeleteError('');
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        confirmDeleteTemplate();
-                      }
-                    }}
-                    inputMode="numeric"
-                    placeholder="请输入乘法答案"
-                    className={`w-full px-4 py-2.5 border rounded-lg outline-none transition-all ${
-                      darkMode
-                        ? 'bg-gray-800 border-gray-700 text-white placeholder-gray-500'
-                        : 'border-gray-200 text-gray-900'
-                    }`}
-                  />
-                  {deleteError && (
-                    <p className={`mt-2 text-xs font-medium ${darkMode ? 'text-red-400' : 'text-red-600'}`}>{deleteError}</p>
-                  )}
-                </div>
-              </div>
-
-              <div className={`p-6 border-t flex gap-3 justify-end transition-colors duration-500 ${
-                darkMode ? 'border-gray-800' : 'border-gray-100'
-              }`}>
-                <button
-                  onClick={closeDeleteTemplateModal}
-                  className={`px-4 py-2 rounded-lg transition-colors ${
-                    darkMode ? 'text-gray-300 hover:bg-gray-800' : 'text-gray-700 hover:bg-gray-100'
-                  }`}
-                  type="button"
-                  disabled={deletingTemplate}
-                >
-                  取消
-                </button>
-                <button
-                  onClick={confirmDeleteTemplate}
-                  className={`px-6 py-2 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 ${
-                    darkMode ? 'bg-red-500 text-white hover:bg-red-600' : 'bg-red-600 text-white hover:bg-red-700'
-                  }`}
-                  type="button"
-                  disabled={deletingTemplate}
-                >
-                  {deletingTemplate ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      删除中...
-                    </>
-                  ) : (
-                    <>
-                      <Trash2 className="w-4 h-4" />
-                      确认删除
                     </>
                   )}
                 </button>
