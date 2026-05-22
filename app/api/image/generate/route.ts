@@ -5,6 +5,41 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
 
+async function persistGeneratedImage(
+  result: any,
+  outputPath: string
+): Promise<{ revisedPrompt: string | null }> {
+  const firstItem = result?.data?.[0];
+  if (!firstItem) {
+    throw new Error('API未返回图片数据');
+  }
+
+  if (firstItem.b64_json) {
+    let b64String = firstItem.b64_json as string;
+    if (b64String.includes(',')) {
+      b64String = b64String.split(',')[1];
+    }
+
+    const imageBuffer = Buffer.from(b64String, 'base64');
+    await fs.writeFile(outputPath, new Uint8Array(imageBuffer));
+    return { revisedPrompt: firstItem.revised_prompt || null };
+  }
+
+  if (firstItem.url) {
+    const upstreamResponse = await fetch(firstItem.url);
+    if (!upstreamResponse.ok) {
+      throw new Error(`下载上游图片失败: ${upstreamResponse.status}`);
+    }
+
+    const imageArrayBuffer = await upstreamResponse.arrayBuffer();
+    await fs.writeFile(outputPath, new Uint8Array(imageArrayBuffer));
+    return { revisedPrompt: firstItem.revised_prompt || null };
+  }
+
+  console.error('上游图片接口返回了未兼容的数据结构:', JSON.stringify(result).slice(0, 2000));
+  throw new Error('API返回数据格式错误');
+}
+
 export async function POST(request: NextRequest) {
   let finalPrompt = '';
   let userId: string | undefined;
@@ -206,16 +241,8 @@ export async function POST(request: NextRequest) {
       result = await imageApiClient.generate(requestParams);
     }
 
-    if (result.data && result.data[0] && result.data[0].b64_json) {
-      let b64String = result.data[0].b64_json;
-      
-      if (b64String.includes(',')) {
-        b64String = b64String.split(',')[1];
-      }
-      
-      const imageBuffer = Buffer.from(b64String, 'base64');
-      await fs.writeFile(outputPath, new Uint8Array(imageBuffer));
-      
+    if (result?.data?.[0]) {
+      const { revisedPrompt } = await persistGeneratedImage(result, outputPath);
       const imageUrl = '/storage/outputs/' + filename;
       
       if (historyId) {
@@ -223,7 +250,7 @@ export async function POST(request: NextRequest) {
           await prisma.generationHistory.update({
             where: { id: historyId },
             data: {
-              prompt: result.data[0].revised_prompt || finalPrompt,
+              prompt: revisedPrompt || finalPrompt,
               outputImageUrl: imageUrl,
               thumbnailUrl: imageUrl,
               status: 'success'
@@ -237,7 +264,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         success: true,
         imageUrl: imageUrl,
-        revisedPrompt: result.data[0].revised_prompt || finalPrompt,
+        revisedPrompt: revisedPrompt || finalPrompt,
         model: 'gpt-image-2',
         size: size || 'auto',
         quality: quality || 'medium'

@@ -7,7 +7,7 @@ const API_KEY = 'sk-nN3PuvBju1rD1p9Cj2WSLFR8KcOcKEnU87pP1HKwpU83ydwW';
 const API_URL = 'https://api.jyf.ai/v1/images/generations';
 
 async function generateImage() {
-  console.log('🎨 开始生成图片...\n');
+  console.log('🎨 开始创作图片...\n');
 
   const requestBody = {
     model: 'gpt-image-2',

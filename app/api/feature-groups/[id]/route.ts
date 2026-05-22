@@ -36,7 +36,8 @@ export async function GET(
           : null,
         coverMetadata: template.coverMetadataJson
           ? JSON.parse(template.coverMetadataJson)
-          : { title: '', description: '' }
+          : { title: '', description: '' },
+        enableReferenceBatchMode: template.enableReferenceBatchMode || false
       }))
     };
 

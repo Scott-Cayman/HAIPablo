@@ -113,6 +113,7 @@ export async function POST(request: NextRequest) {
                     userPromptPriorityDefault: template.userPromptPriorityDefault || false,
                     enableSpecifiedColors: template.enableSpecifiedColors || false,
                     specifiedColorsJson: template.specifiedColorsJson || '[]',
+                    enableReferenceBatchMode: template.enableReferenceBatchMode || false,
                     enabled: template.enabled !== false,
                     sortOrder: template.sortOrder || 0,
                     createdAt: new Date(template.createdAt || Date.now()),

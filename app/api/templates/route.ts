@@ -43,7 +43,8 @@ export async function GET(request: NextRequest) {
       specifiedColors: template.specifiedColorsJson
         ? JSON.parse(template.specifiedColorsJson)
         : [],
-      showMainVisual: template.showMainVisual
+      showMainVisual: template.showMainVisual,
+      enableReferenceBatchMode: template.enableReferenceBatchMode || false
     }));
 
     return NextResponse.json(formattedTemplates);
@@ -80,6 +81,7 @@ export async function POST(request: NextRequest) {
       enableSpecifiedColors,
       specifiedColors,
       showMainVisual,
+      enableReferenceBatchMode,
       enabled,
       sortOrder,
       requesterId
@@ -126,6 +128,7 @@ export async function POST(request: NextRequest) {
         enableSpecifiedColors: enableSpecifiedColors || false,
         specifiedColorsJson: JSON.stringify(specifiedColors || []),
         showMainVisual: showMainVisual !== false,
+        enableReferenceBatchMode: enableReferenceBatchMode || false,
         enabled: enabled !== false,
         sortOrder: sortOrder || 0
       },
@@ -151,7 +154,8 @@ export async function POST(request: NextRequest) {
       specifiedColors: template.specifiedColorsJson
         ? JSON.parse(template.specifiedColorsJson)
         : [],
-      showMainVisual: template.showMainVisual
+      showMainVisual: template.showMainVisual,
+      enableReferenceBatchMode: template.enableReferenceBatchMode || false
     }, { status: 201 });
   } catch (error) {
     console.error('创建模板失败:', error);

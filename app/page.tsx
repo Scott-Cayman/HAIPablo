@@ -164,6 +164,14 @@ export default function HomePage() {
     try {
       const response = await fetch('/api/feature-groups?enabled=true');
       const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data?.error || '获取统计数据失败');
+      }
+
+      if (!Array.isArray(data)) {
+        throw new Error('统计数据格式异常');
+      }
       
       let templateCount = 0;
       data.forEach((group: any) => {

@@ -114,6 +114,7 @@ model ActionTemplate {
   enableSpecifiedColors Boolean @default(false)
   specifiedColorsJson String @default("[]")
   showMainVisual Boolean @default(true)
+  enableReferenceBatchMode Boolean @default(false)
   enabled        Boolean  @default(true)
   sortOrder      Int      @default(0)
   createdAt      DateTime @default(now())

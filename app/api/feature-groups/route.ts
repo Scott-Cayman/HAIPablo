@@ -5,10 +5,19 @@ export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
     const enabled = searchParams.get('enabled');
+    const requesterId = searchParams.get('requesterId');
 
     const where: any = {};
     if (enabled !== null) {
       where.enabled = enabled === 'true';
+    }
+
+    let includeDisabledTemplates = false;
+    if (requesterId) {
+      const requester = await prisma.user.findUnique({
+        where: { id: requesterId }
+      });
+      includeDisabledTemplates = !!requester && (requester.role === 'admin' || requester.role === 'sub_admin');
     }
 
     const featureGroups = await prisma.featureGroup.findMany({
@@ -19,7 +28,7 @@ export async function GET(request: NextRequest) {
       ],
       include: {
         templates: {
-          where: { enabled: true },
+          ...(includeDisabledTemplates ? {} : { where: { enabled: true } }),
           orderBy: { sortOrder: 'asc' }
         }
       }
@@ -37,7 +46,8 @@ export async function GET(request: NextRequest) {
           : null,
         coverMetadata: template.coverMetadataJson
           ? JSON.parse(template.coverMetadataJson)
-          : { title: '', description: '' }
+          : { title: '', description: '' },
+        enableReferenceBatchMode: template.enableReferenceBatchMode || false
       }))
     }));
 

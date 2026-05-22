@@ -47,6 +47,7 @@ export async function GET(request: NextRequest) {
             userPromptPriorityDefault: true,
             enableSpecifiedColors: true,
             specifiedColorsJson: true,
+            enableReferenceBatchMode: true,
             enabled: true,
             sortOrder: true,
             createdAt: true,

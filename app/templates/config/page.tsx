@@ -124,7 +124,8 @@ export default function TemplateConfigPage() {
     enableSpecifiedColors: false,
     specifiedColors: [] as Array<{name: string; color: string; order: number; label?: string}>,
     variables: [] as TemplateVariable[],
-    showMainVisual: true
+    showMainVisual: true,
+    enableReferenceBatchMode: false
   });
 
   const addVariable = () => {
@@ -157,7 +158,8 @@ export default function TemplateConfigPage() {
       enableSpecifiedColors: false,
       specifiedColors: [],
       variables: THREE_D_AI_RENDER_PRESET.variables,
-      showMainVisual: THREE_D_AI_RENDER_PRESET.showMainVisual
+      showMainVisual: THREE_D_AI_RENDER_PRESET.showMainVisual,
+      enableReferenceBatchMode: false
     }));
     setReferenceImages([]);
     setCoverImage(null);
@@ -312,7 +314,8 @@ export default function TemplateConfigPage() {
           enableSpecifiedColors: data.enableSpecifiedColors || false,
           specifiedColors: data.specifiedColors || [],
           variables: data.variables || [],
-          showMainVisual: data.showMainVisual !== false
+          showMainVisual: data.showMainVisual !== false,
+          enableReferenceBatchMode: data.enableReferenceBatchMode || false
         });
 
         if (data.featureGroupId) {
@@ -517,6 +520,7 @@ export default function TemplateConfigPage() {
         )].sort((a, b) => a.order - b.order) : [],
         variables: formData.variables,
         showMainVisual: formData.showMainVisual,
+        enableReferenceBatchMode: formData.enableReferenceBatchMode,
         key: generateKey(formData.name),
         mode: 'edit',
         featureGroupId: featureGroupId,
@@ -1037,6 +1041,16 @@ export default function TemplateConfigPage() {
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
                       type="checkbox"
+                      name="enableReferenceBatchMode"
+                      checked={formData.enableReferenceBatchMode}
+                      onChange={handleChange}
+                      className="w-4 h-4 text-orange-500 rounded border-gray-300 focus:ring-orange-500"
+                    />
+                    <span className="text-sm text-gray-700">启用模板批量参考图</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
                       name="enabled"
                       checked={formData.enabled}
                       onChange={handleChange}
@@ -1386,6 +1400,10 @@ export default function TemplateConfigPage() {
                 <div className="flex gap-3">
                   <span className="flex-shrink-0 w-6 h-6 bg-violet-100 text-violet-600 rounded-full flex items-center justify-center text-xs font-bold">4</span>
                   <p>生成时，预设参考图在前，用户图片在后，统一以"参考图N"称呼</p>
+                </div>
+                <div className="flex gap-3">
+                  <span className="flex-shrink-0 w-6 h-6 bg-orange-100 text-orange-600 rounded-full flex items-center justify-center text-xs font-bold">5</span>
+                  <p>开启“模板批量参考图”后，用户可上传多张主参考图，并在生成页切换到单模板批量模式轮换生成</p>
                 </div>
               </div>
             </div>

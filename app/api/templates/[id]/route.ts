@@ -37,7 +37,8 @@ export async function GET(
       specifiedColors: template.specifiedColorsJson 
         ? JSON.parse(template.specifiedColorsJson) 
         : [],
-      showMainVisual: template.showMainVisual
+      showMainVisual: template.showMainVisual,
+      enableReferenceBatchMode: template.enableReferenceBatchMode || false
     });
   } catch (error) {
     console.error('获取模板详情失败:', error);
@@ -89,6 +90,7 @@ export async function PUT(
         enableSpecifiedColors: body.enableSpecifiedColors || false,
         specifiedColorsJson: JSON.stringify(body.specifiedColors || []),
         showMainVisual: body.showMainVisual !== false,
+        enableReferenceBatchMode: body.enableReferenceBatchMode || false,
         enabled: body.enabled,
         sortOrder: body.sortOrder
       },
@@ -114,7 +116,8 @@ export async function PUT(
       specifiedColors: template.specifiedColorsJson
         ? JSON.parse(template.specifiedColorsJson)
         : [],
-      showMainVisual: template.showMainVisual
+      showMainVisual: template.showMainVisual,
+      enableReferenceBatchMode: template.enableReferenceBatchMode || false
     });
   } catch (error) {
     console.error('更新模板失败:', error);

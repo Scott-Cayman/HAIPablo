@@ -9,6 +9,7 @@ import {
   Layers, 
   Palette, 
   Image as ImageIcon, 
+  Eye,
   User,
   Sparkles,
   Plus,
@@ -43,6 +44,7 @@ interface Template {
   mode: string;
   defaultSize: string;
   defaultQuality: string;
+  enabled?: boolean;
   inputSlots: any[];
   variables: any[];
   referenceImages: ReferenceImage[];
@@ -82,6 +84,7 @@ export default function TemplatesPage() {
   const [featureGroups, setFeatureGroups] = useState<FeatureGroup[]>([]);
   const [selectedGroup, setSelectedGroup] = useState<FeatureGroup | null>(null);
   const [loading, setLoading] = useState(true);
+  const [featureGroupsError, setFeatureGroupsError] = useState('');
   const [user, setUser] = useState<any>(null);
   const [darkMode, setDarkMode] = useState(false);
   const [batchMode, setBatchMode] = useState(false);
@@ -89,6 +92,12 @@ export default function TemplatesPage() {
   const [showAddGroupModal, setShowAddGroupModal] = useState(false);
   const [showEditGroupModal, setShowEditGroupModal] = useState(false);
   const [editingGroup, setEditingGroup] = useState<FeatureGroup | null>(null);
+  const [showDeleteTemplateModal, setShowDeleteTemplateModal] = useState(false);
+  const [pendingDeleteTemplate, setPendingDeleteTemplate] = useState<Template | null>(null);
+  const [deleteChallenge, setDeleteChallenge] = useState<{ a: number; b: number } | null>(null);
+  const [deleteAnswer, setDeleteAnswer] = useState('');
+  const [deleteError, setDeleteError] = useState('');
+  const [deletingTemplate, setDeletingTemplate] = useState(false);
   const [newGroupData, setNewGroupData] = useState({
     name: '',
     key: '',
@@ -159,16 +168,29 @@ export default function TemplatesPage() {
     router.push(`/templates/batch?templateIds=${templatesParam}`);
   };
 
-  const fetchFeatureGroups = async () => {
+  const fetchFeatureGroups = async (requesterId?: string) => {
     try {
-      const response = await fetch('/api/feature-groups?enabled=true');
+      const query = new URLSearchParams({ enabled: 'true' });
+      if (requesterId) query.set('requesterId', requesterId);
+      const response = await fetch(`/api/feature-groups?${query.toString()}`);
       const data = await response.json();
-      setFeatureGroups(data);
-      if (data.length > 0) {
-        setSelectedGroup(data[0]);
+
+      if (!response.ok) {
+        throw new Error(data?.error || '获取功能组失败');
       }
+
+      if (!Array.isArray(data)) {
+        throw new Error('功能组数据格式异常');
+      }
+
+      setFeatureGroupsError('');
+      setFeatureGroups(data);
+      setSelectedGroup(data.length > 0 ? data[0] : null);
     } catch (error) {
       console.error('获取功能组失败:', error);
+      setFeatureGroups([]);
+      setSelectedGroup(null);
+      setFeatureGroupsError(error instanceof Error ? error.message : '获取功能组失败，请稍后重试');
     } finally {
       setLoading(false);
     }
@@ -193,10 +215,10 @@ export default function TemplatesPage() {
           }
         })
         .catch(console.error);
+      fetchFeatureGroups(parsedUser.id);
     } else {
       router.push('/auth');
     }
-    fetchFeatureGroups();
   }, []);
 
   useEffect(() => {
@@ -230,6 +252,57 @@ export default function TemplatesPage() {
     router.push(`/templates/config?id=${template.id}`);
   };
 
+  const closeDeleteTemplateModal = () => {
+    setShowDeleteTemplateModal(false);
+    setPendingDeleteTemplate(null);
+    setDeleteChallenge(null);
+    setDeleteAnswer('');
+    setDeleteError('');
+    setDeletingTemplate(false);
+  };
+
+  const openDeleteTemplateModal = (template: Template) => {
+    const a = Math.floor(Math.random() * 90) + 10;
+    const b = Math.floor(Math.random() * 90) + 10;
+    setPendingDeleteTemplate(template);
+    setDeleteChallenge({ a, b });
+    setDeleteAnswer('');
+    setDeleteError('');
+    setShowDeleteTemplateModal(true);
+  };
+
+  const confirmDeleteTemplate = async () => {
+    if (!pendingDeleteTemplate || !deleteChallenge || !user?.id) return;
+
+    const expected = deleteChallenge.a * deleteChallenge.b;
+    const parsed = parseInt(deleteAnswer.trim(), 10);
+    if (!Number.isFinite(parsed) || parsed !== expected) {
+      setDeleteError('答案不正确');
+      return;
+    }
+
+    setDeletingTemplate(true);
+    setDeleteError('');
+
+    try {
+      const response = await fetch(`/api/templates/${pendingDeleteTemplate.id}?requesterId=${user.id}`, {
+        method: 'DELETE'
+      });
+
+      if (!response.ok) {
+        throw new Error('删除失败');
+      }
+
+      closeDeleteTemplateModal();
+      alert('模板删除成功');
+      fetchFeatureGroups(user.id);
+    } catch (error) {
+      console.error('删除模板失败:', error);
+      setDeleteError('删除失败，请重试');
+      setDeletingTemplate(false);
+    }
+  };
+
   const handleDeleteTemplate = async (e: React.MouseEvent, template: Template) => {
     e.stopPropagation();
     
@@ -237,26 +310,8 @@ export default function TemplatesPage() {
       alert('权限不足，无法删除模板');
       return;
     }
-    
-    if (!confirm(`确定要删除模板"${template.name}"吗？此操作不可恢复。`)) {
-      return;
-    }
 
-    try {
-      const response = await fetch(`/api/templates/${template.id}?requesterId=${user.id}`, {
-        method: 'DELETE'
-      });
-
-      if (response.ok) {
-        alert('模板删除成功');
-        fetchFeatureGroups();
-      } else {
-        throw new Error('删除失败');
-      }
-    } catch (error) {
-      console.error('删除模板失败:', error);
-      alert('删除失败，请重试');
-    }
+    openDeleteTemplateModal(template);
   };
 
   const handleNewTemplate = () => {
@@ -297,7 +352,7 @@ export default function TemplatesPage() {
 
       if (response.ok) {
         setShowAddGroupModal(false);
-        fetchFeatureGroups();
+        fetchFeatureGroups(user.id);
         alert('功能分类创建成功');
       } else {
         const error = await response.json();
@@ -342,7 +397,7 @@ export default function TemplatesPage() {
 
       if (response.ok) {
         setShowEditGroupModal(false);
-        fetchFeatureGroups();
+        fetchFeatureGroups(user.id);
         if (selectedGroup?.id === editingGroup.id) {
           const updatedGroup = featureGroups.find(g => g.id === editingGroup.id);
           if (updatedGroup) {
@@ -387,7 +442,7 @@ export default function TemplatesPage() {
           const remaining = featureGroups.filter(g => g.id !== group.id);
           setSelectedGroup(remaining.length > 0 ? remaining[0] : null);
         }
-        fetchFeatureGroups();
+        fetchFeatureGroups(user.id);
         alert('功能分类删除成功');
       } else {
         throw new Error('删除失败');
@@ -601,6 +656,15 @@ export default function TemplatesPage() {
               </div>
               
               <div className="p-2">
+                {featureGroupsError && (
+                  <div className={`mb-3 rounded-xl border px-4 py-3 text-sm ${
+                    darkMode
+                      ? 'border-red-900/60 bg-red-950/30 text-red-300'
+                      : 'border-red-200 bg-red-50 text-red-700'
+                  }`}>
+                    {featureGroupsError}
+                  </div>
+                )}
                 {featureGroups.map((group, index) => {
                   const IconComponent = iconMap[group.icon] || Layers;
                   const isSelected = selectedGroup?.id === group.id;
@@ -716,6 +780,13 @@ export default function TemplatesPage() {
                     </div>
                   </motion.button>
                 )}
+                {!featureGroupsError && featureGroups.length === 0 && (
+                  <div className={`rounded-xl px-4 py-8 text-center text-sm ${
+                    darkMode ? 'text-gray-400' : 'text-gray-500'
+                  }`}>
+                    暂无可用功能分类
+                  </div>
+                )}
               </div>
             </div>
           </motion.div>
@@ -830,6 +901,17 @@ export default function TemplatesPage() {
                           }`}
                         >
                           <div className={`absolute inset-0 transition-opacity ${darkMode ? 'bg-gray-700/5 opacity-0 group-hover:opacity-100' : 'bg-gray-200/20 opacity-0 group-hover:opacity-100'}`} />
+                          {template.enabled === false && (batchMode || !canManage) && (
+                            <div
+                              className={`absolute right-3 top-3 z-10 rounded-lg border px-2 py-1 ${
+                                darkMode ? 'border-gray-700 bg-gray-900/80 text-gray-400' : 'border-gray-200 bg-white/80 text-gray-500'
+                              }`}
+                              title="已关闭"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <Eye className="h-4 w-4" />
+                            </div>
+                          )}
                           
                           <div className="relative">
                             <div className="flex items-start justify-between mb-3">
@@ -854,7 +936,18 @@ export default function TemplatesPage() {
                                 </div>
                               </div>
                               {canManage && !batchMode && (
-                                <div className="flex gap-1">
+                                <div className="flex items-center gap-1">
+                                  {template.enabled === false && (
+                                    <div
+                                      className={`rounded-lg border px-2 py-1 ${
+                                        darkMode ? 'border-gray-700 bg-gray-900/60 text-gray-400' : 'border-gray-200 bg-white/70 text-gray-500'
+                                      }`}
+                                      title="已关闭"
+                                      onClick={(e) => e.stopPropagation()}
+                                    >
+                                      <Eye className="h-4 w-4" />
+                                    </div>
+                                  )}
                                   <button
                                     onClick={(e) => handleEditTemplate(e, template)}
                                     className={`p-1.5 rounded-lg transition-colors ${
@@ -1343,6 +1436,121 @@ export default function TemplatesPage() {
                     <>
                       <Edit className="w-4 h-4" />
                       保存修改
+                    </>
+                  )}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showDeleteTemplateModal && pendingDeleteTemplate && deleteChallenge && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={closeDeleteTemplateModal}
+          >
+            <motion.div
+              initial={{ scale: 0.96, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.96, opacity: 0 }}
+              className={`rounded-2xl shadow-2xl w-full max-w-md overflow-hidden transition-colors duration-500 ${
+                darkMode ? 'bg-gray-900' : 'bg-white'
+              }`}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className={`p-6 border-b flex items-start justify-between transition-colors duration-500 ${
+                darkMode ? 'border-gray-800' : 'border-gray-100'
+              }`}>
+                <div>
+                  <h3 className={`text-xl font-semibold transition-colors duration-500 ${darkMode ? 'text-white' : 'text-gray-900'}`}>删除模板</h3>
+                  <p className={`text-sm mt-1 transition-colors duration-500 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                    输入校验答案后才可删除：{deleteChallenge.a} × {deleteChallenge.b}
+                  </p>
+                </div>
+                <button
+                  onClick={closeDeleteTemplateModal}
+                  className={`p-2 rounded-lg transition-colors ${
+                    darkMode ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-100 text-gray-600'
+                  }`}
+                  type="button"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-4">
+                <div className={`rounded-xl border p-3 text-sm transition-colors duration-500 ${
+                  darkMode ? 'border-gray-800 bg-gray-950/40 text-gray-300' : 'border-gray-200 bg-gray-50 text-gray-700'
+                }`}>
+                  将永久删除模板「{pendingDeleteTemplate.name}」，此操作不可恢复。
+                </div>
+
+                <div>
+                  <label className={`block text-sm font-medium mb-2 transition-colors duration-500 ${
+                    darkMode ? 'text-gray-300' : 'text-gray-700'
+                  }`}>
+                    校验答案
+                  </label>
+                  <input
+                    value={deleteAnswer}
+                    onChange={(e) => {
+                      setDeleteAnswer(e.target.value);
+                      if (deleteError) setDeleteError('');
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        confirmDeleteTemplate();
+                      }
+                    }}
+                    inputMode="numeric"
+                    placeholder="请输入乘法答案"
+                    className={`w-full px-4 py-2.5 border rounded-lg outline-none transition-all ${
+                      darkMode
+                        ? 'bg-gray-800 border-gray-700 text-white placeholder-gray-500'
+                        : 'border-gray-200 text-gray-900'
+                    }`}
+                  />
+                  {deleteError && (
+                    <p className={`mt-2 text-xs font-medium ${darkMode ? 'text-red-400' : 'text-red-600'}`}>{deleteError}</p>
+                  )}
+                </div>
+              </div>
+
+              <div className={`p-6 border-t flex gap-3 justify-end transition-colors duration-500 ${
+                darkMode ? 'border-gray-800' : 'border-gray-100'
+              }`}>
+                <button
+                  onClick={closeDeleteTemplateModal}
+                  className={`px-4 py-2 rounded-lg transition-colors ${
+                    darkMode ? 'text-gray-300 hover:bg-gray-800' : 'text-gray-700 hover:bg-gray-100'
+                  }`}
+                  type="button"
+                  disabled={deletingTemplate}
+                >
+                  取消
+                </button>
+                <button
+                  onClick={confirmDeleteTemplate}
+                  className={`px-6 py-2 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 ${
+                    darkMode ? 'bg-red-500 text-white hover:bg-red-600' : 'bg-red-600 text-white hover:bg-red-700'
+                  }`}
+                  type="button"
+                  disabled={deletingTemplate}
+                >
+                  {deletingTemplate ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      删除中...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="w-4 h-4" />
+                      确认删除
                     </>
                   )}
                 </button>
