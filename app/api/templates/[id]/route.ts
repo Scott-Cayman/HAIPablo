@@ -38,7 +38,9 @@ export async function GET(
         ? JSON.parse(template.specifiedColorsJson) 
         : [],
       showMainVisual: template.showMainVisual,
-      enableReferenceBatchMode: template.enableReferenceBatchMode || false
+      enableReferenceBatchMode: template.enableReferenceBatchMode || false,
+      enableCustomReferenceUpload: template.enableCustomReferenceUpload || false,
+      allowMultipleCustomReferences: template.allowMultipleCustomReferences || false
     });
   } catch (error) {
     console.error('获取模板详情失败:', error);
@@ -91,6 +93,8 @@ export async function PUT(
         specifiedColorsJson: JSON.stringify(body.specifiedColors || []),
         showMainVisual: body.showMainVisual !== false,
         enableReferenceBatchMode: body.enableReferenceBatchMode || false,
+        enableCustomReferenceUpload: body.enableCustomReferenceUpload || false,
+        allowMultipleCustomReferences: body.allowMultipleCustomReferences || false,
         enabled: body.enabled,
         sortOrder: body.sortOrder
       },
@@ -117,7 +121,9 @@ export async function PUT(
         ? JSON.parse(template.specifiedColorsJson)
         : [],
       showMainVisual: template.showMainVisual,
-      enableReferenceBatchMode: template.enableReferenceBatchMode || false
+      enableReferenceBatchMode: template.enableReferenceBatchMode || false,
+      enableCustomReferenceUpload: template.enableCustomReferenceUpload || false,
+      allowMultipleCustomReferences: template.allowMultipleCustomReferences || false
     });
   } catch (error) {
     console.error('更新模板失败:', error);

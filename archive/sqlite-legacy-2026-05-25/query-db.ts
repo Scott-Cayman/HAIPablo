@@ -6,7 +6,6 @@ const dbPath = path.join(process.cwd(), 'prisma', 'dev.db');
 
 async function checkDatabase() {
   try {
-    // 检查数据库文件
     if (!fs.existsSync(dbPath)) {
       console.log('❌ 数据库文件不存在:', dbPath);
       return;
@@ -16,9 +15,8 @@ async function checkDatabase() {
 
     const db = new Database(dbPath, { readonly: true });
 
-    // 查询失败的历史记录
     const failedHistories = db.prepare(`
-      SELECT 
+      SELECT
         h.id,
         h.templateName,
         h.prompt,
@@ -47,9 +45,8 @@ async function checkDatabase() {
       }
     }
 
-    // 查询成功的历史记录
     const successHistories = db.prepare(`
-      SELECT 
+      SELECT
         h.id,
         h.templateName,
         h.status,
@@ -68,9 +65,8 @@ async function checkDatabase() {
       console.log(`✓ ${history.templateName} - ${history.username} - ${new Date(history.createdAt).toLocaleString('zh-CN')}`);
     }
 
-    // 统计
     const stats = db.prepare(`
-      SELECT 
+      SELECT
         status,
         COUNT(*) as count,
         SUM(creditsUsed) as totalCredits
@@ -85,7 +81,6 @@ async function checkDatabase() {
 
     db.close();
     console.log('\n✅ 查询完成');
-
   } catch (error: any) {
     console.error('❌ 查询失败:', error.message);
     if (error.code === 'MODULE_NOT_FOUND') {

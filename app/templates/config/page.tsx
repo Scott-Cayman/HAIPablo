@@ -125,7 +125,9 @@ export default function TemplateConfigPage() {
     specifiedColors: [] as Array<{name: string; color: string; order: number; label?: string}>,
     variables: [] as TemplateVariable[],
     showMainVisual: true,
-    enableReferenceBatchMode: false
+    enableReferenceBatchMode: false,
+    enableCustomReferenceUpload: false,
+    allowMultipleCustomReferences: false
   });
 
   const addVariable = () => {
@@ -159,7 +161,9 @@ export default function TemplateConfigPage() {
       specifiedColors: [],
       variables: THREE_D_AI_RENDER_PRESET.variables,
       showMainVisual: THREE_D_AI_RENDER_PRESET.showMainVisual,
-      enableReferenceBatchMode: false
+      enableReferenceBatchMode: false,
+      enableCustomReferenceUpload: false,
+      allowMultipleCustomReferences: false
     }));
     setReferenceImages([]);
     setCoverImage(null);
@@ -327,7 +331,9 @@ export default function TemplateConfigPage() {
           specifiedColors: data.specifiedColors || [],
           variables: data.variables || [],
           showMainVisual: data.showMainVisual !== false,
-          enableReferenceBatchMode: data.enableReferenceBatchMode || false
+          enableReferenceBatchMode: data.enableReferenceBatchMode || false,
+          enableCustomReferenceUpload: data.enableCustomReferenceUpload || false,
+          allowMultipleCustomReferences: data.allowMultipleCustomReferences || false
         });
 
         if (data.featureGroupId) {
@@ -383,6 +389,13 @@ export default function TemplateConfigPage() {
 
       if (name === 'enableSpecifiedColors' && checked) {
         detectSpecifiedColors(formData.promptTemplate);
+      }
+
+      if (name === 'enableCustomReferenceUpload' && !checked) {
+        setFormData(prev => ({
+          ...prev,
+          allowMultipleCustomReferences: false
+        }));
       }
     } else {
       setFormData(prev => ({
@@ -533,6 +546,8 @@ export default function TemplateConfigPage() {
         variables: formData.variables,
         showMainVisual: formData.showMainVisual,
         enableReferenceBatchMode: formData.enableReferenceBatchMode,
+        enableCustomReferenceUpload: formData.enableCustomReferenceUpload,
+        allowMultipleCustomReferences: formData.enableCustomReferenceUpload && formData.allowMultipleCustomReferences,
         key: generateKey(formData.name),
         mode: 'edit',
         featureGroupId: featureGroupId,
@@ -1071,6 +1086,46 @@ export default function TemplateConfigPage() {
                     <span className="text-sm text-gray-700">启用此模板</span>
                   </label>
                 </div>
+
+                <div className="rounded-2xl border border-gray-200 bg-gray-50/80 p-4">
+                  <div className="flex items-start gap-3">
+                    <label className="flex items-center gap-2 cursor-pointer mt-0.5">
+                      <input
+                        type="checkbox"
+                        name="enableCustomReferenceUpload"
+                        checked={formData.enableCustomReferenceUpload}
+                        onChange={handleChange}
+                        className="w-4 h-4 text-violet-600 rounded border-gray-300 focus:ring-violet-500"
+                      />
+                    </label>
+                    <div className="flex-1">
+                      <label className="block text-sm font-medium text-gray-800 mb-1">
+                        启用自定义模板参考图上传
+                      </label>
+                      <p className="text-xs text-gray-600">
+                        开启后，生成页会在“模板参考图”区域末尾增加一个等大小上传卡片；用户上传后可预览、编辑、删除，并用这些图片替代模板预设参考图。
+                      </p>
+                    </div>
+                  </div>
+
+                  {formData.enableCustomReferenceUpload && (
+                    <div className="mt-4 ml-7 border-t border-gray-200 pt-4">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          name="allowMultipleCustomReferences"
+                          checked={formData.allowMultipleCustomReferences}
+                          onChange={handleChange}
+                          className="w-4 h-4 text-orange-500 rounded border-gray-300 focus:ring-orange-500"
+                        />
+                        <span className="text-sm font-medium text-gray-800">允许多张自定义模板参考图</span>
+                      </label>
+                      <p className="mt-1 ml-6 text-xs text-gray-600">
+                        默认关闭。关闭时用户一次只能替换为 1 张自定义参考图；开启后可上传并选择多张一起替代预设参考图。
+                      </p>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -1326,7 +1381,7 @@ export default function TemplateConfigPage() {
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
               <h2 className="text-lg font-semibold text-gray-900 mb-4">参考图管理</h2>
               <p className="text-sm text-gray-600 mb-4">
-                上传参考图，这些图片将在提示词中以"参考图1"、"参考图2"的顺序被引用
+                上传模板预设参考图，这些图片将在提示词中以"参考图1"、"参考图2"的顺序被引用。若开启上方“自定义模板参考图上传”，用户可在生成页上传自己的模板参考图来替代这里的预设图。
               </p>
 
               <input

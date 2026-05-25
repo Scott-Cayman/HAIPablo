@@ -11,6 +11,7 @@ import {
   Sparkles,
   Loader2,
   CheckCircle,
+  XCircle,
   Trash2,
   X,
   Download,
@@ -70,7 +71,7 @@ interface ReferenceImage {
 }
 
 interface AnnotationEditorTarget {
-  scope: 'main' | 'variable';
+  scope: 'main' | 'variable' | 'templateCustom';
   variableKey?: string;
   referenceLabel: string;
   image: ReferenceImage;
@@ -113,6 +114,8 @@ interface Template {
   enableSpecifiedColors?: boolean;
   specifiedColors?: Array<{name: string; color: string; order: number; label?: string}>;
   enableReferenceBatchMode?: boolean;
+  enableCustomReferenceUpload?: boolean;
+  allowMultipleCustomReferences?: boolean;
 }
 
 interface SpecifiedColor {
@@ -212,6 +215,8 @@ export default function GeneratePage() {
   const [loading, setLoading] = useState(true);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [selectedPresetImage, setSelectedPresetImage] = useState<ReferenceImage | null>(null);
+  const [customReferenceImages, setCustomReferenceImages] = useState<ReferenceImage[]>([]);
+  const [selectedCustomReferenceIds, setSelectedCustomReferenceIds] = useState<string[]>([]);
   const [selectedUserImage, setSelectedUserImage] = useState<ReferenceImage | null>(null);
   const [userImages, setUserImages] = useState<ReferenceImage[]>([]);
   const [generating, setGenerating] = useState(false);
@@ -304,6 +309,16 @@ export default function GeneratePage() {
     }
   }, [template?.enableReferenceBatchMode, userImages.length]);
 
+  useEffect(() => {
+    setSelectedCustomReferenceIds((prev) => {
+      const validIds = prev.filter((id) => customReferenceImages.some((image) => image.id === id));
+      if (template?.allowMultipleCustomReferences === true || validIds.length <= 1) {
+        return validIds;
+      }
+      return validIds.slice(-1);
+    });
+  }, [customReferenceImages, template?.allowMultipleCustomReferences]);
+
   const toggleDarkMode = () => {
     setDarkMode(!darkMode);
     localStorage.setItem('darkMode', (!darkMode).toString());
@@ -351,6 +366,14 @@ export default function GeneratePage() {
                 if (config.userImages) {
                   const restoredUserImages = normalizeReferenceImageList(config.userImages);
                   setUserImages(restoredUserImages);
+                }
+                if (config.customReferenceImages) {
+                  setCustomReferenceImages(normalizeReferenceImageList(config.customReferenceImages));
+                }
+                if (Array.isArray(config.selectedCustomReferenceIds)) {
+                  setSelectedCustomReferenceIds(
+                    config.selectedCustomReferenceIds.filter((id: unknown): id is string => typeof id === 'string' && id.length > 0)
+                  );
                 }
                 
                 if (config.selectedUserImage) {
@@ -469,6 +492,56 @@ export default function GeneratePage() {
       setError('图片上传失败');
     } finally {
       setUploadingImage(false);
+      e.target.value = '';
+    }
+  };
+
+  const handleCustomReferenceUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    setUploadingImage(true);
+    setError('');
+
+    try {
+      const uploadPromises = Array.from(files).map(async (file) => {
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const response = await fetch('/api/upload', {
+          method: 'POST',
+          body: formData
+        });
+
+        if (!response.ok) {
+          throw new Error('上传失败');
+        }
+
+        const data = await response.json();
+        return {
+          id: `custom_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          url: data.url,
+          name: file.name,
+          originalUrl: data.url,
+          annotations: [],
+          annotationTokens: []
+        };
+      });
+
+      const newImages = await Promise.all(uploadPromises);
+      const allowMultipleCustomReferences = template?.allowMultipleCustomReferences === true;
+      setCustomReferenceImages((prev) => {
+        const updatedImages = allowMultipleCustomReferences ? [...prev, ...newImages] : newImages.slice(0, 1);
+        setSelectedCustomReferenceIds(updatedImages.map((image) => image.id));
+        return updatedImages;
+      });
+      setSelectedPresetImage(null);
+    } catch (error) {
+      console.error('上传自定义模板参考图失败:', error);
+      setError('自定义模板参考图上传失败');
+    } finally {
+      setUploadingImage(false);
+      e.target.value = '';
     }
   };
 
@@ -479,6 +552,24 @@ export default function GeneratePage() {
       return next;
     });
     setBatchResults(prev => prev.filter(item => item.sourceImage.id !== imageId));
+  };
+
+  const handleRemoveCustomReferenceImage = (imageId: string) => {
+    setCustomReferenceImages((prev) => prev.filter((image) => image.id !== imageId));
+    setSelectedCustomReferenceIds((prev) => prev.filter((id) => id !== imageId));
+  };
+
+  const handleToggleCustomReferenceSelection = (imageId: string) => {
+    const allowMultipleCustomReferences = template?.allowMultipleCustomReferences === true;
+    setSelectedCustomReferenceIds((prev) => {
+      if (allowMultipleCustomReferences) {
+        return prev.includes(imageId)
+          ? prev.filter((id) => id !== imageId)
+          : [...prev, imageId];
+      }
+
+      return prev[0] === imageId ? [] : [imageId];
+    });
   };
 
   const uploadReferenceImageFile = async (file: File) => {
@@ -499,7 +590,7 @@ export default function GeneratePage() {
 
   const handleOpenAnnotationEditor = (
     image: ReferenceImage,
-    options: { scope: 'main' | 'variable'; referenceLabel: string; variableKey?: string }
+    options: { scope: 'main' | 'variable' | 'templateCustom'; referenceLabel: string; variableKey?: string }
   ) => {
     const normalizedImage = normalizeReferenceImage(image);
     if (!normalizedImage) return;
@@ -554,6 +645,8 @@ export default function GeneratePage() {
       if (annotationEditorTarget.scope === 'main') {
         setUserImages(prev => prev.map(image => image.id === updatedImage.id ? updatedImage : image));
         setSelectedUserImage(current => current?.id === updatedImage.id ? updatedImage : current);
+      } else if (annotationEditorTarget.scope === 'templateCustom') {
+        setCustomReferenceImages(prev => prev.map(image => image.id === updatedImage.id ? updatedImage : image));
       } else if (annotationEditorTarget.variableKey) {
         setVariableImages(prev => ({ ...prev, [annotationEditorTarget.variableKey!]: updatedImage }));
       }
@@ -628,15 +721,24 @@ export default function GeneratePage() {
 
   const getImageVariables = () => template?.variables?.filter((variable) => variable.type === 'image') || [];
 
+  const getActiveTemplateReferenceImages = useCallback(() => {
+    if (template?.enableCustomReferenceUpload !== true) {
+      return template?.referenceImages || [];
+    }
+
+    const selectedCustomImages = customReferenceImages.filter((image) => selectedCustomReferenceIds.includes(image.id));
+    return selectedCustomImages.length > 0 ? selectedCustomImages : (template?.referenceImages || []);
+  }, [template, customReferenceImages, selectedCustomReferenceIds]);
+
   const getVariableReferenceLabel = (key: string) => {
     const imageVariables = getImageVariables();
     const variableIndex = imageVariables.findIndex((variable) => variable.key === key);
-    const presetCount = template?.referenceImages?.length || 0;
+    const presetCount = getActiveTemplateReferenceImages().length;
     return `参考图${presetCount + variableIndex + 1}`;
   };
 
   const getMainReferenceLabel = () => {
-    const presetCount = template?.referenceImages?.length || 0;
+    const presetCount = getActiveTemplateReferenceImages().length;
     const imageVariables = getImageVariables();
     return `参考图${presetCount + imageVariables.length + 1}`;
   };
@@ -644,7 +746,17 @@ export default function GeneratePage() {
   const getAnnotationPromptEntries = (mainImage: ReferenceImage | null = selectedUserImage) => {
     const entries: Array<{ referenceLabel: string; tokens: AnnotationPromptToken[] }> = [];
     const imageVariables = getImageVariables();
-    const presetCount = template?.referenceImages?.length || 0;
+    const activeTemplateReferenceImages = getActiveTemplateReferenceImages();
+    const presetCount = activeTemplateReferenceImages.length;
+
+    activeTemplateReferenceImages.forEach((image, index) => {
+      if (image.annotationTokens?.length) {
+        entries.push({
+          referenceLabel: `参考图${index + 1}`,
+          tokens: image.annotationTokens
+        });
+      }
+    });
 
     imageVariables.forEach((variable, index) => {
       const image = variableImages[variable.key];
@@ -701,8 +813,8 @@ export default function GeneratePage() {
     });
 
     // 2. 处理图片变量替换为 "参考图N"
-    // 计算顺序：预设参考图 -> 变量中的图片 -> 通用上传的参考图
-    const presetCount = template.referenceImages?.length || 0;
+    // 计算顺序：当前生效的模板参考图 -> 变量中的图片 -> 通用上传的参考图
+    const presetCount = getActiveTemplateReferenceImages().length;
     const imageVariables = template.variables?.filter(v => v.type === 'image') || [];
     
     imageVariables.forEach((v, index) => {
@@ -834,10 +946,8 @@ export default function GeneratePage() {
   const getAllImages = (mainImage: ReferenceImage | null = selectedUserImage): ReferenceImage[] => {
     const allImages: ReferenceImage[] = [];
     
-    // 1. 预设图片
-    if (template?.referenceImages) {
-      allImages.push(...template.referenceImages);
-    }
+    // 1. 当前生效的模板参考图
+    allImages.push(...getActiveTemplateReferenceImages());
     
     // 2. 变量图片 (保持和 getRenderedPrompt 中一样的顺序)
     const imageVariables = getImageVariables();
@@ -908,7 +1018,7 @@ export default function GeneratePage() {
         variables: formData,
         size,
         quality,
-        referenceImages: template?.referenceImages?.map(img => img.url) || [],
+        referenceImages: getActiveTemplateReferenceImages().map((img) => img.url),
         images: [...variableImageUrls, ...(mainImage ? [mainImage.url] : [])],
         userPrompt: enableUserPrompt ? userPrompt : null,
         userPromptPriority: userPromptPriority,
@@ -916,6 +1026,8 @@ export default function GeneratePage() {
           formData,
           variableImages,
           userImages,
+          customReferenceImages,
+          selectedCustomReferenceIds,
           selectedUserImage: mainImage,
           userPrompt,
           enableUserPrompt,
@@ -1302,11 +1414,17 @@ export default function GeneratePage() {
     return selectedUserImage?.id === image.id;
   };
 
+  const activeTemplateReferenceImages = getActiveTemplateReferenceImages();
   const allImages = getAllImages();
   const annotationPromptEntries = getAnnotationPromptEntries();
   const annotationTokenCount = annotationPromptEntries.reduce((total, entry) => total + entry.tokens.length, 0);
   const hasMainVisualUpload = template?.showMainVisual !== false;
   const hasPresetReferenceImages = (template?.referenceImages?.length || 0) > 0;
+  const hasCustomReferenceUpload = template?.enableCustomReferenceUpload === true;
+  const hasActiveCustomReferences = activeTemplateReferenceImages.some((image) =>
+    customReferenceImages.some((customImage) => customImage.id === image.id)
+  );
+  const hasTemplateReferenceWorkspace = hasPresetReferenceImages || hasCustomReferenceUpload;
   const hasPromptExtension = template?.allowUserPrompt !== false;
   const hasSpecifiedColorEditor = template?.enableSpecifiedColors && specifiedColors.length > 0;
   const showTopMetaGrid = !!template;
@@ -2142,24 +2260,52 @@ export default function GeneratePage() {
 
                   <div className="min-h-0 overflow-y-auto px-4 py-4 lg:flex-1">
                     <div className="space-y-4">
-                      {hasPresetReferenceImages && (
+                      {hasTemplateReferenceWorkspace && (
                         <div className={`rounded-2xl border p-3.5 ${darkMode ? 'border-gray-800 bg-gray-950/60' : 'border-gray-200 bg-gray-50/80'}`}>
-                          <h2 className={`mb-3 flex items-center gap-2 text-sm font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                            <ImageIcon className={`h-4 w-4 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`} />
-                            模板参考图
-                          </h2>
+                          <div className="mb-3 flex items-start justify-between gap-3">
+                            <div>
+                              <h2 className={`flex items-center gap-2 text-sm font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                                <ImageIcon className={`h-4 w-4 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`} />
+                                模板参考图
+                              </h2>
+                              {hasCustomReferenceUpload && (
+                                <p className={`mt-1 text-[11px] leading-5 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                                  选中的自定义参考图会替代模板预设图；未选择时默认继续使用预设图。
+                                </p>
+                              )}
+                            </div>
+                            {hasCustomReferenceUpload && (
+                              <span className={`rounded-full px-2 py-1 text-[10px] font-semibold ${
+                                hasActiveCustomReferences
+                                  ? 'bg-emerald-500 text-white'
+                                  : darkMode
+                                    ? 'bg-gray-800 text-gray-300'
+                                    : 'bg-white text-gray-600 ring-1 ring-gray-200'
+                              }`}>
+                                {hasActiveCustomReferences ? `已替换 ${activeTemplateReferenceImages.length} 张` : '使用预设'}
+                              </span>
+                            )}
+                          </div>
                           <div className="grid grid-cols-2 gap-2.5">
                             {template?.referenceImages.map((image, index) => (
                               <div
                                 key={image.id}
                                 className={`group relative cursor-pointer overflow-hidden rounded-xl transition-all ${
-                                  selectedPresetImage?.id === image.id ? 'ring-2 ring-violet-500 ring-offset-2' : 'hover:ring-2 hover:ring-gray-300'
-                                }`}
-                                onClick={() => setSelectedPresetImage(selectedPresetImage?.id === image.id ? null : image)}
+                                  selectedPresetImage?.id === image.id
+                                    ? 'ring-2 ring-violet-500 ring-offset-2'
+                                    : 'hover:ring-2 hover:ring-gray-300'
+                                } ${hasActiveCustomReferences ? 'opacity-50' : ''}
+                                `}
+                                onClick={() => {
+                                  setSelectedPresetImage(selectedPresetImage?.id === image.id ? null : image);
+                                  if (!hasActiveCustomReferences) {
+                                    setSelectedCustomReferenceIds([]);
+                                  }
+                                }}
                               >
                                 <img src={image.url} alt={`参考图 ${index + 1}`} className="h-[68px] w-full object-contain" style={{ objectPosition: 'center' }} />
                                 <div className={`absolute left-1 top-1 rounded px-1.5 py-0.5 text-[10px] font-medium ${selectedPresetImage?.id === image.id ? 'bg-violet-600 text-white' : 'bg-gray-800 text-white'}`}>
-                                  {selectedPresetImage?.id === image.id ? '已查看' : `图${index + 1}`}
+                                  {hasActiveCustomReferences ? `预设${index + 1}` : selectedPresetImage?.id === image.id ? '已查看' : `图${index + 1}`}
                                 </div>
                                 <div className="absolute inset-0 flex items-center justify-center bg-black/45 opacity-0 transition-opacity group-hover:opacity-100">
                                   <button
@@ -2175,7 +2321,101 @@ export default function GeneratePage() {
                                 </div>
                               </div>
                             ))}
+                            {customReferenceImages.map((image, index) => {
+                              const isSelected = selectedCustomReferenceIds.includes(image.id);
+                              return (
+                                <div
+                                  key={image.id}
+                                  className={`group relative cursor-pointer overflow-hidden rounded-xl transition-all ${
+                                    isSelected ? 'ring-2 ring-emerald-500 ring-offset-2' : 'hover:ring-2 hover:ring-gray-300'
+                                  }`}
+                                  onClick={() => handleToggleCustomReferenceSelection(image.id)}
+                                >
+                                  <img src={image.url} alt={`自定义参考图 ${index + 1}`} className="h-[68px] w-full object-contain" style={{ objectPosition: 'center' }} />
+                                  <div className={`absolute left-1 top-1 rounded px-1.5 py-0.5 text-[10px] font-medium ${
+                                    isSelected ? 'bg-emerald-600 text-white' : 'bg-orange-500 text-white'
+                                  }`}>
+                                    {isSelected ? '已替换' : `自定义${index + 1}`}
+                                  </div>
+                                  {isSelected && (
+                                    <div className="absolute right-1 bottom-1 rounded-full bg-emerald-500 p-1 text-white shadow-lg">
+                                      <CheckCircle className="h-3 w-3" />
+                                    </div>
+                                  )}
+                                  <div className="absolute inset-0 flex items-center justify-center gap-2 bg-black/45 opacity-0 transition-opacity group-hover:opacity-100">
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setPreviewImage(image.url);
+                                      }}
+                                      className="rounded-full bg-white/90 p-2 text-gray-900 shadow-lg transition-transform hover:scale-105"
+                                    >
+                                      <Eye className="h-4 w-4" />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleOpenAnnotationEditor(image, {
+                                          scope: 'templateCustom',
+                                          referenceLabel: `参考图${index + 1}`
+                                        });
+                                      }}
+                                      className="rounded-full bg-violet-500 p-2 text-white shadow-lg transition-transform hover:scale-105"
+                                    >
+                                      <Pencil className="h-4 w-4" />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleRemoveCustomReferenceImage(image.id);
+                                      }}
+                                      className="rounded-full bg-red-500 p-2 text-white shadow-lg transition-transform hover:scale-105"
+                                      aria-label="删除自定义模板参考图"
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </button>
+                                  </div>
+                                  {image.annotationTokens && image.annotationTokens.length > 0 && (
+                                    <div className="absolute bottom-1 left-1 rounded-full bg-violet-600/90 px-2 py-0.5 text-[10px] font-semibold text-white shadow-lg">
+                                      已标注
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                            {hasCustomReferenceUpload && (
+                              <label className={`group relative flex h-[68px] cursor-pointer flex-col items-center justify-center overflow-hidden rounded-xl border border-dashed transition-all ${
+                                darkMode
+                                  ? 'border-gray-700 bg-gray-900 text-gray-300 hover:border-gray-600'
+                                  : 'border-gray-300 bg-white text-gray-600 hover:border-gray-400'
+                              }`}>
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  multiple={template?.allowMultipleCustomReferences === true}
+                                  onChange={handleCustomReferenceUpload}
+                                  className="hidden"
+                                  disabled={uploadingImage}
+                                />
+                                <Upload className="h-4 w-4" />
+                                <span className="mt-1 text-[11px] font-medium">
+                                  {uploadingImage ? '上传中...' : customReferenceImages.length > 0 ? '继续上传' : '上传自定义图'}
+                                </span>
+                              </label>
+                            )}
                           </div>
+                          {hasCustomReferenceUpload && (
+                            <div className={`mt-3 rounded-xl border px-3 py-2 text-[11px] leading-5 ${
+                              darkMode ? 'border-gray-800 bg-gray-900 text-gray-400' : 'border-gray-200 bg-white text-gray-600'
+                            }`}>
+                              {template?.allowMultipleCustomReferences === true
+                                ? '支持多张自定义模板参考图。点击卡片可选择或取消，当前选中的图片会按顺序替代模板预设参考图。'
+                                : '当前模板只允许选择 1 张自定义模板参考图。再次上传会覆盖之前的自定义图，取消选中后会回退为模板预设参考图。'}
+                            </div>
+                          )}
                         </div>
                       )}
 

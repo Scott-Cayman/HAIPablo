@@ -5,6 +5,17 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
+async function safeReadJson(response: Response) {
+  const text = await response.text();
+  if (!text) return {};
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    return {};
+  }
+}
+
 function CallbackContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -40,7 +51,7 @@ function CallbackContent() {
           body: JSON.stringify({ authCode: finalCode, state }),
         });
 
-        const data = await response.json();
+        const data = await safeReadJson(response);
 
         if (!response.ok) {
           throw new Error(data.error || '登录失败');

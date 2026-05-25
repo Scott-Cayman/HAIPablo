@@ -5,6 +5,17 @@ import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { Sparkles, User, Lock, Mail, ArrowRight, Loader2, Moon, Sun, MessageSquare } from 'lucide-react';
 
+async function safeReadJson(response: Response) {
+  const text = await response.text();
+  if (!text) return {};
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    return {};
+  }
+}
+
 export default function LoginPage() {
   const [isLogin, setIsLogin] = useState(true);
   const [isResetPassword, setIsResetPassword] = useState(false);
@@ -63,7 +74,7 @@ export default function LoginPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: formData.email })
       });
-      const data = await res.json();
+      const data = await safeReadJson(res);
       if (!res.ok) throw new Error(data.error || '发送失败');
       setSuccessMsg(data.message);
       setCountdown(60);
@@ -88,7 +99,7 @@ export default function LoginPage() {
           newPassword: formData.newPassword
         })
       });
-      const data = await res.json();
+      const data = await safeReadJson(res);
       if (!res.ok) throw new Error(data.error || '重置失败');
       setSuccessMsg('密码重置成功，请使用新密码登录');
       setTimeout(() => {
@@ -133,7 +144,7 @@ export default function LoginPage() {
         });
       }
 
-      const data = await response.json();
+      const data = await safeReadJson(response);
 
       if (!response.ok) {
         throw new Error(data.error || '操作失败');
@@ -153,7 +164,7 @@ export default function LoginPage() {
     
     try {
       const res = await fetch('/api/auth/dingtalk/login-url');
-      const data = await res.json();
+      const data = await safeReadJson(res);
       
       if (!res.ok) {
         throw new Error(data.error || '获取钉钉登录地址失败');

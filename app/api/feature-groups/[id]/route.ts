@@ -37,7 +37,9 @@ export async function GET(
         coverMetadata: template.coverMetadataJson
           ? JSON.parse(template.coverMetadataJson)
           : { title: '', description: '' },
-        enableReferenceBatchMode: template.enableReferenceBatchMode || false
+        enableReferenceBatchMode: template.enableReferenceBatchMode || false,
+        enableCustomReferenceUpload: template.enableCustomReferenceUpload || false,
+        allowMultipleCustomReferences: template.allowMultipleCustomReferences || false
       }))
     };
 

@@ -44,7 +44,9 @@ export async function GET(request: NextRequest) {
         ? JSON.parse(template.specifiedColorsJson)
         : [],
       showMainVisual: template.showMainVisual,
-      enableReferenceBatchMode: template.enableReferenceBatchMode || false
+      enableReferenceBatchMode: template.enableReferenceBatchMode || false,
+      enableCustomReferenceUpload: template.enableCustomReferenceUpload || false,
+      allowMultipleCustomReferences: template.allowMultipleCustomReferences || false
     }));
 
     return NextResponse.json(formattedTemplates);
@@ -82,6 +84,8 @@ export async function POST(request: NextRequest) {
       specifiedColors,
       showMainVisual,
       enableReferenceBatchMode,
+      enableCustomReferenceUpload,
+      allowMultipleCustomReferences,
       enabled,
       sortOrder,
       requesterId
@@ -129,6 +133,8 @@ export async function POST(request: NextRequest) {
         specifiedColorsJson: JSON.stringify(specifiedColors || []),
         showMainVisual: showMainVisual !== false,
         enableReferenceBatchMode: enableReferenceBatchMode || false,
+        enableCustomReferenceUpload: enableCustomReferenceUpload || false,
+        allowMultipleCustomReferences: allowMultipleCustomReferences || false,
         enabled: enabled !== false,
         sortOrder: sortOrder || 0
       },
@@ -155,7 +161,9 @@ export async function POST(request: NextRequest) {
         ? JSON.parse(template.specifiedColorsJson)
         : [],
       showMainVisual: template.showMainVisual,
-      enableReferenceBatchMode: template.enableReferenceBatchMode || false
+      enableReferenceBatchMode: template.enableReferenceBatchMode || false,
+      enableCustomReferenceUpload: template.enableCustomReferenceUpload || false,
+      allowMultipleCustomReferences: template.allowMultipleCustomReferences || false
     }, { status: 201 });
   } catch (error) {
     console.error('创建模板失败:', error);

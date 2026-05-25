@@ -50,7 +50,7 @@ npm run dev
 
 ```env
 GPT_IMAGE_API_BASE_URL="https://api.jyf.ai"
-GPT_IMAGE_API_KEY="sk-nN3PuvBju1rD1p9Cj2WSLFR8KcOcKEnU87pP1HKwpU83ydwW"
+GPT_IMAGE_API_KEY="your-api-key"
 ```
 
 ### 尺寸说明
