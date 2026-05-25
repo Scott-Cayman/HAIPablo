@@ -375,6 +375,9 @@ export default function GeneratePage() {
                     config.selectedCustomReferenceIds.filter((id: unknown): id is string => typeof id === 'string' && id.length > 0)
                   );
                 }
+                if (config.selectedPresetImage) {
+                  setSelectedPresetImage(normalizeReferenceImage(config.selectedPresetImage));
+                }
                 
                 if (config.selectedUserImage) {
                   const normalizedSelectedImage = normalizeReferenceImage(config.selectedUserImage);
@@ -722,13 +725,22 @@ export default function GeneratePage() {
   const getImageVariables = () => template?.variables?.filter((variable) => variable.type === 'image') || [];
 
   const getActiveTemplateReferenceImages = useCallback(() => {
-    if (template?.enableCustomReferenceUpload !== true) {
-      return template?.referenceImages || [];
-    }
+    const presetReferenceImages = template?.referenceImages || [];
 
     const selectedCustomImages = customReferenceImages.filter((image) => selectedCustomReferenceIds.includes(image.id));
-    return selectedCustomImages.length > 0 ? selectedCustomImages : (template?.referenceImages || []);
-  }, [template, customReferenceImages, selectedCustomReferenceIds]);
+    if (selectedCustomImages.length > 0) {
+      return selectedCustomImages;
+    }
+
+    if (selectedPresetImage) {
+      const matchedPreset = presetReferenceImages.find((image) => image.id === selectedPresetImage.id);
+      if (matchedPreset) {
+        return [matchedPreset];
+      }
+    }
+
+    return presetReferenceImages;
+  }, [template, customReferenceImages, selectedCustomReferenceIds, selectedPresetImage]);
 
   const getVariableReferenceLabel = (key: string) => {
     const imageVariables = getImageVariables();
@@ -1028,6 +1040,7 @@ export default function GeneratePage() {
           userImages,
           customReferenceImages,
           selectedCustomReferenceIds,
+          selectedPresetImage,
           selectedUserImage: mainImage,
           userPrompt,
           enableUserPrompt,
@@ -2298,14 +2311,12 @@ export default function GeneratePage() {
                                 `}
                                 onClick={() => {
                                   setSelectedPresetImage(selectedPresetImage?.id === image.id ? null : image);
-                                  if (!hasActiveCustomReferences) {
-                                    setSelectedCustomReferenceIds([]);
-                                  }
+                                  setSelectedCustomReferenceIds([]);
                                 }}
                               >
                                 <img src={image.url} alt={`参考图 ${index + 1}`} className="h-[68px] w-full object-contain" style={{ objectPosition: 'center' }} />
                                 <div className={`absolute left-1 top-1 rounded px-1.5 py-0.5 text-[10px] font-medium ${selectedPresetImage?.id === image.id ? 'bg-violet-600 text-white' : 'bg-gray-800 text-white'}`}>
-                                  {hasActiveCustomReferences ? `预设${index + 1}` : selectedPresetImage?.id === image.id ? '已查看' : `图${index + 1}`}
+                                  {hasActiveCustomReferences ? `预设${index + 1}` : selectedPresetImage?.id === image.id ? '已选中' : `图${index + 1}`}
                                 </div>
                                 <div className="absolute inset-0 flex items-center justify-center bg-black/45 opacity-0 transition-opacity group-hover:opacity-100">
                                   <button

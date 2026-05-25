@@ -70,6 +70,82 @@ interface TemplateVariable {
 }
 
 const DEFAULT_PROMPT = '请将参考图1的画面应用到参考图2的模板样式中：\n\n要求：\n1. 保持参考图2的整体结构和布局\n2. 参考图1中的主要视觉元素应该清晰可见\n3. 颜色风格应该与参考图1保持一致\n4. 参考图2中的文字位置和大小保持不变\n5. 整体比例协调，美观大方';
+const COVER_MAX_DIMENSION = 1280;
+const COVER_UPLOAD_QUALITY = 0.82;
+
+function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(new Error('读取图片失败'));
+    reader.readAsDataURL(blob);
+  });
+}
+
+function canvasToBlob(canvas: HTMLCanvasElement, type: string, quality: number): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (!blob) {
+        reject(new Error('图片压缩失败'));
+        return;
+      }
+      resolve(blob);
+    }, type, quality);
+  });
+}
+
+async function compressCoverImage(file: File): Promise<File> {
+  if (!file.type.startsWith('image/') || file.type === 'image/gif' || file.type === 'image/svg+xml') {
+    return file;
+  }
+
+  const imageUrl = URL.createObjectURL(file);
+
+  try {
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const image = new Image();
+      image.onload = () => resolve(image);
+      image.onerror = () => reject(new Error('加载图片失败'));
+      image.src = imageUrl;
+    });
+
+    let { width, height } = img;
+    const longestSide = Math.max(width, height);
+
+    if (longestSide > COVER_MAX_DIMENSION) {
+      const scale = COVER_MAX_DIMENSION / longestSide;
+      width = Math.max(1, Math.round(width * scale));
+      height = Math.max(1, Math.round(height * scale));
+    }
+
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+      return file;
+    }
+
+    ctx.drawImage(img, 0, 0, width, height);
+
+    const preferredType = file.type === 'image/png' || file.type === 'image/webp' ? 'image/webp' : 'image/jpeg';
+    const compressedBlob = await canvasToBlob(canvas, preferredType, COVER_UPLOAD_QUALITY);
+
+    if (compressedBlob.size >= file.size && longestSide <= COVER_MAX_DIMENSION) {
+      return file;
+    }
+
+    const extension = preferredType === 'image/webp' ? 'webp' : 'jpg';
+    const fileName = file.name.replace(/\.[^.]+$/, '') || 'cover';
+    return new File([compressedBlob], `${fileName}.${extension}`, {
+      type: preferredType,
+      lastModified: Date.now()
+    });
+  } finally {
+    URL.revokeObjectURL(imageUrl);
+  }
+}
 
 export default function TemplateConfigPage() {
   const router = useRouter();
@@ -454,8 +530,9 @@ export default function TemplateConfigPage() {
     setUploadingCover(true);
 
     try {
+      const compressedFile = await compressCoverImage(file);
       const fd = new FormData();
-      fd.append('file', file);
+      fd.append('file', compressedFile);
 
       const response = await fetch('/api/upload', {
         method: 'POST',
@@ -470,7 +547,7 @@ export default function TemplateConfigPage() {
       setCoverImage({
         id: `cover_${Date.now()}`,
         url: data.url,
-        name: file.name
+        name: compressedFile.name
       });
     } catch (error) {
       console.error('上传失败:', error);

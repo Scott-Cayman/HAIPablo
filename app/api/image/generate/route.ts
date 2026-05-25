@@ -80,7 +80,13 @@ export async function POST(request: NextRequest) {
 
     const hasReferenceImages = referenceImages && Array.isArray(referenceImages) && referenceImages.length > 0;
     const hasUserImages = images && Array.isArray(images) && images.length > 0;
-    const totalImages = (hasReferenceImages ? referenceImages.length : 0) + (hasUserImages ? images.length : 0);
+    const referenceImageCount = hasReferenceImages ? referenceImages.length : 0;
+    const userImageCount = hasUserImages ? images.length : 0;
+    const variableImageCount = config?.variableImages
+      ? Object.values(config.variableImages).filter(Boolean).length
+      : 0;
+    const mainImageCount = config?.selectedUserImage ? 1 : 0;
+    const totalImages = referenceImageCount + userImageCount;
 
     // 优化后的校验逻辑：
     // 1. 如果模式是 'edit' (图生图)，则必须提供至少一张图片（无论是预设的还是用户上传的）
@@ -169,19 +175,23 @@ export async function POST(request: NextRequest) {
 
     console.log('hasReferenceImages:', hasReferenceImages);
     console.log('hasUserImages:', hasUserImages);
+    console.log('referenceImageCount:', referenceImageCount);
+    console.log('userImageCount:', userImageCount);
+    console.log('variableImageCount:', variableImageCount);
+    console.log('mainImageCount:', mainImageCount);
     console.log('totalImages:', totalImages);
-    console.log('will use edit mode:', mode === 'edit');
+    console.log('will use edit mode:', mode === 'edit' || totalImages >= 2);
 
     if (mode === 'edit' || totalImages >= 2) {
       console.log('=== 使用编辑模式 ===');
       const allImages: string[] = [];
       
       if (hasReferenceImages) {
-        console.log('添加预设参考图:', referenceImages.length, '张');
+        console.log('添加预设参考图:', referenceImageCount, '张');
         allImages.push(...referenceImages);
       }
       
-      console.log('添加用户图片:', images.length, '张');
+      console.log('添加用户图片:', userImageCount, '张');
       allImages.push(...images);
       
       for (let i = 0; i < allImages.length; i++) {
@@ -214,19 +224,23 @@ export async function POST(request: NextRequest) {
       }
 
       console.log('准备调用编辑API，图片数:', tempPaths.length);
-      result = await imageApiClient.edit({
-        prompt: finalPrompt,
-        size: size || 'auto',
-        quality: quality || 'medium',
-        response_format: 'b64_json',
-        imagePaths: tempPaths
-      });
-      
-      for (const tempPath of tempPaths) {
-        try {
-          await fs.unlink(tempPath);
-        } catch (e) {
-          console.warn('删除临时文件失败:', e);
+      const editStart = Date.now();
+      try {
+        result = await imageApiClient.edit({
+          prompt: finalPrompt,
+          size: size || 'auto',
+          quality: quality || 'medium',
+          response_format: 'b64_json',
+          imagePaths: tempPaths
+        });
+        console.log('编辑API调用完成，耗时ms:', Date.now() - editStart);
+      } finally {
+        for (const tempPath of tempPaths) {
+          try {
+            await fs.unlink(tempPath);
+          } catch (e) {
+            console.warn('删除临时文件失败:', e);
+          }
         }
       }
     } else {
@@ -238,7 +252,9 @@ export async function POST(request: NextRequest) {
         response_format: 'b64_json'
       };
 
+      const generateStart = Date.now();
       result = await imageApiClient.generate(requestParams);
+      console.log('生成API调用完成，耗时ms:', Date.now() - generateStart);
     }
 
     if (result?.data?.[0]) {

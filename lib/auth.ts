@@ -16,11 +16,9 @@ export interface TokenPayload {
 }
 
 function isSecureCookie(request: NextRequest): boolean {
-  const host = request.headers.get('host') || '';
-  const localhostPatterns = ['localhost', '127.0.0.1', '::1'];
-  const isLocalhost = localhostPatterns.some(pattern => host.includes(pattern));
-  const isIpAddress = /^\d+\.\d+\.\d+\.\d+/.test(host.split(':')[0]);
-  return !isLocalhost && !isIpAddress;
+  const forwardedProto = request.headers.get('x-forwarded-proto');
+  const protocol = forwardedProto || request.nextUrl.protocol.replace(':', '');
+  return protocol === 'https';
 }
 
 export async function createToken(payload: TokenPayload): Promise<string> {
