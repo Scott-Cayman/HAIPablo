@@ -1556,7 +1556,7 @@ export default function GeneratePage() {
 
   if (loading) {
     return (
-      <div className={`min-h-screen flex items-center justify-center transition-colors duration-500 ${darkMode ? 'bg-gray-950' : 'bg-gradient-to-br from-slate-100 via-gray-50 to-slate-100'}`}>
+      <div className={`haipablo-static-shell min-h-screen flex items-center justify-center transition-colors duration-500 ${darkMode ? 'bg-gray-950' : ''}`}>
         <div className="text-center">
           <Loader2 className={`w-12 h-12 animate-spin mx-auto mb-4 ${darkMode ? 'text-white' : 'text-gray-800'}`} />
           <p className={darkMode ? 'text-gray-400' : 'text-gray-600'}>加载模板中...</p>
@@ -1566,7 +1566,7 @@ export default function GeneratePage() {
   }
 
   return (
-    <div className={`h-screen overflow-hidden transition-colors duration-500 ${darkMode ? 'bg-gray-950' : 'bg-gradient-to-br from-slate-100 via-gray-50 to-slate-100'}`}>
+    <div className={`haipablo-static-shell h-screen overflow-hidden transition-colors duration-500 ${darkMode ? 'bg-gray-950' : ''}`}>
       <AnnotationEditorModal
         isOpen={!!annotationEditorTarget}
         darkMode={darkMode}
@@ -1630,7 +1630,7 @@ export default function GeneratePage() {
         )}
       </AnimatePresence>
 
-      <header className={`sticky top-0 z-50 border-b backdrop-blur-xl transition-colors duration-500 ${darkMode ? 'bg-gray-950/80 border-gray-800' : 'bg-white/70 border-gray-200'}`}>
+      <header className={`haipablo-topbar sticky top-0 z-50 border-b backdrop-blur-xl transition-colors duration-500 ${darkMode ? 'bg-gray-950/70 border-white/10' : 'bg-white/60 border-white/50'}`}>
         <div className="mx-auto flex w-[min(94vw,1320px)] items-center relative px-4 py-3 xl:px-3 2xl:px-4">
           <div className="flex items-center gap-4">
             <button 
@@ -1724,17 +1724,17 @@ export default function GeneratePage() {
                       initial={{ opacity: 0, y: -10 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -10 }}
-                      className={`absolute right-0 top-full mt-2 w-56 rounded-xl shadow-lg border overflow-hidden z-50 transition-colors duration-500 ${
+                      className={`haipablo-modal-panel absolute right-0 top-full mt-2 w-56 rounded-xl shadow-lg border overflow-hidden z-50 transition-colors duration-500 ${
                         darkMode 
-                          ? 'bg-gray-900 border-gray-800' 
-                          : 'bg-white border-gray-200'
+                          ? 'bg-gray-900 border-white/10' 
+                          : 'bg-white border-white/60'
                       }`}
                       onClick={(e) => e.stopPropagation()}
                     >
                       <div className={`p-4 border-b transition-colors duration-500 ${
                         darkMode 
-                          ? 'bg-gray-800/50 border-gray-700' 
-                          : 'bg-gray-50 border-gray-100'
+                          ? 'bg-white/[0.04] border-white/10' 
+                          : 'bg-white/45 border-white/60'
                       }`}>
                         <div className="flex items-center gap-3">
                           <UserAvatar user={user} size="lg" darkMode={darkMode} />
@@ -1779,8 +1779,8 @@ export default function GeneratePage() {
                           onClick={() => router.push('/history')}
                           className={`w-full px-4 py-2.5 text-left rounded-lg transition-colors flex items-center gap-3 ${
                             darkMode 
-                              ? 'text-gray-300 hover:bg-gray-800 hover:text-white' 
-                              : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
+                              ? 'text-gray-300 hover:bg-white/[0.06] hover:text-white' 
+                              : 'text-gray-700 hover:bg-white/80 hover:text-gray-900'
                           }`}
                         >
                           <History className="w-4 h-4" />
@@ -1793,7 +1793,7 @@ export default function GeneratePage() {
                             className={`w-full px-4 py-2.5 text-left rounded-lg transition-colors flex items-center gap-3 ${
                               darkMode 
                                 ? 'text-amber-400 hover:bg-amber-950/30' 
-                                : 'text-amber-700 hover:bg-amber-50'
+                                : 'text-amber-700 hover:bg-amber-50/80'
                             }`}
                           >
                             <Shield className="w-4 h-4" />
@@ -1801,14 +1801,14 @@ export default function GeneratePage() {
                           </button>
                         )}
 
-                        <div className={`my-2 border-t transition-colors duration-500 ${darkMode ? 'border-gray-800' : 'border-gray-200'}`} />
+                        <div className={`my-2 border-t transition-colors duration-500 ${darkMode ? 'border-white/10' : 'border-white/55'}`} />
 
                         <button
                           onClick={handleLogout}
                           className={`w-full px-4 py-2.5 text-left rounded-lg transition-colors flex items-center gap-3 ${
                             darkMode 
                               ? 'text-red-400 hover:bg-red-950/30' 
-                              : 'text-red-600 hover:bg-red-50'
+                              : 'text-red-600 hover:bg-red-50/80'
                           }`}
                         >
                           <LogOut className="w-4 h-4" />
@@ -1860,10 +1860,10 @@ export default function GeneratePage() {
             </AnimatePresence>
 
             {isSpecialThreeDRender && template && (
-              <div className={`rounded-[30px] shadow-sm border p-6 md:p-8 transition-colors duration-500 overflow-hidden ${
+              <div className={`haipablo-glass-panel rounded-[30px] shadow-sm border p-6 md:p-8 transition-colors duration-500 overflow-hidden ${
                 darkMode
-                  ? 'bg-gray-900 border-gray-800'
-                  : 'bg-white border-gray-200'
+                  ? 'bg-gray-900 border-white/10'
+                  : 'bg-white border-white/60'
               }`}>
                 <div className="relative">
                   <div className={`absolute inset-0 rounded-[26px] opacity-70 ${
@@ -1886,8 +1886,8 @@ export default function GeneratePage() {
                           {template.description || THREE_D_AI_RENDER_PRESET.description}
                         </p>
                       </div>
-                      <div className={`rounded-2xl border px-4 py-3 min-w-[240px] ${
-                        darkMode ? 'border-gray-800 bg-gray-950/60' : 'border-gray-200 bg-white/80'
+                      <div className={`haipablo-glass-subtle rounded-2xl border px-4 py-3 min-w-[240px] ${
+                        darkMode ? 'border-white/10 bg-gray-950/45' : 'border-white/65 bg-white/70'
                       }`}>
                         <p className={`text-xs uppercase tracking-[0.2em] ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>当前状态</p>
                         <div className="mt-3 space-y-2">
@@ -1908,8 +1908,8 @@ export default function GeneratePage() {
                     </div>
 
                     <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
-                      <div className={`xl:col-span-2 rounded-[24px] border p-5 ${
-                        darkMode ? 'border-gray-800 bg-gray-950/70' : 'border-gray-200 bg-white/80'
+                      <div className={`haipablo-glass-subtle xl:col-span-2 rounded-[24px] border p-5 ${
+                        darkMode ? 'border-white/10 bg-gray-950/45' : 'border-white/65 bg-white/72'
                       }`}>
                         <div className="flex items-center gap-3">
                           <div className={`flex h-11 w-11 items-center justify-center rounded-2xl ${
@@ -2020,11 +2020,11 @@ export default function GeneratePage() {
                         </div>
                       </div>
 
-                      <div className={`xl:col-span-3 rounded-[24px] border p-5 ${
-                        darkMode ? 'border-gray-800 bg-gray-950/60' : 'border-gray-200 bg-white/80'
+                      <div className={`haipablo-glass-subtle xl:col-span-3 rounded-[24px] border p-5 ${
+                        darkMode ? 'border-white/10 bg-gray-950/45' : 'border-white/65 bg-white/72'
                       }`}>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div className={`rounded-2xl border p-4 ${darkMode ? 'border-gray-800 bg-gray-900' : 'border-gray-200 bg-gray-50'}`}>
+                          <div className={`rounded-2xl border p-4 ${darkMode ? 'border-white/10 bg-white/[0.04]' : 'border-white/65 bg-white/80'}`}>
                             <div className="flex items-center gap-2">
                               <Palette className={`w-4 h-4 ${darkMode ? 'text-emerald-300' : 'text-emerald-700'}`} />
                               <p className={`text-sm font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>输出参数</p>
@@ -2035,7 +2035,7 @@ export default function GeneratePage() {
                                 <select
                                   value={size}
                                   onChange={(e) => setSize(e.target.value)}
-                                  className={`w-full rounded-xl border px-3 py-2.5 text-sm outline-none ${darkMode ? 'border-gray-700 bg-gray-950 text-white' : 'border-gray-200 bg-white text-gray-900'}`}
+                                  className={`w-full rounded-xl border px-3 py-2.5 text-sm outline-none ${darkMode ? 'border-white/10 bg-slate-950/60 text-white' : 'border-white/70 bg-white text-gray-900'}`}
                                 >
                                   {SIZE_OPTIONS.map((option) => (
                                     <option key={option.value} value={option.value}>{option.label}</option>
@@ -2047,7 +2047,7 @@ export default function GeneratePage() {
                                 <select
                                   value={quality}
                                   onChange={(e) => setQuality(e.target.value)}
-                                  className={`w-full rounded-xl border px-3 py-2.5 text-sm outline-none ${darkMode ? 'border-gray-700 bg-gray-950 text-white' : 'border-gray-200 bg-white text-gray-900'}`}
+                                  className={`w-full rounded-xl border px-3 py-2.5 text-sm outline-none ${darkMode ? 'border-white/10 bg-slate-950/60 text-white' : 'border-white/70 bg-white text-gray-900'}`}
                                 >
                                   {QUALITY_OPTIONS.map((option) => (
                                     <option key={option.value} value={option.value}>{option.label}</option>

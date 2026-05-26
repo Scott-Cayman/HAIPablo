@@ -788,7 +788,7 @@ export default function BatchGeneratePage() {
 
   if (loading) {
     return (
-      <div className={`flex min-h-screen items-center justify-center transition-colors duration-500 ${darkMode ? 'bg-gray-950' : 'bg-[radial-gradient(circle_at_top,#f5f0ff,transparent_32%),linear-gradient(180deg,#fcfbff_0%,#f5f4fa_100%)]'}`}>
+      <div className={`haipablo-static-shell flex min-h-screen items-center justify-center transition-colors duration-500 ${darkMode ? 'bg-gray-950' : ''}`}>
         <div className="text-center">
           <Loader2 className={`mx-auto mb-4 h-12 w-12 animate-spin ${darkMode ? 'text-white' : 'text-violet-600'}`} />
           <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-slate-500'}`}>加载模板中...</p>
@@ -798,7 +798,7 @@ export default function BatchGeneratePage() {
   }
 
   return (
-    <div className={`min-h-screen transition-colors duration-500 ${darkMode ? 'bg-gray-950 text-white' : 'bg-[radial-gradient(circle_at_top,#f5f0ff,transparent_28%),linear-gradient(180deg,#fcfbff_0%,#f3f2f8_100%)] text-slate-900'}`}>
+    <div className={`haipablo-static-shell min-h-screen transition-colors duration-500 ${darkMode ? 'bg-gray-950 text-white' : 'text-slate-900'}`}>
       <AnimatePresence>
         {previewImage && (
           <motion.div
@@ -865,7 +865,7 @@ export default function BatchGeneratePage() {
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
               onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-sm rounded-[28px] border border-white/60 bg-white p-6 text-center shadow-[0_24px_80px_-32px_rgba(15,23,42,0.35)]"
+              className="haipablo-modal-panel w-full max-w-sm rounded-[28px] border p-6 text-center shadow-[0_24px_80px_-32px_rgba(15,23,42,0.35)]"
             >
               <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-red-100">
                 <XCircle className="h-8 w-8 text-red-500" />
@@ -886,7 +886,7 @@ export default function BatchGeneratePage() {
         )}
       </AnimatePresence>
 
-      <header className={`sticky top-0 z-50 border-b backdrop-blur-xl transition-colors duration-500 ${darkMode ? 'bg-gray-950/80 border-gray-800' : 'bg-white/75 border-white/60'}`}>
+      <header className={`haipablo-topbar sticky top-0 z-50 border-b backdrop-blur-xl transition-colors duration-500 ${darkMode ? 'bg-gray-950/70 border-white/10' : 'bg-white/60 border-white/50'}`}>
         <div className="mx-auto flex w-[min(96vw,1880px)] items-center relative px-6 py-4 2xl:px-8">
           <div className="flex items-center gap-4">
             <button
@@ -969,10 +969,10 @@ export default function BatchGeneratePage() {
                       initial={{ opacity: 0, y: -10 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -10 }}
-                      className={`absolute right-0 top-full mt-2 w-56 rounded-xl shadow-lg border overflow-hidden z-50 transition-colors duration-500 ${darkMode ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200'}`}
+                      className={`haipablo-modal-panel absolute right-0 top-full mt-2 w-56 rounded-xl shadow-lg border overflow-hidden z-50 transition-colors duration-500 ${darkMode ? 'bg-gray-900 border-white/10' : 'bg-white border-white/60'}`}
                       onClick={(e) => e.stopPropagation()}
                     >
-                      <div className={`p-4 border-b transition-colors duration-500 ${darkMode ? 'bg-gray-800/50 border-gray-700' : 'bg-gray-50 border-gray-100'}`}>
+                      <div className={`p-4 border-b transition-colors duration-500 ${darkMode ? 'bg-white/[0.04] border-white/10' : 'bg-white/45 border-white/60'}`}>
                         <div className="flex items-center gap-3">
                           <UserAvatar user={user} size="lg" darkMode={darkMode} />
                           <div>
@@ -991,7 +991,7 @@ export default function BatchGeneratePage() {
                       <div className="p-2">
                         <button
                           onClick={() => router.push('/history')}
-                          className={`w-full px-4 py-2.5 text-left rounded-lg transition-colors flex items-center gap-3 ${darkMode ? 'text-gray-300 hover:bg-gray-800 hover:text-white' : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'}`}
+                          className={`w-full px-4 py-2.5 text-left rounded-lg transition-colors flex items-center gap-3 ${darkMode ? 'text-gray-300 hover:bg-white/[0.06] hover:text-white' : 'text-gray-700 hover:bg-white/80 hover:text-gray-900'}`}
                         >
                           <History className="w-4 h-4" />
                           我的历史
@@ -999,16 +999,16 @@ export default function BatchGeneratePage() {
                         {(user.role === 'admin' || user.role === 'sub_admin') && (
                           <button
                             onClick={() => router.push('/admin/users')}
-                            className={`w-full px-4 py-2.5 text-left rounded-lg transition-colors flex items-center gap-3 ${darkMode ? 'text-amber-400 hover:bg-amber-950/30' : 'text-amber-700 hover:bg-amber-50'}`}
+                            className={`w-full px-4 py-2.5 text-left rounded-lg transition-colors flex items-center gap-3 ${darkMode ? 'text-amber-400 hover:bg-amber-950/30' : 'text-amber-700 hover:bg-amber-50/80'}`}
                           >
                             <Shield className="w-4 h-4" />
                             {user.role === 'admin' ? '用户管理' : '人员列表'}
                           </button>
                         )}
-                        <div className={`my-2 border-t transition-colors duration-500 ${darkMode ? 'border-gray-800' : 'border-gray-200'}`} />
+                        <div className={`my-2 border-t transition-colors duration-500 ${darkMode ? 'border-white/10' : 'border-white/55'}`} />
                         <button
                           onClick={handleLogout}
-                          className={`w-full px-4 py-2.5 text-left rounded-lg transition-colors flex items-center gap-3 ${darkMode ? 'text-red-400 hover:bg-red-950/30' : 'text-red-600 hover:bg-red-50'}`}
+                          className={`w-full px-4 py-2.5 text-left rounded-lg transition-colors flex items-center gap-3 ${darkMode ? 'text-red-400 hover:bg-red-950/30' : 'text-red-600 hover:bg-red-50/80'}`}
                         >
                           <LogOut className="w-4 h-4" />
                           退出登录
@@ -1025,7 +1025,7 @@ export default function BatchGeneratePage() {
 
       <main className="mx-auto w-[min(96vw,1880px)] px-6 py-8 2xl:px-8">
         <section className="mb-8 grid gap-6 xl:grid-cols-[1.45fr_1fr] 2xl:grid-cols-[1.55fr_1fr]">
-          <div className="relative overflow-hidden rounded-[32px] border border-white/60 bg-white/90 p-6 shadow-[0_24px_80px_-36px_rgba(109,40,217,0.35)]">
+          <div className="haipablo-glass-panel relative overflow-hidden rounded-[32px] border p-6 shadow-[0_24px_80px_-36px_rgba(109,40,217,0.35)]">
             <div className="absolute right-6 top-6 grid grid-cols-4 gap-1 opacity-40">
               {Array.from({ length: 12 }).map((_, index) => (
                 <span key={index} className="h-1.5 w-1.5 rounded-full bg-violet-200" />
@@ -1054,11 +1054,11 @@ export default function BatchGeneratePage() {
                 </p>
 
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <div className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
+                  <div className="haipablo-glass-subtle rounded-2xl border px-4 py-3">
                     <p className="text-[11px] uppercase tracking-[0.2em] text-slate-400">模板数</p>
                     <p className="mt-1 text-lg font-semibold text-slate-900">{cards.length}</p>
                   </div>
-                  <div className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
+                  <div className="haipablo-glass-subtle rounded-2xl border px-4 py-3">
                     <p className="text-[11px] uppercase tracking-[0.2em] text-slate-400">潮能力</p>
                     <p className="mt-1 text-lg font-semibold text-slate-900">{user?.credits ?? 0}</p>
                   </div>
@@ -1073,7 +1073,7 @@ export default function BatchGeneratePage() {
 
               <div className="relative">
                 {kvImage ? (
-                  <div className="group relative overflow-hidden rounded-[28px] border border-violet-100 bg-white p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
+                  <div className="haipablo-glass-subtle group relative overflow-hidden rounded-[28px] border p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
                     <img
                       src={kvImage.url}
                       alt="主视觉"
@@ -1089,7 +1089,7 @@ export default function BatchGeneratePage() {
                     </div>
                   </div>
                 ) : (
-                  <div className="rounded-[28px] border border-dashed border-violet-200 bg-[linear-gradient(180deg,rgba(247,244,255,0.9),rgba(255,255,255,0.95))] p-6">
+                  <div className="haipablo-glass-subtle rounded-[28px] border border-dashed border-violet-200 p-6">
                     <input
                       type="file"
                       accept="image/*"
@@ -1117,7 +1117,7 @@ export default function BatchGeneratePage() {
             </div>
           </div>
 
-          <div className="rounded-[32px] border border-white/60 bg-white/90 p-6 shadow-[0_24px_80px_-36px_rgba(109,40,217,0.25)]">
+          <div className="haipablo-glass-panel rounded-[32px] border p-6 shadow-[0_24px_80px_-36px_rgba(109,40,217,0.25)]">
             <div className="mb-5 flex items-center gap-3">
               <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-600 to-fuchsia-500 text-white shadow-lg shadow-violet-200">
                 <SlidersHorizontal className="h-5 w-5" />
@@ -1129,13 +1129,13 @@ export default function BatchGeneratePage() {
             </div>
 
             <div className="space-y-4">
-              <div className="rounded-[24px] border border-slate-100 bg-slate-50 p-4">
+              <div className="haipablo-glass-subtle rounded-[24px] border p-4">
                 <label className="mb-2 block text-sm font-semibold text-slate-700">输出尺寸</label>
                 <div className="relative">
                   <select
                     value={size}
                     onChange={(e) => setSize(e.target.value)}
-                    className="w-full appearance-none rounded-2xl border border-slate-200 bg-white px-4 py-3 pr-11 text-sm font-medium text-slate-900 outline-none transition-all focus:border-violet-300 focus:ring-4 focus:ring-violet-100"
+                    className="w-full appearance-none rounded-2xl border border-white/70 bg-white px-4 py-3 pr-11 text-sm font-medium text-slate-900 outline-none transition-all focus:border-violet-300 focus:ring-4 focus:ring-violet-100 dark:border-white/10 dark:bg-slate-950/60 dark:text-white"
                   >
                     {SIZE_OPTIONS.map((option) => (
                       <option key={option.value} value={option.value}>
@@ -1147,13 +1147,13 @@ export default function BatchGeneratePage() {
                 </div>
               </div>
 
-              <div className="rounded-[24px] border border-slate-100 bg-slate-50 p-4">
+              <div className="haipablo-glass-subtle rounded-[24px] border p-4">
                 <label className="mb-2 block text-sm font-semibold text-slate-700">生成质量</label>
                 <div className="relative">
                   <select
                     value={quality}
                     onChange={(e) => setQuality(e.target.value)}
-                    className="w-full appearance-none rounded-2xl border border-slate-200 bg-white px-4 py-3 pr-11 text-sm font-medium text-slate-900 outline-none transition-all focus:border-violet-300 focus:ring-4 focus:ring-violet-100"
+                    className="w-full appearance-none rounded-2xl border border-white/70 bg-white px-4 py-3 pr-11 text-sm font-medium text-slate-900 outline-none transition-all focus:border-violet-300 focus:ring-4 focus:ring-violet-100 dark:border-white/10 dark:bg-slate-950/60 dark:text-white"
                   >
                     {QUALITY_OPTIONS.map((option) => (
                       <option key={option.value} value={option.value}>
@@ -1165,7 +1165,7 @@ export default function BatchGeneratePage() {
                 </div>
               </div>
 
-              <div className="rounded-[24px] border border-violet-100 bg-violet-50/70 p-4">
+              <div className="haipablo-glass-subtle rounded-[24px] border border-violet-100 p-4">
                 <div className="flex items-start gap-3 text-sm text-violet-800">
                   <Info className="mt-0.5 h-4 w-4 shrink-0" />
                   <p>批量模式会将当前尺寸与质量配置应用到所有模板卡片，并保留各自的提示词与指定色设置。</p>
@@ -1200,7 +1200,7 @@ export default function BatchGeneratePage() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: cardIndex * 0.06 }}
-              className="overflow-hidden rounded-[32px] border border-white/70 bg-white/90 shadow-[0_28px_90px_-38px_rgba(109,40,217,0.28)]"
+              className="haipablo-glass-panel overflow-hidden rounded-[32px] border shadow-[0_28px_90px_-38px_rgba(109,40,217,0.28)]"
             >
               <div className="relative border-b border-violet-100/70 bg-[linear-gradient(180deg,rgba(247,244,255,0.92),rgba(245,244,250,0.88))] px-6 py-5">
                 <div className="absolute right-6 top-5 grid grid-cols-4 gap-1 opacity-50">

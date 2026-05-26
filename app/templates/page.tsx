@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import { UserAvatar } from '@/components/UserAvatar';
@@ -189,6 +189,8 @@ export default function TemplatesPage() {
   });
   const [saving, setSaving] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const featureGroupsScrollRef = useRef<HTMLDivElement | null>(null);
+  const templatesScrollRef = useRef<HTMLDivElement | null>(null);
   const router = useRouter();
   const canManage = user?.role === 'admin' || user?.role === 'sub_admin';
   const isAdmin = user?.role === 'admin';
@@ -208,6 +210,50 @@ export default function TemplatesPage() {
       setDarkMode(true);
       document.documentElement.classList.add('dark');
     }
+  }, []);
+
+  useEffect(() => {
+    const timers = new Map<HTMLElement, ReturnType<typeof setTimeout>>();
+
+    const bindScrollReveal = (element: HTMLElement | null) => {
+      if (!element) return () => {};
+
+      const handleScroll = () => {
+        element.classList.add('is-scrolling');
+        const existingTimer = timers.get(element);
+        if (existingTimer) {
+          clearTimeout(existingTimer);
+        }
+
+        const nextTimer = setTimeout(() => {
+          element.classList.remove('is-scrolling');
+          timers.delete(element);
+        }, 720);
+
+        timers.set(element, nextTimer);
+      };
+
+      element.addEventListener('scroll', handleScroll, { passive: true });
+
+      return () => {
+        const existingTimer = timers.get(element);
+        if (existingTimer) {
+          clearTimeout(existingTimer);
+          timers.delete(element);
+        }
+        element.removeEventListener('scroll', handleScroll);
+      };
+    };
+
+    const cleanupFeatureGroups = bindScrollReveal(featureGroupsScrollRef.current);
+    const cleanupTemplates = bindScrollReveal(templatesScrollRef.current);
+
+    return () => {
+      cleanupFeatureGroups();
+      cleanupTemplates();
+      timers.forEach((timer) => clearTimeout(timer));
+      timers.clear();
+    };
   }, []);
 
   const toggleDarkMode = () => {
@@ -536,16 +582,22 @@ export default function TemplatesPage() {
 
   if (loading) {
     return (
-      <div className={`min-h-screen flex items-center justify-center transition-colors duration-500 ${darkMode ? 'bg-gray-950' : 'bg-gradient-to-br from-slate-100 via-gray-50 to-slate-100'}`}>
+      <div className={`haipablo-static-shell min-h-screen flex items-center justify-center transition-colors duration-500 ${darkMode ? 'bg-gray-950' : ''}`}>
         <Loader2 className={`w-12 h-12 animate-spin ${darkMode ? 'text-white' : 'text-gray-800'}`} />
       </div>
     );
   }
 
   return (
-    <div className={`min-h-screen transition-colors duration-500 ${darkMode ? 'bg-gray-950' : 'bg-gradient-to-br from-slate-100 via-gray-50 to-slate-100'}`}>
-      <header className={`sticky top-0 z-50 border-b backdrop-blur-xl transition-colors duration-500 ${darkMode ? 'bg-gray-950/80 border-gray-800' : 'bg-white/70 border-gray-200'}`}>
-        <div className="mx-auto flex w-[min(96vw,1880px)] items-center relative px-6 py-4 2xl:px-8">
+    <div className={`haipablo-static-shell min-h-screen transition-colors duration-500 lg:flex lg:h-screen lg:flex-col lg:overflow-hidden ${darkMode ? 'bg-gray-950' : ''}`}>
+      <header className="z-50 px-4 pt-4 transition-colors duration-500 lg:shrink-0 sm:px-6 lg:px-8">
+        <div
+          className={`mx-auto flex w-[min(96vw,1880px)] items-center relative rounded-[1.75rem] px-6 py-4 shadow-[0_10px_40px_rgba(10,10,30,0.18),inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-2xl 2xl:px-8 ${
+            darkMode
+              ? 'border border-white/[0.08] bg-[linear-gradient(90deg,rgba(255,255,255,0.05),rgba(255,255,255,0.1),rgba(255,255,255,0.05))]'
+              : 'border border-black/[0.06] bg-[linear-gradient(90deg,rgba(255,255,255,0.78),rgba(255,255,255,0.92),rgba(255,255,255,0.78))] shadow-[0_10px_40px_rgba(15,23,42,0.08),inset_0_1px_0_rgba(255,255,255,0.7)]'
+          }`}
+        >
           <div className="flex items-center gap-4">
             <button 
               onClick={() => router.push('/')}
@@ -573,8 +625,8 @@ export default function TemplatesPage() {
             {user && (
               <div className={`hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full border ${
                 darkMode 
-                  ? 'bg-violet-900/20 border-violet-800/50 text-violet-300' 
-                  : 'bg-violet-50 border-violet-200 text-violet-700'
+                  ? 'bg-white text-gray-950 border-white/20' 
+                  : 'bg-gray-950 text-white border-gray-900'
               }`}>
                 <Sparkles className="w-4 h-4" />
                 <span className="text-sm font-medium">潮能力: {user.credits ?? 0}</span>
@@ -584,27 +636,23 @@ export default function TemplatesPage() {
               onClick={toggleDarkMode}
               className={`p-2.5 rounded-xl transition-all duration-300 group ${
                 darkMode 
-                  ? 'bg-gray-800 hover:bg-gray-700 text-amber-400 hover:text-amber-300' 
-                  : 'bg-gray-100 hover:bg-gray-200 text-gray-700 hover:text-gray-900'
+                  ? 'bg-white/[0.08] hover:bg-white/[0.14] text-white hover:text-white hover:-translate-y-0.5 hover:shadow-[0_10px_24px_-16px_rgba(255,255,255,0.55)]' 
+                  : 'bg-gray-900 hover:bg-black text-white hover:text-white hover:-translate-y-0.5 hover:shadow-[0_10px_24px_-16px_rgba(15,23,42,0.45)]'
               }`}
             >
               {darkMode ? (
-                <Sun className="w-5 h-5 group-hover:rotate-12 transition-transform" />
+                <Sun className="w-5 h-5 transition-transform duration-300 group-hover:rotate-12 group-hover:scale-110" />
               ) : (
-                <Moon className="w-5 h-5 group-hover:-rotate-12 transition-transform" />
+                <Moon className="w-5 h-5 transition-transform duration-300 group-hover:-rotate-12 group-hover:scale-110" />
               )}
             </button>
             {user && (
               <div className="relative user-menu-container">
                 <button
                   onClick={() => setShowUserMenu(!showUserMenu)}
-                  className="flex items-center gap-3 hover:opacity-80 transition-opacity"
+                  className="flex items-center hover:opacity-80 transition-opacity"
                 >
                   <UserAvatar user={user} size="lg" darkMode={darkMode} />
-                  <div className="hidden lg:block text-left">
-                    <p className={`text-sm font-medium transition-colors duration-500 ${darkMode ? 'text-white' : 'text-gray-900'}`}>{user.name || user.username}</p>
-                    <p className={`text-xs transition-colors duration-500 ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>{user.email || user.username}</p>
-                  </div>
                 </button>
 
                 <AnimatePresence>
@@ -613,17 +661,17 @@ export default function TemplatesPage() {
                       initial={{ opacity: 0, y: -10 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -10 }}
-                      className={`absolute right-0 top-full mt-2 w-56 rounded-xl shadow-lg border overflow-hidden z-50 transition-colors duration-500 ${
+                      className={`haipablo-modal-panel absolute right-0 top-full mt-2 w-56 rounded-xl shadow-lg border overflow-hidden z-50 transition-colors duration-500 ${
                         darkMode 
-                          ? 'bg-gray-900 border-gray-800' 
-                          : 'bg-white border-gray-100'
+                          ? 'bg-gray-900 border-white/10' 
+                          : 'bg-white border-white/60'
                       }`}
                       onClick={() => setShowUserMenu(false)}
                     >
                       <div className={`p-4 border-b transition-colors duration-500 ${
                         darkMode 
-                          ? 'bg-gray-800/50 border-gray-700' 
-                          : 'bg-gray-50 border-gray-100'
+                          ? 'bg-white/[0.04] border-white/10' 
+                          : 'bg-white/45 border-white/60'
                       }`}>
                         <div className="flex items-center gap-3">
                           <UserAvatar user={user} size="lg" darkMode={darkMode} />
@@ -669,8 +717,8 @@ export default function TemplatesPage() {
                           onClick={() => router.push('/history')}
                           className={`w-full px-4 py-2.5 text-left rounded-lg transition-colors flex items-center gap-3 ${
                             darkMode 
-                              ? 'text-gray-300 hover:bg-gray-800 hover:text-white' 
-                              : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
+                              ? 'text-gray-300 hover:bg-white/[0.06] hover:text-white' 
+                              : 'text-gray-700 hover:bg-white/80 hover:text-gray-900'
                           }`}
                         >
                           <History className="w-4 h-4" />
@@ -683,7 +731,7 @@ export default function TemplatesPage() {
                             className={`w-full px-4 py-2.5 text-left rounded-lg transition-colors flex items-center gap-3 mt-1 ${
                               darkMode 
                                 ? 'text-amber-400 hover:bg-amber-950/30' 
-                                : 'text-amber-700 hover:bg-amber-50'
+                                : 'text-amber-700 hover:bg-amber-50/80'
                             }`}
                           >
                             <Users className="w-4 h-4" />
@@ -691,14 +739,14 @@ export default function TemplatesPage() {
                           </button>
                         )}
 
-                            <div className={`my-2 border-t transition-colors duration-500 ${darkMode ? 'border-gray-800' : 'border-gray-100'}`} />
+                            <div className={`my-2 border-t transition-colors duration-500 ${darkMode ? 'border-white/10' : 'border-white/55'}`} />
 
                         <button
                           onClick={handleLogout}
                           className={`w-full px-4 py-2.5 text-left rounded-lg transition-colors flex items-center gap-3 ${
                             darkMode 
                               ? 'text-red-400 hover:bg-red-950/30' 
-                              : 'text-red-600 hover:bg-red-50'
+                              : 'text-red-600 hover:bg-red-50/80'
                           }`}
                         >
                           <LogOut className="w-4 h-4" />
@@ -714,24 +762,20 @@ export default function TemplatesPage() {
         </div>
       </header>
 
-      <div className="mx-auto w-[min(96vw,1880px)] px-6 py-8 2xl:px-8">
-        <div className="grid grid-cols-12 gap-8">
+      <div className="mx-auto w-[min(96vw,1880px)] px-6 py-8 2xl:px-8 lg:flex-1 lg:min-h-0 lg:overflow-hidden">
+        <div className="grid grid-cols-12 gap-8 lg:h-full lg:min-h-0">
           <motion.div 
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
-            className="col-span-12 lg:col-span-3 lg:self-start lg:sticky lg:top-24"
+            className="col-span-12 min-h-0 lg:col-span-3"
           >
-            <div className={`rounded-2xl shadow-sm border transition-colors duration-500 overflow-hidden lg:flex lg:max-h-[calc(100vh-7rem)] lg:flex-col ${
-              darkMode 
-                ? 'bg-gray-900 border-gray-800' 
-                : 'bg-white border-gray-200'
-            }`}>
-              <div className={`p-6 border-b transition-colors duration-500 ${darkMode ? 'border-gray-800' : 'border-gray-100'}`}>
+            <div className="haipablo-glass-panel rounded-[1.75rem] shadow-sm transition-colors duration-500 overflow-hidden lg:flex lg:h-full lg:flex-col">
+              <div className={`p-6 border-b transition-colors duration-500 ${darkMode ? 'border-white/10' : 'border-white/55'}`}>
                 <h2 className={`text-lg font-semibold mb-2 transition-colors duration-500 ${darkMode ? 'text-white' : 'text-gray-900'}`}>功能分类</h2>
                 <p className={`text-sm transition-colors duration-500 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>选择生成大类</p>
               </div>
               
-              <div className="p-2 lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
+              <div ref={featureGroupsScrollRef} className="haipablo-scrollbar p-2 lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
                 {featureGroupsError && (
                   <div className={`mb-3 rounded-xl border px-4 py-3 text-sm ${
                     darkMode
@@ -755,17 +799,17 @@ export default function TemplatesPage() {
                         className={`w-full p-4 rounded-xl flex items-center gap-3 transition-all ${
                           isSelected 
                             ? darkMode
-                              ? 'bg-gradient-to-r from-gray-700 to-gray-800 text-white shadow-lg'
-                              : 'bg-gradient-to-r from-gray-800 to-gray-900 text-white shadow-lg'
+                              ? 'bg-[linear-gradient(180deg,rgba(255,255,255,0.12),rgba(255,255,255,0.06))] text-white shadow-lg'
+                              : 'bg-[linear-gradient(180deg,rgba(15,23,42,0.92),rgba(30,41,59,0.88))] text-white shadow-lg'
                             : darkMode
-                              ? 'hover:bg-gray-800 text-gray-300'
-                              : 'hover:bg-gray-100 text-gray-700'
+                              ? 'hover:bg-white/[0.06] text-gray-300'
+                              : 'hover:bg-white/75 text-gray-700'
                         }`}
                       >
                         <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
                           isSelected 
                             ? darkMode ? 'bg-white/20' : 'bg-white/20'
-                            : darkMode ? 'bg-gray-700' : 'bg-gray-100'
+                            : darkMode ? 'bg-white/[0.08]' : 'bg-white/80'
                         }`}>
                           <IconComponent className={`w-5 h-5 ${
                             isSelected 
@@ -802,8 +846,8 @@ export default function TemplatesPage() {
                                   ? 'bg-white/20 hover:bg-white/30 text-white' 
                                   : 'bg-white/20 hover:bg-white/30 text-white'
                                 : darkMode 
-                                  ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' 
-                                  : 'bg-gray-100 hover:bg-gray-200 text-gray-600'
+                                  ? 'bg-white/[0.08] hover:bg-white/[0.12] text-gray-300' 
+                                  : 'bg-white/80 hover:bg-white text-gray-600'
                             }`}
                             title="编辑分类"
                           >
@@ -820,8 +864,8 @@ export default function TemplatesPage() {
                                   ? 'bg-white/20 hover:bg-red-500/50 text-white hover:text-white' 
                                   : 'bg-white/20 hover:bg-red-500/50 text-white hover:text-white'
                                 : darkMode 
-                                  ? 'bg-gray-700 hover:bg-red-900/30 text-gray-300 hover:text-red-400' 
-                                  : 'bg-gray-100 hover:bg-red-50 text-gray-600 hover:text-red-600'
+                                  ? 'bg-white/[0.08] hover:bg-red-900/30 text-gray-300 hover:text-red-400' 
+                                  : 'bg-white/80 hover:bg-red-50 text-gray-600 hover:text-red-600'
                             }`}
                             title="删除分类"
                           >
@@ -841,11 +885,11 @@ export default function TemplatesPage() {
                     onClick={handleAddGroup}
                     className={`w-full p-4 rounded-xl flex items-center gap-3 transition-all mb-2 border-2 border-dashed ${
                       darkMode 
-                        ? 'hover:bg-gray-800 text-gray-400 border-gray-700 hover:border-gray-600' 
-                        : 'hover:bg-gray-50 text-gray-600 border-gray-200 hover:border-gray-400'
+                        ? 'hover:bg-white/[0.05] text-gray-400 border-white/10 hover:border-white/15' 
+                        : 'hover:bg-white/75 text-gray-600 border-white/60 hover:border-white/90'
                     }`}
                   >
-                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${darkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
+                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${darkMode ? 'bg-white/[0.08]' : 'bg-white/80'}`}>
                       <FolderPlus className={`w-5 h-5 ${darkMode ? 'text-gray-300' : 'text-gray-600'}`} />
                     </div>
                     <div className="flex-1 text-left">
@@ -871,14 +915,10 @@ export default function TemplatesPage() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
-            className="col-span-12 lg:col-span-9"
+            className="col-span-12 min-h-0 lg:col-span-9"
           >
-            <div className={`rounded-2xl shadow-sm border transition-colors duration-500 overflow-hidden ${
-              darkMode 
-                ? 'bg-gray-900 border-gray-800' 
-                : 'bg-white border-gray-200'
-            }`}>
-              <div className={`p-6 border-b transition-colors duration-500 ${darkMode ? 'border-gray-800' : 'border-gray-100'}`}>
+            <div className="haipablo-glass-panel rounded-[1.75rem] shadow-sm transition-colors duration-500 overflow-hidden lg:flex lg:h-full lg:flex-col">
+              <div className={`p-6 border-b transition-colors duration-500 ${darkMode ? 'border-white/10' : 'border-white/55'}`}>
                 <div className="flex items-center justify-between">
                   <div>
                     <h2 className={`text-xl font-semibold mb-1 transition-colors duration-500 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
@@ -891,12 +931,14 @@ export default function TemplatesPage() {
                   <div className="flex gap-2">
                     <button 
                       onClick={handleToggleBatchMode}
-                      className={`px-4 py-2 rounded-lg transition-colors flex items-center gap-2 ${
+                      className={`px-4 py-2 rounded-lg transition-colors flex items-center gap-2 border ${
                         batchMode 
-                          ? 'bg-green-600 text-white hover:bg-green-700' 
+                          ? darkMode
+                            ? 'bg-white text-gray-950 border-white/20 hover:bg-gray-100'
+                            : 'bg-gray-950 text-white border-gray-900 hover:bg-gray-800'
                           : darkMode
-                            ? 'bg-orange-600 text-white hover:bg-orange-700'
-                            : 'bg-orange-500 text-white hover:bg-orange-600'
+                            ? 'bg-gray-900 text-white border-white/10 hover:bg-gray-800'
+                            : 'bg-white text-gray-900 border-gray-300 hover:bg-gray-100'
                       }`}
                     >
                       <LayersIcon className="w-4 h-4" />
@@ -919,7 +961,7 @@ export default function TemplatesPage() {
                 </div>
               </div>
 
-              <div className="p-6">
+              <div ref={templatesScrollRef} className="haipablo-scrollbar p-6 lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
                 {selectedGroup?.templates && selectedGroup.templates.length > 0 ? (
                   <div>
                     <div className="flex items-center justify-between mb-4">
@@ -962,25 +1004,25 @@ export default function TemplatesPage() {
                           animate={{ opacity: 1, y: 0 }}
                           transition={{ delay: 0.1 + index * 0.05 }}
                           onClick={() => batchMode ? handleToggleTemplate(template.id) : handleSelectTemplate(template)}
-                          className={`group relative rounded-2xl p-4 border transition-all duration-300 cursor-pointer overflow-hidden ${
+                          className={`group relative rounded-[1.5rem] p-4 border transition-all duration-300 cursor-pointer overflow-hidden ${
                             batchMode 
                               ? selectedTemplates.includes(template.id)
                                 ? darkMode
-                                  ? 'border-green-500 bg-green-950/30'
-                                  : 'border-green-400 bg-green-50/50'
+                                  ? 'border-green-500/70 bg-green-950/25'
+                                  : 'border-green-400/80 bg-emerald-50/70'
                                 : darkMode
-                                  ? 'border-gray-700 hover:border-gray-600 hover:shadow-lg bg-gray-800/50'
-                                  : 'border-gray-200 hover:border-gray-400 hover:shadow-lg bg-gradient-to-br from-gray-50 to-white'
+                                  ? 'border-white/10 hover:border-white/15 hover:shadow-lg bg-[linear-gradient(180deg,rgba(255,255,255,0.07),rgba(255,255,255,0.04))]'
+                                  : 'border-white/65 hover:border-white/90 hover:shadow-lg bg-[linear-gradient(180deg,rgba(255,255,255,0.9),rgba(255,255,255,0.72))]'
                               : darkMode
-                                ? 'border-gray-700 hover:border-gray-600 hover:shadow-lg bg-gray-800/50'
-                                : 'border-gray-200 hover:border-gray-400 hover:shadow-lg bg-gradient-to-br from-gray-50 to-white'
+                                ? 'border-white/10 hover:border-white/15 hover:shadow-lg bg-[linear-gradient(180deg,rgba(255,255,255,0.07),rgba(255,255,255,0.04))]'
+                                : 'border-white/65 hover:border-white/90 hover:shadow-lg bg-[linear-gradient(180deg,rgba(255,255,255,0.9),rgba(255,255,255,0.72))]'
                           }`}
                         >
-                          <div className={`absolute inset-0 transition-opacity ${darkMode ? 'bg-gray-700/5 opacity-0 group-hover:opacity-100' : 'bg-gray-200/20 opacity-0 group-hover:opacity-100'}`} />
+                          <div className={`absolute inset-0 transition-opacity ${darkMode ? 'bg-white/5 opacity-0 group-hover:opacity-100' : 'bg-slate-200/20 opacity-0 group-hover:opacity-100'}`} />
                           {template.enabled === false && (batchMode || !canManage) && (
                             <div
                               className={`absolute right-3 top-3 z-10 rounded-lg border px-2 py-1 ${
-                                darkMode ? 'border-gray-700 bg-gray-900/80 text-gray-400' : 'border-gray-200 bg-white/80 text-gray-500'
+                                darkMode ? 'border-white/10 bg-slate-950/80 text-gray-400' : 'border-white/75 bg-white/85 text-gray-500'
                               }`}
                               title="已关闭"
                               onClick={(e) => e.stopPropagation()}
@@ -997,8 +1039,8 @@ export default function TemplatesPage() {
                                     selectedTemplates.includes(template.id)
                                       ? 'bg-green-500 border-green-500'
                                       : darkMode
-                                        ? 'border-gray-600 bg-gray-800'
-                                        : 'border-gray-300 bg-white'
+                                        ? 'border-white/12 bg-white/[0.06]'
+                                        : 'border-white/80 bg-white'
                                   }`}>
                                     {selectedTemplates.includes(template.id) && (
                                       <CheckSquare className="w-4 h-4 text-white" />
@@ -1014,7 +1056,7 @@ export default function TemplatesPage() {
                                   {template.enabled === false && (
                                     <div
                                       className={`rounded-lg border px-2 py-1 ${
-                                        darkMode ? 'border-gray-700 bg-gray-900/60 text-gray-400' : 'border-gray-200 bg-white/70 text-gray-500'
+                                        darkMode ? 'border-white/10 bg-slate-950/60 text-gray-400' : 'border-white/75 bg-white/80 text-gray-500'
                                       }`}
                                       title="已关闭"
                                       onClick={(e) => e.stopPropagation()}
@@ -1026,8 +1068,8 @@ export default function TemplatesPage() {
                                     onClick={(e) => handleEditTemplate(e, template)}
                                     className={`p-1.5 rounded-lg transition-colors ${
                                       darkMode 
-                                        ? 'hover:bg-gray-700 text-gray-400 hover:text-white' 
-                                        : 'hover:bg-gray-100 text-gray-500 hover:text-gray-700'
+                                        ? 'hover:bg-white/[0.08] text-gray-400 hover:text-white' 
+                                        : 'hover:bg-white/80 text-gray-500 hover:text-gray-700'
                                     }`}
                                     title="编辑模板"
                                   >
@@ -1038,7 +1080,7 @@ export default function TemplatesPage() {
                                     className={`p-1.5 rounded-lg transition-colors ${
                                       darkMode 
                                         ? 'hover:bg-red-950/30 text-gray-400 hover:text-red-400' 
-                                        : 'hover:bg-red-50 text-gray-500 hover:text-red-600'
+                                        : 'hover:bg-red-50/80 text-gray-500 hover:text-red-600'
                                     }`}
                                     title="删除模板"
                                   >
@@ -1071,7 +1113,7 @@ export default function TemplatesPage() {
                               />
                             ) : (
                               <div className={`w-full aspect-video rounded-lg flex items-center justify-center mb-3 ${
-                                darkMode ? 'bg-gray-800' : 'bg-gray-100'
+                                darkMode ? 'bg-white/[0.06]' : 'bg-white/75'
                               }`}>
                                 <ImageIcon className={`w-8 h-8 ${darkMode ? 'text-gray-600' : 'text-gray-400'}`} />
                               </div>
@@ -1101,10 +1143,10 @@ export default function TemplatesPage() {
                       <motion.div
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
-                        className={`mt-6 p-4 rounded-2xl border transition-colors duration-500 ${
+                        className={`haipablo-glass-subtle mt-6 p-4 rounded-2xl border transition-colors duration-500 ${
                           darkMode 
-                            ? 'bg-green-950/30 border-green-800' 
-                            : 'bg-gradient-to-r from-green-50 to-emerald-50 border-green-200'
+                            ? 'bg-green-950/20 border-green-700/40' 
+                            : 'bg-gradient-to-r from-green-50/80 to-emerald-50/80 border-white/70'
                         }`}
                       >
                         <div className="flex items-center justify-between">
@@ -1125,7 +1167,7 @@ export default function TemplatesPage() {
                 ) : (
                   <div className="text-center py-16">
                     <div className={`w-20 h-20 rounded-2xl flex items-center justify-center mx-auto mb-6 ${
-                      darkMode ? 'bg-gray-800' : 'bg-gray-100'
+                      darkMode ? 'bg-white/[0.08]' : 'bg-white/80'
                     }`}>
                       <Layers className={`w-10 h-10 ${darkMode ? 'text-gray-500' : 'text-gray-600'}`} />
                     </div>
@@ -1165,13 +1207,11 @@ export default function TemplatesPage() {
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              className={`rounded-2xl shadow-2xl w-full max-w-md overflow-hidden transition-colors duration-500 ${
-                darkMode ? 'bg-gray-900' : 'bg-white'
-              }`}
+              className="haipablo-modal-panel rounded-2xl shadow-2xl w-full max-w-md overflow-hidden transition-colors duration-500"
               onClick={(e) => e.stopPropagation()}
             >
               <div className={`p-6 border-b flex items-center justify-between transition-colors duration-500 ${
-                darkMode ? 'border-gray-800' : 'border-gray-100'
+                darkMode ? 'border-white/10' : 'border-white/55'
               }`}>
                 <div>
                   <h3 className={`text-xl font-semibold transition-colors duration-500 ${darkMode ? 'text-white' : 'text-gray-900'}`}>添加功能分类</h3>
@@ -1201,8 +1241,8 @@ export default function TemplatesPage() {
                     placeholder="例如：海报智能生成"
                     className={`w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-gray-500 focus:border-transparent outline-none transition-all ${
                       darkMode 
-                        ? 'bg-gray-800 border-gray-700 text-white placeholder-gray-500' 
-                        : 'border-gray-200 text-gray-900'
+                        ? 'bg-white/[0.05] border-white/10 text-white placeholder-gray-500' 
+                        : 'bg-white/80 border-white/70 text-gray-900'
                     }`}
                   />
                 </div>
@@ -1220,8 +1260,8 @@ export default function TemplatesPage() {
                     placeholder="例如：poster_generation"
                     className={`w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-gray-500 focus:border-transparent outline-none transition-all ${
                       darkMode 
-                        ? 'bg-gray-800 border-gray-700 text-white placeholder-gray-500' 
-                        : 'border-gray-200 text-gray-900'
+                        ? 'bg-white/[0.05] border-white/10 text-white placeholder-gray-500' 
+                        : 'bg-white/80 border-white/70 text-gray-900'
                     }`}
                   />
                   <p className={`text-xs mt-1 transition-colors duration-500 ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>用于代码中识别，建议使用英文和下划线</p>
@@ -1240,8 +1280,8 @@ export default function TemplatesPage() {
                     rows={3}
                     className={`w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-gray-500 focus:border-transparent outline-none transition-all resize-none ${
                       darkMode 
-                        ? 'bg-gray-800 border-gray-700 text-white placeholder-gray-500' 
-                        : 'border-gray-200 text-gray-900'
+                        ? 'bg-white/[0.05] border-white/10 text-white placeholder-gray-500' 
+                        : 'bg-white/80 border-white/70 text-gray-900'
                     }`}
                   />
                 </div>
@@ -1264,11 +1304,11 @@ export default function TemplatesPage() {
                           className={`p-3 rounded-lg border-2 transition-all flex flex-col items-center gap-1 ${
                             isSelected 
                               ? darkMode
-                                ? 'border-gray-500 bg-gray-800'
-                                : 'border-gray-500 bg-gray-100'
+                                ? 'border-gray-500 bg-white/[0.08]'
+                                : 'border-gray-500 bg-white/80'
                               : darkMode
-                                ? 'border-gray-700 hover:border-gray-600'
-                                : 'border-gray-200 hover:border-gray-300'
+                                ? 'border-white/10 hover:border-white/15'
+                                : 'border-white/70 hover:border-white'
                           }`}
                           title={icon.name}
                         >
@@ -1286,7 +1326,7 @@ export default function TemplatesPage() {
               </div>
               
               <div className={`p-6 border-t flex gap-3 justify-end transition-colors duration-500 ${
-                darkMode ? 'border-gray-800' : 'border-gray-100'
+                darkMode ? 'border-white/10' : 'border-white/55'
               }`}>
                 <button
                   onClick={() => setShowAddGroupModal(false)}
@@ -1338,13 +1378,11 @@ export default function TemplatesPage() {
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              className={`rounded-2xl shadow-2xl w-full max-w-md overflow-hidden transition-colors duration-500 ${
-                darkMode ? 'bg-gray-900' : 'bg-white'
-              }`}
+              className="haipablo-modal-panel rounded-2xl shadow-2xl w-full max-w-md overflow-hidden transition-colors duration-500"
               onClick={(e) => e.stopPropagation()}
             >
               <div className={`p-6 border-b flex items-center justify-between transition-colors duration-500 ${
-                darkMode ? 'border-gray-800' : 'border-gray-100'
+                darkMode ? 'border-white/10' : 'border-white/55'
               }`}>
                 <div>
                   <h3 className={`text-xl font-semibold transition-colors duration-500 ${darkMode ? 'text-white' : 'text-gray-900'}`}>编辑功能分类</h3>
@@ -1374,8 +1412,8 @@ export default function TemplatesPage() {
                     placeholder="例如：海报智能生成"
                     className={`w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-gray-500 focus:border-transparent outline-none transition-all ${
                       darkMode 
-                        ? 'bg-gray-800 border-gray-700 text-white placeholder-gray-500' 
-                        : 'border-gray-200 text-gray-900'
+                        ? 'bg-white/[0.05] border-white/10 text-white placeholder-gray-500' 
+                        : 'bg-white/80 border-white/70 text-gray-900'
                     }`}
                   />
                 </div>
@@ -1393,8 +1431,8 @@ export default function TemplatesPage() {
                     placeholder="例如：poster_generation"
                     className={`w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-gray-500 focus:border-transparent outline-none transition-all ${
                       darkMode 
-                        ? 'bg-gray-800 border-gray-700 text-white placeholder-gray-500' 
-                        : 'border-gray-200 text-gray-900'
+                        ? 'bg-white/[0.05] border-white/10 text-white placeholder-gray-500' 
+                        : 'bg-white/80 border-white/70 text-gray-900'
                     }`}
                   />
                   <p className={`text-xs mt-1 transition-colors duration-500 ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>用于代码中识别，建议使用英文和下划线</p>
@@ -1413,8 +1451,8 @@ export default function TemplatesPage() {
                     rows={3}
                     className={`w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-gray-500 focus:border-transparent outline-none transition-all resize-none ${
                       darkMode 
-                        ? 'bg-gray-800 border-gray-700 text-white placeholder-gray-500' 
-                        : 'border-gray-200 text-gray-900'
+                        ? 'bg-white/[0.05] border-white/10 text-white placeholder-gray-500' 
+                        : 'bg-white/80 border-white/70 text-gray-900'
                     }`}
                   />
                 </div>
@@ -1437,11 +1475,11 @@ export default function TemplatesPage() {
                           className={`p-3 rounded-lg border-2 transition-all flex flex-col items-center gap-1 ${
                             isSelected 
                               ? darkMode
-                                ? 'border-gray-500 bg-gray-800'
-                                : 'border-gray-500 bg-gray-100'
+                                ? 'border-gray-500 bg-white/[0.08]'
+                                : 'border-gray-500 bg-white/80'
                               : darkMode
-                                ? 'border-gray-700 hover:border-gray-600'
-                                : 'border-gray-200 hover:border-gray-300'
+                                ? 'border-white/10 hover:border-white/15'
+                                : 'border-white/70 hover:border-white'
                           }`}
                           title={icon.name}
                         >
@@ -1459,7 +1497,7 @@ export default function TemplatesPage() {
               </div>
               
               <div className={`p-6 border-t flex gap-3 justify-end transition-colors duration-500 ${
-                darkMode ? 'border-gray-800' : 'border-gray-100'
+                darkMode ? 'border-white/10' : 'border-white/55'
               }`}>
                 <button
                   onClick={() => setShowEditGroupModal(false)}
@@ -1511,13 +1549,11 @@ export default function TemplatesPage() {
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
-              className={`w-full max-w-md overflow-hidden rounded-2xl shadow-2xl transition-colors duration-500 ${
-                darkMode ? 'bg-gray-900' : 'bg-white'
-              }`}
+              className="haipablo-modal-panel w-full max-w-md overflow-hidden rounded-2xl shadow-2xl transition-colors duration-500"
               onClick={(e) => e.stopPropagation()}
             >
               <div className={`flex items-center justify-between border-b p-6 transition-colors duration-500 ${
-                darkMode ? 'border-gray-800' : 'border-gray-100'
+                darkMode ? 'border-white/10' : 'border-white/55'
               }`}>
                 <div>
                   <h3 className={`text-xl font-semibold transition-colors duration-500 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
@@ -1565,15 +1601,15 @@ export default function TemplatesPage() {
                     disabled={!!deletingTemplateId}
                     className={`w-full rounded-lg border px-4 py-2.5 outline-none transition-all focus:border-transparent focus:ring-2 focus:ring-red-500 disabled:cursor-not-allowed disabled:opacity-60 ${
                       darkMode
-                        ? 'border-gray-700 bg-gray-800 text-white placeholder-gray-500'
-                        : 'border-gray-200 text-gray-900'
+                        ? 'border-white/10 bg-white/[0.05] text-white placeholder-gray-500'
+                        : 'border-white/70 bg-white/80 text-gray-900'
                     }`}
                   />
                 </div>
               </div>
 
               <div className={`flex justify-end gap-3 border-t p-6 transition-colors duration-500 ${
-                darkMode ? 'border-gray-800' : 'border-gray-100'
+                darkMode ? 'border-white/10' : 'border-white/55'
               }`}>
                 <button
                   onClick={closeDeleteTemplateModal}
