@@ -1,0 +1,77 @@
+.light-pillar-fallback {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background:
+    radial-gradient(circle at center, rgba(99, 102, 241, 0.18), transparent 55%),
+    rgba(15, 23, 42, 0.08);
+  color: rgba(100, 116, 139, 0.95);
+  font-size: 14px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.light-pillar-container {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.light-pillar-container canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.light-pillar-home {
+  opacity: 1;
+  filter: saturate(1.12);
+}
+
+.light-pillar-home::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.light-pillar-home--light {
+  opacity: 0.3;
+  filter: saturate(0.95) blur(10px);
+}
+
+.light-pillar-home--light::before {
+  background:
+    linear-gradient(180deg, rgba(248, 250, 252, 0.22), rgba(248, 250, 252, 0.04) 42%, rgba(248, 250, 252, 0.42)),
+    radial-gradient(circle at 50% 22%, rgba(255, 255, 255, 0.22), transparent 22%);
+}
+
+.light-pillar-home--dark {
+  opacity: 0.98;
+  filter: saturate(1.28);
+}
+
+.light-pillar-home--dark::before {
+  background:
+    radial-gradient(circle at 50% 16%, rgba(255, 255, 255, 0.14), transparent 18%),
+    linear-gradient(180deg, rgba(99, 102, 241, 0.1), transparent 42%, transparent 72%, rgba(236, 72, 153, 0.08));
+}
+
+@media (max-width: 768px) {
+  .light-pillar-home {
+    filter: none;
+  }
+
+  .light-pillar-home--light {
+    opacity: 0.22;
+  }
+
+  .light-pillar-home--dark {
+    opacity: 0.82;
+  }
+}

@@ -738,9 +738,8 @@ export default function TemplateConfigPage() {
                   className="flex items-center gap-3 hover:opacity-80 transition-opacity"
                 >
                   <UserAvatar user={user} size="lg" />
-                  <div className="hidden md:block text-left">
+                  <div className="hidden md:flex min-h-11 items-center text-left">
                     <p className="text-sm font-medium text-gray-900">{user.name || user.username}</p>
-                    <p className="text-xs text-gray-500">{user.email || user.username}</p>
                   </div>
                 </button>
 
@@ -756,9 +755,8 @@ export default function TemplateConfigPage() {
                       <div className="p-4 bg-gradient-to-r from-violet-50 to-purple-50 border-b border-gray-100">
                         <div className="flex items-center gap-3">
                           <UserAvatar user={user} size="lg" />
-                          <div>
+                          <div className="flex min-h-10 items-center">
                             <p className="font-semibold text-gray-900">{user.name || user.username}</p>
-                            <p className="text-xs text-gray-500">{user.email || user.username}</p>
                           </div>
                         </div>
                         {user.role === 'admin' && (

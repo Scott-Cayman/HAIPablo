@@ -1663,8 +1663,8 @@ export default function GeneratePage() {
             {user && (
               <div className={`hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full border ${
                 darkMode 
-                  ? 'bg-violet-900/20 border-violet-800/50 text-violet-300' 
-                  : 'bg-violet-50 border-violet-200 text-violet-700'
+                  ? 'bg-white border-white/20 text-gray-950' 
+                  : 'bg-gray-950 border-gray-900 text-white'
               }`}>
                 <Sparkles className="w-4 h-4" />
                 <span className="text-sm font-medium">潮能力: {user.credits ?? 0}</span>
@@ -1713,9 +1713,8 @@ export default function GeneratePage() {
                   className="flex items-center gap-3 hover:opacity-80 transition-opacity"
                 >
                   <UserAvatar user={user} size="lg" darkMode={darkMode} />
-                  <div className="hidden lg:block text-left">
+                  <div className="hidden lg:flex min-h-11 items-center text-left">
                     <p className={`text-sm font-medium transition-colors duration-500 ${darkMode ? 'text-white' : 'text-gray-900'}`}>{user.name || user.username}</p>
-                    <p className={`text-xs transition-colors duration-500 ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>{user.email || user.username}</p>
                   </div>
                 </button>
 
@@ -1739,16 +1738,15 @@ export default function GeneratePage() {
                       }`}>
                         <div className="flex items-center gap-3">
                           <UserAvatar user={user} size="lg" darkMode={darkMode} />
-                          <div>
+                          <div className="flex min-h-10 items-center">
                             <p className={`font-semibold transition-colors duration-500 ${darkMode ? 'text-white' : 'text-gray-900'}`}>{user.name || user.username}</p>
-                            <p className={`text-xs transition-colors duration-500 ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>{user.email || user.username}</p>
                           </div>
                         </div>
                         <div className="mt-3 flex items-center gap-2">
                           <span className={`px-2 py-1 text-xs font-medium rounded-full flex items-center gap-1 w-fit ${
                             darkMode 
-                              ? 'bg-violet-900/50 text-violet-200 border border-violet-800' 
-                              : 'bg-violet-50 text-violet-700 border border-violet-100'
+                              ? 'bg-white text-gray-950 border border-white/20' 
+                              : 'bg-gray-950 text-white border border-gray-900'
                           }`}>
                             <Sparkles className="w-3 h-3" />
                             潮能力: {user.credits ?? 0}

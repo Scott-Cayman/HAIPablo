@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
+import LightPillar from './LightPillar';
 import { UserAvatar } from '@/components/UserAvatar';
 import { AuthModal } from '@/components/AuthModal';
 import { 
@@ -24,8 +25,6 @@ import {
   History,
   Shield,
   Users,
-  Moon,
-  Sun,
   LayoutGrid,
   Smartphone,
   UserCircle,
@@ -97,7 +96,6 @@ const features = [
 export default function HomePage() {
   const [mounted, setMounted] = useState(false);
   const [user, setUser] = useState<any>(null);
-  const [darkMode, setDarkMode] = useState(false);
   const [stats, setStats] = useState({
     todayCount: 0,
     successRate: 0,
@@ -106,24 +104,12 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const darkMode = true;
   const router = useRouter();
 
   useEffect(() => {
-    const savedDarkMode = localStorage.getItem('darkMode');
-    if (savedDarkMode === 'true') {
-      setDarkMode(true);
-      document.documentElement.classList.add('dark');
-    }
-  }, []);
-
-  const toggleDarkMode = () => {
-    setDarkMode(!darkMode);
-    localStorage.setItem('darkMode', (!darkMode).toString());
-    document.documentElement.classList.toggle('dark');
-  };
-
-  useEffect(() => {
     setMounted(true);
+    document.documentElement.classList.add('dark');
 
     const fetchUser = async () => {
       try {
@@ -139,6 +125,10 @@ export default function HomePage() {
 
     fetchUser();
     fetchStats();
+
+    return () => {
+      document.documentElement.classList.remove('dark');
+    };
   }, []);
 
   useEffect(() => {
@@ -226,32 +216,55 @@ export default function HomePage() {
     router.push('/history');
   };
 
+  const pillarBackground = {
+    topColor: '#7A6BFF',
+    bottomColor: '#34D3FF',
+    topColorShift: '#FF6BD6',
+    bottomColorShift: '#8B5CF6',
+    colorCycleSpeed: 0.42,
+    intensity: 1,
+    rotationSpeed: 0.3,
+    glowAmount: 0.0022,
+    pillarWidth: 3.2,
+    pillarHeight: 0.38,
+    noiseIntensity: 0.34,
+    pillarRotation: 25,
+    interactive: false,
+    mixBlendMode: 'screen' as const,
+    quality: 'high' as const
+  };
+
   if (!mounted) {
     return (
-      <div className={`min-h-screen flex items-center justify-center transition-colors duration-500 ${darkMode ? 'bg-gray-950' : 'bg-gradient-to-br from-slate-100 via-gray-50 to-slate-100'}`}>
+      <div className="min-h-screen flex items-center justify-center transition-colors duration-500 bg-gray-950">
         <div className="text-center">
-          <div className={`w-16 h-16 border-4 rounded-full animate-spin mx-auto mb-4 ${darkMode ? 'border-gray-700 border-t-white' : 'border-gray-200 border-t-gray-800'}`} />
-          <p className={darkMode ? 'text-gray-400' : 'text-gray-600'}>加载中...</p>
+          <div className="w-16 h-16 border-4 rounded-full animate-spin mx-auto mb-4 border-gray-700 border-t-white" />
+          <p className="text-gray-400">加载中...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className={`min-h-screen transition-colors duration-500 overflow-x-hidden ${darkMode ? 'bg-gray-950 text-white' : 'bg-[#F8FAFC] text-gray-900'}`}>
-      {/* Background Glows */}
+    <div className="min-h-screen transition-colors duration-500 overflow-x-hidden bg-gray-950 text-white">
+      {/* Dynamic Background */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden">
-        <div className={`absolute -top-[10%] -right-[10%] w-[40%] h-[40%] rounded-full blur-[120px] opacity-20 ${darkMode ? 'bg-violet-600' : 'bg-violet-400'}`} />
-        <div className={`absolute top-[20%] -left-[10%] w-[30%] h-[30%] rounded-full blur-[100px] opacity-10 ${darkMode ? 'bg-blue-600' : 'bg-blue-400'}`} />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(79,70,229,0.2),transparent_34%),linear-gradient(180deg,rgba(3,7,18,0.08),rgba(3,7,18,0.84))]" />
+        <div className="absolute inset-0">
+          <LightPillar className="light-pillar-home light-pillar-home--dark" {...pillarBackground} />
+        </div>
+        <div className="absolute -top-[10%] -right-[10%] h-[40%] w-[40%] rounded-full bg-violet-600 blur-[120px] opacity-20" />
+        <div className="absolute top-[20%] -left-[10%] h-[30%] w-[30%] rounded-full bg-blue-600 blur-[100px] opacity-10" />
+        <div className="absolute inset-x-0 top-0 h-[28rem] bg-[radial-gradient(circle_at_50%_14%,rgba(255,255,255,0.08),transparent_18%),radial-gradient(circle_at_50%_32%,rgba(167,139,250,0.08),transparent_44%)]" />
       </div>
 
       {/* Navigation */}
-      <nav className={`sticky top-0 z-50 border-b backdrop-blur-xl transition-colors duration-500 ${darkMode ? 'bg-gray-950/80 border-gray-800' : 'bg-white/70 border-gray-200'}`}>
-        <div className="max-w-[1440px] mx-auto px-8 py-4 flex items-center justify-between">
+      <nav className="sticky top-0 z-50 px-4 pt-4 transition-colors duration-500 sm:px-6 lg:px-8">
+        <div className="max-w-[1440px] mx-auto flex items-center justify-between rounded-[1.75rem] border border-white/[0.08] bg-[linear-gradient(90deg,rgba(255,255,255,0.05),rgba(255,255,255,0.1),rgba(255,255,255,0.05))] px-8 py-4 shadow-[0_10px_40px_rgba(10,10,30,0.28),inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-2xl">
           {/* Logo on Left */}
           <div className="flex items-center">
             <img 
-              src={darkMode ? "/img/white.png" : "/img/black.png"} 
+              src="/img/white.png" 
               alt="HAIPablo Logo" 
               className="h-10 object-contain cursor-pointer hover:opacity-80 transition-opacity"
               onClick={() => router.push('/')}
@@ -259,52 +272,20 @@ export default function HomePage() {
           </div>
 
           <div className="flex items-center gap-6">
-            <button
-              onClick={toggleDarkMode}
-              className={`p-2 rounded-lg transition-all duration-300 group ${
-                darkMode 
-                  ? 'text-gray-400 hover:text-white hover:bg-gray-800' 
-                  : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'
-              }`}
-            >
-              {darkMode ? (
-                <Sun className="w-5 h-5 group-hover:rotate-12 transition-transform" />
-              ) : (
-                <Moon className="w-5 h-5 group-hover:-rotate-12 transition-transform" />
-              )}
-            </button>
-
             {user ? (
               <>
-                <div className={`flex items-center gap-2 px-4 py-2 rounded-full border ${
-                  darkMode 
-                    ? 'bg-violet-900/20 border-violet-800/50 text-violet-300' 
-                    : 'bg-violet-50 border-violet-200 text-violet-700'
-                }`}>
-                  <Sparkles className="w-4 h-4" />
-                  <span className="text-sm font-medium whitespace-nowrap">潮能力: {user.credits ?? 0}</span>
-                </div>
-                
-                <button 
+                <button
                   onClick={handleHistory}
-                  className={`px-3 py-2 rounded-lg transition-colors flex items-center gap-2 ${
-                    darkMode 
-                      ? 'text-gray-400 hover:text-white hover:bg-gray-800' 
-                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-                  }`}
+                  className="px-3 py-2 rounded-xl border border-white/[0.05] bg-white/[0.04] transition-all duration-300 flex items-center gap-2 text-gray-200 hover:text-white hover:bg-white/[0.08] hover:border-white/[0.08]"
                 >
                   <History className="w-5 h-5" />
                   <span className="text-sm font-medium">历史记录</span>
                 </button>
                 
                 {(user.role === 'admin' || user.role === 'sub_admin') && (
-                  <button 
+                  <button
                     onClick={() => router.push('/admin/users')}
-                    className={`px-3 py-2 rounded-lg transition-colors flex items-center gap-2 ${
-                      darkMode 
-                        ? 'text-gray-400 hover:text-white hover:bg-gray-800' 
-                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-                    }`}
+                    className="px-3 py-2 rounded-xl border border-white/[0.05] bg-white/[0.04] transition-all duration-300 flex items-center gap-2 text-gray-200 hover:text-white hover:bg-white/[0.08] hover:border-white/[0.08]"
                   >
                     <Users className="w-5 h-5" />
                     <span className="text-sm font-medium">{user.role === 'admin' ? '用户管理' : '人员列表'}</span>
@@ -314,11 +295,10 @@ export default function HomePage() {
                 <div className="relative user-menu-container">
                   <button
                     onClick={() => setShowUserMenu(!showUserMenu)}
-                    className="flex items-center gap-3 hover:opacity-80 transition-opacity pl-2 border-l border-gray-200 dark:border-gray-800"
+                    className="flex items-center gap-3 hover:opacity-80 transition-opacity pl-3 border-l border-white/[0.08]"
                   >
-                    <div className="hidden md:block text-right">
+                    <div className="hidden md:flex items-center text-right min-h-10">
                       <p className={`text-sm font-medium transition-colors duration-500 ${darkMode ? 'text-white' : 'text-gray-900'}`}>{user.name || user.username}</p>
-                      <p className={`text-xs transition-colors duration-500 ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>{user.email || user.username}</p>
                     </div>
                     <UserAvatar user={user} size="md" darkMode={darkMode} />
                     <ChevronRight className={`w-4 h-4 transition-transform duration-300 ${showUserMenu ? 'rotate-90' : ''} ${darkMode ? 'text-gray-500' : 'text-gray-400'}`} />
@@ -344,9 +324,8 @@ export default function HomePage() {
                         }`}>
                           <div className="flex items-center gap-3">
                             <UserAvatar user={user} size="lg" darkMode={darkMode} />
-                              <div>
+                              <div className="flex min-h-10 items-center">
                                 <p className={`font-semibold transition-colors duration-500 ${darkMode ? 'text-white' : 'text-gray-900'}`}>{user.name || user.username}</p>
-                                <p className={`text-xs transition-colors duration-500 ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>{user.email || user.username}</p>
                               </div>
                             </div>
                           </div>
@@ -438,9 +417,32 @@ export default function HomePage() {
               alt="HAIPablo Logo" 
               className="h-20 md:h-24 object-contain mb-4"
             />
-            <p className={`text-lg font-medium tracking-[0.2em] transition-colors duration-500 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+            <p className="text-lg font-medium tracking-[0.2em] transition-colors duration-500 text-white/95">
               智海王潮AI创意效率工作台
             </p>
+          </motion.div>
+
+          {/* Quick Actions */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.35 }}
+            className="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-6 mb-10"
+          >
+            <button
+              onClick={handleViewTemplates}
+              className="px-10 py-4 rounded-2xl font-bold flex items-center gap-3 transition-all duration-300 shadow-[0_16px_48px_rgba(255,255,255,0.08)] hover:scale-105 active:scale-95 bg-white text-gray-900 hover:bg-gray-100"
+            >
+              <Sparkles className="w-5 h-5" />
+              开始创作
+            </button>
+            <button
+              onClick={handleHistory}
+              className="px-10 py-4 rounded-2xl font-bold flex items-center gap-3 transition-all duration-300 border border-white/[0.08] bg-white/[0.08] text-white backdrop-blur-xl shadow-[0_16px_48px_rgba(167,139,250,0.08),inset_0_1px_0_rgba(255,255,255,0.06)] hover:scale-105 active:scale-95 hover:bg-white/[0.11]"
+            >
+              <FolderKanban className="w-5 h-5" />
+              我的创作
+            </button>
           </motion.div>
 
           {/* Stats Cards */}
@@ -454,26 +456,22 @@ export default function HomePage() {
                 key={stat.label}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, delay: 0.2 + index * 0.1 }}
-                className={`rounded-3xl p-8 shadow-sm border transition-all duration-500 hover:shadow-md flex items-center gap-6 ${
-                  darkMode 
-                    ? 'bg-gray-900/50 border-gray-800 backdrop-blur-sm' 
-                    : 'bg-white border-gray-100'
-                }`}
+                transition={{ duration: 0.6, delay: 0.45 + index * 0.1 }}
+                className="rounded-[1.75rem] p-8 border border-white/[0.08] bg-[linear-gradient(180deg,rgba(255,255,255,0.09),rgba(255,255,255,0.05))] backdrop-blur-2xl shadow-[0_24px_80px_rgba(15,23,42,0.32),inset_0_1px_0_rgba(255,255,255,0.05)] transition-all duration-500 hover:bg-[linear-gradient(180deg,rgba(255,255,255,0.11),rgba(255,255,255,0.06))] hover:border-white/[0.1] hover:shadow-[0_28px_90px_rgba(15,23,42,0.4),inset_0_1px_0_rgba(255,255,255,0.06)] flex items-center gap-6"
               >
-                <div className={`w-16 h-16 rounded-2xl ${stat.bg} flex items-center justify-center shrink-0`}>
+                <div className={`w-16 h-16 rounded-2xl ${stat.bg} ring-1 ring-white/[0.08] flex items-center justify-center shrink-0`}>
                   <stat.icon className={`w-8 h-8 ${stat.color}`} />
                 </div>
                 <div className="flex-1">
-                  <div className={`text-sm mb-1 font-medium ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>{stat.label}</div>
+                  <div className="text-sm mb-1 font-medium text-gray-300">{stat.label}</div>
                   <div className="flex items-end gap-3">
-                    <div className={`text-4xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                    <div className="text-4xl font-bold text-white">
                       {loading ? '-' : stat.value}<span className="text-lg font-medium opacity-60">{stat.suffix}</span>
                     </div>
                     <div className={`text-xs font-bold mb-1.5 px-2 py-0.5 rounded-full ${
-                      stat.trend.includes('↑') 
-                        ? (darkMode ? 'bg-violet-900/30 text-violet-400' : 'bg-violet-50 text-violet-600')
-                        : (darkMode ? 'bg-emerald-900/30 text-emerald-400' : 'bg-emerald-50 text-emerald-600')
+                      stat.trend.includes('↑')
+                        ? 'bg-white/[0.07] text-violet-200 ring-1 ring-white/[0.08]'
+                        : 'bg-white/[0.07] text-emerald-200 ring-1 ring-white/[0.08]'
                     }`}>
                       较昨日 {stat.trend}
                     </div>
@@ -482,37 +480,6 @@ export default function HomePage() {
               </motion.div>
             ))}
           </div>
-
-          {/* Quick Actions */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.5 }}
-            className="flex items-center justify-center gap-6"
-          >
-            <button 
-              onClick={handleViewTemplates}
-              className={`px-10 py-4 rounded-2xl font-bold flex items-center gap-3 transition-all duration-300 shadow-xl hover:scale-105 active:scale-95 ${
-                darkMode 
-                  ? 'bg-white text-gray-900 hover:bg-gray-100' 
-                  : 'bg-gray-950 text-white hover:bg-gray-900 shadow-gray-200'
-              }`}
-            >
-              <Sparkles className="w-5 h-5" />
-              开始创作
-            </button>
-            <button 
-              onClick={handleHistory}
-              className={`px-10 py-4 rounded-2xl font-bold flex items-center gap-3 transition-all duration-300 border-2 hover:scale-105 active:scale-95 ${
-                darkMode 
-                  ? 'bg-transparent text-white border-gray-700 hover:bg-gray-800' 
-                  : 'bg-white text-gray-900 border-gray-100 hover:border-gray-200 hover:bg-gray-50'
-              }`}
-            >
-              <FolderKanban className="w-5 h-5" />
-              我的创作
-            </button>
-          </motion.div>
         </div>
       </section>
 
@@ -543,21 +510,17 @@ export default function HomePage() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.6, delay: feature.delay }}
                 onClick={() => handleFeatureClick(feature.path)}
-                className={`group relative rounded-[2rem] p-6 shadow-sm border transition-all duration-300 cursor-pointer overflow-hidden hover:shadow-xl hover:-translate-y-1 ${
-                  darkMode 
-                    ? 'bg-gray-900 border-gray-800 hover:border-violet-500/30' 
-                    : 'bg-white border-gray-100 hover:border-violet-200'
-                }`}
+                className="group relative rounded-[2rem] p-6 border border-white/[0.08] bg-[linear-gradient(180deg,rgba(255,255,255,0.07),rgba(255,255,255,0.035))] backdrop-blur-xl shadow-[0_20px_60px_rgba(15,23,42,0.24),inset_0_1px_0_rgba(255,255,255,0.04)] transition-all duration-300 cursor-pointer overflow-hidden hover:-translate-y-1 hover:border-violet-300/20 hover:bg-[linear-gradient(180deg,rgba(255,255,255,0.09),rgba(255,255,255,0.045))] hover:shadow-[0_28px_72px_rgba(15,23,42,0.34),inset_0_1px_0_rgba(255,255,255,0.06)]"
               >
                 <div className="flex items-start gap-4">
                   <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${feature.gradient} flex items-center justify-center shrink-0 shadow-lg group-hover:scale-110 transition-transform duration-300`}>
                     <feature.icon className="w-6 h-6 text-white" />
                   </div>
                   <div className="flex-1">
-                    <h3 className={`text-lg font-bold mb-1 transition-colors duration-500 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                    <h3 className="text-lg font-bold mb-1 transition-colors duration-500 text-white">
                       {feature.title}
                     </h3>
-                    <p className={`text-xs leading-relaxed line-clamp-2 transition-colors duration-500 ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+                    <p className="text-xs leading-relaxed line-clamp-2 transition-colors duration-500 text-gray-300">
                       {feature.description}
                     </p>
                   </div>
@@ -566,17 +529,15 @@ export default function HomePage() {
                 <div className="mt-6 flex items-end justify-between">
                   <div className="flex gap-2">
                     {[1, 2].map((i) => (
-                      <div key={i} className={`w-16 h-20 rounded-lg ${darkMode ? 'bg-gray-800' : 'bg-gray-50'} overflow-hidden relative group-hover:scale-105 transition-transform duration-500`}>
+                      <div key={i} className="w-16 h-20 rounded-lg bg-white/[0.04] ring-1 ring-white/[0.06] overflow-hidden relative group-hover:scale-105 transition-transform duration-500">
                         <div className={`absolute inset-0 bg-gradient-to-br ${feature.gradient} opacity-10`} />
                         <div className="absolute inset-x-2 top-2 h-1 rounded-full bg-current opacity-20" />
                         <div className="absolute inset-x-2 top-4 h-1 w-2/3 rounded-full bg-current opacity-10" />
                       </div>
                     ))}
                   </div>
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 ${
-                    darkMode ? 'bg-gray-800 group-hover:bg-violet-600' : 'bg-gray-50 group-hover:bg-gray-900'
-                  }`}>
-                    <ArrowRight className={`w-5 h-5 transition-colors ${darkMode ? 'text-gray-400 group-hover:text-white' : 'text-gray-400 group-hover:text-white'}`} />
+                  <div className="w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 bg-white/[0.05] ring-1 ring-white/[0.06] group-hover:bg-violet-500/80">
+                    <ArrowRight className="w-5 h-5 transition-colors text-gray-200 group-hover:text-white" />
                   </div>
                 </div>
               </motion.div>
@@ -586,23 +547,23 @@ export default function HomePage() {
       </section>
 
       {/* Bottom Sections */}
-      <section className={`py-12 px-6 transition-colors duration-500 ${darkMode ? 'bg-transparent' : 'bg-transparent'}`}>
-        <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <section className="py-12 px-6 transition-colors duration-500 bg-transparent">
+        <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6 xl:gap-8 items-stretch">
           {/* Column 1: 常用模板 (6 cols) */}
-          <div className={`lg:col-span-6 rounded-3xl p-6 border transition-all duration-500 ${darkMode ? 'bg-gray-900/40 border-gray-800' : 'bg-white border-gray-100 shadow-sm'}`}>
+          <div className="lg:col-span-6 rounded-3xl p-6 border border-white/10 bg-gray-900/55 backdrop-blur-sm shadow-[0_24px_80px_rgba(15,23,42,0.32)] transition-all duration-500">
             <div className="flex items-center justify-between mb-6">
-              <h3 className="text-base font-bold flex items-center gap-2">
+              <h3 className="text-base font-bold flex items-center gap-2 text-white">
                 <span className="w-1 h-4 bg-indigo-500 rounded-full" />
                 常用模板
               </h3>
               <button 
                 onClick={handleViewTemplates}
-                className="text-xs text-gray-400 hover:text-indigo-500 transition-colors flex items-center gap-0.5"
+                className="text-xs text-gray-400 hover:text-indigo-300 transition-colors flex items-center gap-0.5"
               >
                 更多模板 <ChevronRight className="w-3 h-3" />
               </button>
             </div>
-            <div className="grid grid-cols-5 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
               {[
                 { name: '新品发布海报', gradient: 'from-blue-400 to-indigo-500' },
                 { name: '开业活动海报', gradient: 'from-orange-400 to-red-500' },
@@ -610,20 +571,18 @@ export default function HomePage() {
                 { name: '节日倒计时', gradient: 'from-pink-400 to-rose-500' }
               ].map((item, i) => (
                 <div key={i} className="group cursor-pointer">
-                  <div className={`aspect-[3/4.5] rounded-xl bg-gradient-to-br ${item.gradient} mb-2 overflow-hidden relative shadow-sm group-hover:shadow-md transition-all duration-300`}>
-                    <div className="absolute inset-0 bg-black/5 group-hover:bg-transparent transition-colors" />
+                  <div className={`aspect-[3/4.5] rounded-xl bg-gradient-to-br ${item.gradient} mb-2 overflow-hidden relative shadow-sm ring-1 ring-white/10 group-hover:shadow-[0_18px_36px_rgba(15,23,42,0.25)] group-hover:-translate-y-1 transition-all duration-300`}>
+                    <div className="absolute inset-0 bg-black/10 group-hover:bg-transparent transition-colors" />
                     <div className="absolute inset-x-2 bottom-2 h-0.5 bg-white/20 rounded-full overflow-hidden">
                       <div className="h-full bg-white/40 w-1/3" />
                     </div>
                   </div>
-                  <p className="text-[10px] font-medium text-center text-gray-500 truncate">{item.name}</p>
+                  <p className="text-[10px] font-medium text-center text-gray-300 truncate">{item.name}</p>
                 </div>
               ))}
               <div 
                 onClick={handleViewTemplates}
-                className={`aspect-[3/4.5] rounded-xl border border-dashed flex flex-col items-center justify-center gap-2 cursor-pointer transition-all duration-300 ${
-                darkMode ? 'border-gray-800 hover:border-gray-700 hover:bg-gray-800/30' : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-              }`}>
+                className="aspect-[3/4.5] rounded-xl border border-dashed border-white/10 flex flex-col items-center justify-center gap-2 cursor-pointer bg-white/[0.02] hover:border-violet-400/40 hover:bg-violet-500/10 transition-all duration-300">
                 <Plus className="w-5 h-5 text-gray-400" />
                 <span className="text-[10px] text-gray-400 font-bold">探索更多</span>
               </div>
@@ -631,15 +590,15 @@ export default function HomePage() {
           </div>
 
           {/* Column 2: 最近使用 (3 cols) */}
-          <div className={`lg:col-span-3 rounded-3xl p-6 border transition-all duration-500 ${darkMode ? 'bg-gray-900/40 border-gray-800' : 'bg-white border-gray-100 shadow-sm'}`}>
+          <div className="lg:col-span-3 rounded-3xl p-6 border border-white/10 bg-gray-900/55 backdrop-blur-sm shadow-[0_24px_80px_rgba(15,23,42,0.32)] transition-all duration-500">
             <div className="flex items-center justify-between mb-6">
-              <h3 className="text-base font-bold flex items-center gap-2">
+              <h3 className="text-base font-bold flex items-center gap-2 text-white">
                 <span className="w-1 h-4 bg-blue-500 rounded-full" />
                 最近使用
               </h3>
               <button 
                 onClick={handleHistory}
-                className="text-xs text-gray-400 hover:text-blue-500 transition-colors flex items-center gap-0.5"
+                className="text-xs text-gray-400 hover:text-blue-300 transition-colors flex items-center gap-0.5"
               >
                 全部记录 <ChevronRight className="w-3 h-3" />
               </button>
@@ -650,17 +609,15 @@ export default function HomePage() {
                 { name: '618活动主视觉', time: '昨天 16:35', size: '1920 x 1080px', gradient: 'from-rose-400 to-pink-500' },
                 { name: '企业招聘海报_设计稿', time: '昨天 11:02', size: '1080 x 1920px', gradient: 'from-indigo-400 to-violet-500' }
               ].map((item, i) => (
-                <div key={i} className={`flex items-center gap-3 p-2 rounded-xl transition-colors cursor-pointer ${
-                  darkMode ? 'hover:bg-gray-800' : 'hover:bg-gray-50'
-                }`}>
+                <div key={i} className="flex items-center gap-3 p-2 rounded-xl transition-colors cursor-pointer hover:bg-white/5">
                   <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${item.gradient} shrink-0 shadow-sm`} />
                   <div className="flex-1 min-w-0">
-                    <p className="text-[13px] font-bold truncate mb-0.5">{item.name}</p>
+                    <p className="text-[13px] font-bold truncate mb-0.5 text-gray-100">{item.name}</p>
                     <p className="text-[10px] text-gray-400 font-medium">{item.size}</p>
                   </div>
                   <div className="text-right">
                     <p className="text-[10px] text-gray-400 font-medium mb-1">{item.time}</p>
-                    <MoreHorizontal className="w-4 h-4 text-gray-300 ml-auto" />
+                    <MoreHorizontal className="w-4 h-4 text-gray-500 ml-auto" />
                   </div>
                 </div>
               ))}
@@ -668,25 +625,23 @@ export default function HomePage() {
           </div>
 
           {/* Column 3: 创作流程 (3 cols) */}
-          <div className={`lg:col-span-3 rounded-3xl p-6 border transition-all duration-500 ${darkMode ? 'bg-gray-900/40 border-gray-800' : 'bg-white border-gray-100 shadow-sm'}`}>
-            <h3 className="text-base font-bold flex items-center gap-2 mb-8">
+          <div className="lg:col-span-3 rounded-3xl p-6 border border-white/10 bg-gray-900/55 backdrop-blur-sm shadow-[0_24px_80px_rgba(15,23,42,0.32)] transition-all duration-500">
+            <h3 className="text-base font-bold flex items-center gap-2 mb-8 text-white">
               <span className="w-1 h-4 bg-violet-500 rounded-full" />
               创作流程
             </h3>
-            <div className="flex flex-col h-[calc(100%-2rem)]">
+            <div className="flex flex-col gap-6">
               <div className="flex items-center justify-between px-2 mb-6 relative">
                 {/* Connecting Lines */}
-                <div className="absolute top-6 left-12 right-12 h-px border-t border-dashed border-gray-200 dark:border-gray-700 z-0" />
+                <div className="absolute top-6 left-12 right-12 h-px border-t border-dashed border-white/10 z-0" />
                 
                 {[
-                  { icon: Upload, color: 'text-blue-500', bg: 'bg-blue-50' },
-                  { icon: Sparkles, color: 'text-violet-500', bg: 'bg-violet-50' },
-                  { icon: Download, color: 'text-indigo-500', bg: 'bg-indigo-50' }
+                  { icon: Upload, color: 'text-sky-300', bg: 'bg-sky-500/10 ring-sky-400/20' },
+                  { icon: Sparkles, color: 'text-violet-300', bg: 'bg-violet-500/10 ring-violet-400/20' },
+                  { icon: Download, color: 'text-indigo-300', bg: 'bg-indigo-500/10 ring-indigo-400/20' }
                 ].map((item, i) => (
-                  <div key={i} className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 z-10 ${
-                    darkMode ? 'bg-gray-800' : item.bg
-                  }`}>
-                    <item.icon className={`w-6 h-6 ${darkMode ? 'text-gray-400' : item.color}`} />
+                  <div key={i} className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 z-10 ring-1 ${item.bg}`}>
+                    <item.icon className={`w-6 h-6 ${item.color}`} />
                   </div>
                 ))}
               </div>
@@ -698,9 +653,9 @@ export default function HomePage() {
                   { step: '3', title: '编辑与导出', desc: '在线编辑优化一键导出成品' }
                 ].map((item, i) => (
                   <div key={i} className="text-center">
-                    <h4 className="text-[11px] font-bold mb-1 leading-tight h-8 flex flex-col items-center justify-center">
-                      <span className="text-violet-500 block mb-0.5">{item.step} {item.title.split('或')[0]}</span>
-                      {item.title.includes('或') && <span className="block">或{item.title.split('或')[1]}</span>}
+                    <h4 className="text-[11px] font-bold mb-1 leading-tight h-8 flex flex-col items-center justify-center text-gray-100">
+                      <span className="text-violet-300 block mb-0.5">{item.step} {item.title.split('或')[0]}</span>
+                      {item.title.includes('或') && <span className="block text-gray-200">或{item.title.split('或')[1]}</span>}
                       {!item.title.includes('或') && <span className="block opacity-0">-</span>}
                     </h4>
                     <p className="text-[9px] text-gray-400 leading-relaxed px-1">{item.desc}</p>

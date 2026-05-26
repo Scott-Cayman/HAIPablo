@@ -17,7 +17,8 @@ import {
   History as HistoryIcon,
   Eye,
   Download,
-  X
+  X,
+  Sparkles
 } from 'lucide-react';
 
 interface History {
