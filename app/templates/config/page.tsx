@@ -34,6 +34,26 @@ import {
   type SpecialTemplateOption
 } from '@/lib/special-template-presets';
 
+const LEGACY_SIZE_MAP: Record<string, string> = {
+  '1024x1024': '2048x2048',
+  '1536x1024': '3072x2304',
+  '1024x1536': '2304x3072',
+  '2048x1152': '3840x2160',
+  '1920x1080': '3840x2160'
+};
+
+function normalizeSizeValue(rawSize?: string) {
+  if (!rawSize) {
+    return '2048x2048';
+  }
+
+  if (SIZE_OPTIONS.some((option) => option.value === rawSize)) {
+    return rawSize;
+  }
+
+  return LEGACY_SIZE_MAP[rawSize] || '2048x2048';
+}
+
 interface ReferenceImage {
   id: string;
   url: string;
@@ -192,7 +212,7 @@ export default function TemplateConfigPage() {
     description: '',
     promptTemplate: DEFAULT_PROMPT,
     negativePrompt: '',
-    defaultSize: '1024x1024',
+    defaultSize: '2048x2048',
     defaultQuality: 'medium',
     enabled: true,
     allowUserPrompt: true,
@@ -398,7 +418,7 @@ export default function TemplateConfigPage() {
           description: data.description || '',
           promptTemplate: data.promptTemplate || DEFAULT_PROMPT,
           negativePrompt: data.negativePrompt || '',
-          defaultSize: data.defaultSize || '1024x1024',
+          defaultSize: normalizeSizeValue(data.defaultSize),
           defaultQuality: data.defaultQuality || 'medium',
           enabled: data.enabled !== false,
           allowUserPrompt: data.allowUserPrompt !== false,

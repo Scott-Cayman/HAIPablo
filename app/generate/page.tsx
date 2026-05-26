@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { UserAvatar } from '@/components/UserAvatar';
@@ -29,7 +29,9 @@ import {
   Palette,
   Camera,
   Settings2,
-  Pencil
+  Pencil,
+  ChevronDown,
+  type LucideIcon
 } from 'lucide-react';
 import {
   AnnotationItem,
@@ -46,12 +48,13 @@ import {
 
 const SIZE_OPTIONS = [
   { value: 'auto', label: '自动' },
-  { value: '1024x1024', label: '1:1 (1024×1024)' },
-  { value: '1536x1024', label: '3:2 横版 (1536×1024)' },
-  { value: '1024x1536', label: '2:3 竖版 (1024×1536)' },
-  { value: '2048x2048', label: '1:1 高清 (2048×2048)' },
-  { value: '2048x1152', label: '16:9 宽屏 (2048×1152)' },
-  { value: '1920x1080', label: '16:9 全高清 (1920×1080)' },
+  { value: '2048x2048', label: '1:1 经典方形 (2048×2048)' },
+  { value: '2304x3072', label: '3:4 竖构图 (2304×3072)' },
+  { value: '3072x2304', label: '4:3 横构图 (3072×2304)' },
+  { value: '3840x2160', label: '16:9 宽屏标准 (3840×2160)' },
+  { value: '2160x3840', label: '9:16 竖屏海报 (2160×3840)' },
+  { value: '3584x1536', label: '21:9 电影宽幕 (3584×1536)' },
+  { value: '3840x1280', label: '3:1 横幅全景 (3840×1280)' },
 ];
 
 const QUALITY_OPTIONS = [
@@ -125,6 +128,28 @@ interface SpecifiedColor {
   label?: string;
 }
 
+const SMART_COLOR_PROMPT = '自动适配合理的颜色';
+
+const LEGACY_SIZE_MAP: Record<string, string> = {
+  '1024x1024': '2048x2048',
+  '1536x1024': '3072x2304',
+  '1024x1536': '2304x3072',
+  '2048x1152': '3840x2160',
+  '1920x1080': '3840x2160'
+};
+
+function normalizeSizeValue(rawSize?: string) {
+  if (!rawSize) {
+    return '2048x2048';
+  }
+
+  if (SIZE_OPTIONS.some((option) => option.value === rawSize)) {
+    return rawSize;
+  }
+
+  return LEGACY_SIZE_MAP[rawSize] || '2048x2048';
+}
+
 interface GenerationHistoryItem {
   id: string;
   templateId: string | null;
@@ -155,6 +180,44 @@ interface GenerationRequestOptions {
     currentImage: ReferenceImage | null;
     allUserImages: ReferenceImage[];
   };
+}
+
+interface ActionIconButtonProps {
+  label: string;
+  icon: LucideIcon;
+  onClick?: () => void;
+  disabled?: boolean;
+  darkMode: boolean;
+  className?: string;
+}
+
+function ActionIconButton({
+  label,
+  icon: Icon,
+  onClick,
+  disabled = false,
+  darkMode,
+  className = ''
+}: ActionIconButtonProps) {
+  return (
+    <button
+      type="button"
+      title={label}
+      aria-label={label}
+      onClick={(event) => {
+        event.stopPropagation();
+        onClick?.();
+      }}
+      disabled={disabled}
+      className={`inline-flex h-9 w-9 items-center justify-center rounded-xl border transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-40 ${
+        darkMode
+          ? 'border-gray-700 bg-gray-800 text-gray-200 hover:bg-gray-700 hover:text-white'
+          : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+      } ${className}`}
+    >
+      <Icon className="h-4 w-4" />
+    </button>
+  );
 }
 
 function parseStoredValues(value?: string): string[] {
@@ -237,12 +300,13 @@ export default function GeneratePage() {
   const [userPrompt, setUserPrompt] = useState('');
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [specifiedColors, setSpecifiedColors] = useState<SpecifiedColor[]>([]);
+  const [useSmartColoring, setUseSmartColoring] = useState(false);
   const [selectedColorIndex, setSelectedColorIndex] = useState<number | null>(null);
   const [editingColorValue, setEditingColorValue] = useState('');
   const [annotationEditorTarget, setAnnotationEditorTarget] = useState<AnnotationEditorTarget | null>(null);
   const [templateHistories, setTemplateHistories] = useState<GenerationHistoryItem[]>([]);
   const [loadingTemplateHistories, setLoadingTemplateHistories] = useState(false);
-  const [historyCollapsed, setHistoryCollapsed] = useState(true);
+  const [historyPanelOpen, setHistoryPanelOpen] = useState(false);
 
   // 预览图片缩放和拖拽状态
   const [zoomScale, setZoomScale] = useState(1);
@@ -254,7 +318,6 @@ export default function GeneratePage() {
   const canManage = user?.role === 'admin' || user?.role === 'sub_admin';
   const isAdmin = user?.role === 'admin';
   const isSubAdmin = user?.role === 'sub_admin';
-  const collapsedHistoryItems = useMemo(() => templateHistories.slice(0, 8), [templateHistories]);
 
   useEffect(() => {
     const savedDarkMode = localStorage.getItem('darkMode');
@@ -332,7 +395,7 @@ export default function GeneratePage() {
 
       if (response.ok) {
         setTemplate(data);
-        setSize(data.defaultSize || 'auto');
+        setSize(normalizeSizeValue(data.defaultSize));
         setQuality(data.defaultQuality || 'medium');
         setEnableUserPrompt(false);
         setUserPromptPriority(false);
@@ -340,6 +403,7 @@ export default function GeneratePage() {
         if (data.enableSpecifiedColors && data.specifiedColors) {
           setSpecifiedColors(data.specifiedColors);
         }
+        setUseSmartColoring(false);
 
         const initialForm: Record<string, string> = {};
         const initialImages: Record<string, ReferenceImage | null> = {};
@@ -393,7 +457,8 @@ export default function GeneratePage() {
                 if (config.userPrompt) setUserPrompt(config.userPrompt);
                 if (config.enableUserPrompt !== undefined) setEnableUserPrompt(config.enableUserPrompt);
                 if (config.userPromptPriority !== undefined) setUserPromptPriority(config.userPromptPriority);
-                if (config.size) setSize(config.size);
+                if (config.useSmartColoring !== undefined) setUseSmartColoring(config.useSmartColoring);
+                if (config.size) setSize(normalizeSizeValue(config.size));
                 if (config.quality) setQuality(config.quality);
                 if (config.referenceBatchMode !== undefined) setReferenceBatchMode(config.referenceBatchMode);
               }
@@ -862,7 +927,7 @@ export default function GeneratePage() {
 
     specifiedColors.forEach(color => {
       const regex = new RegExp(color.name, 'g');
-      prompt = prompt.replace(regex, color.color);
+      prompt = prompt.replace(regex, useSmartColoring ? SMART_COLOR_PROMPT : color.color);
     });
     
     return prompt;
@@ -906,6 +971,9 @@ export default function GeneratePage() {
     setSpecifiedColors(prev => prev.map((c, i) => 
       i === index ? { ...c, color: newColor } : c
     ));
+    if (selectedColorIndex === index) {
+      setEditingColorValue(newColor);
+    }
   };
 
   const handleUserPromptChange = (value: string) => {
@@ -978,31 +1046,39 @@ export default function GeneratePage() {
     return allImages;
   };
 
+  const getMissingRequiredVariable = () => {
+    if (!isSpecialThreeDRender) {
+      return null;
+    }
+
+    const requiredVariables = template?.variables?.filter((variable) => variable.required) || [];
+
+    return requiredVariables.find((variable) => {
+      if (variable.type === 'image') {
+        return !variableImages[variable.key];
+      }
+
+      if (variable.multiSelect) {
+        return parseStoredValues(formData[variable.key]).length === 0;
+      }
+
+      return !(formData[variable.key] || '').trim();
+    }) || null;
+  };
+
   const ensureGenerationReady = (mainImage: ReferenceImage | null = selectedUserImage) => {
     const allImages = getAllImages(mainImage);
-    if (allImages.length === 0) {
+    const shouldRequireMainVisual = template?.showMainVisual !== false;
+    const missingRequiredVariable = getMissingRequiredVariable();
+
+    if (allImages.length === 0 && shouldRequireMainVisual) {
       setError('请至少选择一张参考图');
       return null;
     }
 
-    if (isSpecialThreeDRender) {
-      const requiredVariables = template?.variables?.filter((variable) => variable.required) || [];
-      const missingVariable = requiredVariables.find((variable) => {
-        if (variable.type === 'image') {
-          return !variableImages[variable.key];
-        }
-
-        if (variable.multiSelect) {
-          return parseStoredValues(formData[variable.key]).length === 0;
-        }
-
-        return !(formData[variable.key] || '').trim();
-      });
-
-      if (missingVariable) {
-        setError(`请先完成「${missingVariable.label}」配置`);
-        return null;
-      }
+    if (missingRequiredVariable) {
+      setError(`请先完成「${missingRequiredVariable.label}」配置`);
+      return null;
     }
 
     const renderedPrompt = getRenderedPrompt(mainImage);
@@ -1015,6 +1091,7 @@ export default function GeneratePage() {
     const variableImageUrls = imageVariables
       .map(v => variableImages[v.key]?.url)
       .filter(url => !!url) as string[];
+    const requestMode = allImages.length > 0 ? (template?.mode || 'generation') : 'generation';
 
     return {
       allImages,
@@ -1024,7 +1101,7 @@ export default function GeneratePage() {
         userId: user?.id,
         templateId: template?.id,
         templateName: template?.name,
-        mode: template?.mode || 'generation',
+        mode: requestMode,
         promptTemplate: renderedPrompt,
         negativePrompt: template?.negativePrompt,
         variables: formData,
@@ -1045,6 +1122,7 @@ export default function GeneratePage() {
           userPrompt,
           enableUserPrompt,
           userPromptPriority,
+          useSmartColoring,
           size,
           quality,
           referenceBatchMode
@@ -1443,7 +1521,10 @@ export default function GeneratePage() {
   const showTopMetaGrid = !!template;
   const supportsReferenceBatch = !isSpecialThreeDRender && hasMainVisualUpload && template?.enableReferenceBatchMode === true;
   const canEnterReferenceBatchMode = supportsReferenceBatch && userImages.length > 1;
-  const canGenerateCurrentMode = referenceBatchMode ? userImages.length > 1 : allImages.length > 0;
+  const missingRequiredVariable = getMissingRequiredVariable();
+  const canGenerateCurrentMode = referenceBatchMode
+    ? userImages.length > 1 && !missingRequiredVariable
+    : (hasMainVisualUpload ? allImages.length > 0 : true) && !missingRequiredVariable;
   const isAnyGenerating = generating || batchGenerating;
   const successfulBatchResults = batchResults.filter((item) => item.result?.imageUrl);
   const specialTemplateSections = isSpecialThreeDRender
@@ -1485,7 +1566,7 @@ export default function GeneratePage() {
   }
 
   return (
-    <div className={`min-h-screen transition-colors duration-500 ${darkMode ? 'bg-gray-950' : 'bg-gradient-to-br from-slate-100 via-gray-50 to-slate-100'}`}>
+    <div className={`h-screen overflow-hidden transition-colors duration-500 ${darkMode ? 'bg-gray-950' : 'bg-gradient-to-br from-slate-100 via-gray-50 to-slate-100'}`}>
       <AnnotationEditorModal
         isOpen={!!annotationEditorTarget}
         darkMode={darkMode}
@@ -1550,7 +1631,7 @@ export default function GeneratePage() {
       </AnimatePresence>
 
       <header className={`sticky top-0 z-50 border-b backdrop-blur-xl transition-colors duration-500 ${darkMode ? 'bg-gray-950/80 border-gray-800' : 'bg-white/70 border-gray-200'}`}>
-        <div className="mx-auto flex w-[min(96vw,1480px)] items-center relative px-4 py-3 2xl:px-5">
+        <div className="mx-auto flex w-[min(94vw,1320px)] items-center relative px-4 py-3 xl:px-3 2xl:px-4">
           <div className="flex items-center gap-4">
             <button 
               onClick={handleBackToTemplates}
@@ -1756,8 +1837,8 @@ export default function GeneratePage() {
         </div>
       </header>
 
-      <div className="mx-auto w-[min(96vw,1480px)] px-4 py-5 2xl:px-5">
-        <div className={`grid grid-cols-1 gap-5 ${isSpecialThreeDRender ? 'lg:grid-cols-5' : 'lg:grid-cols-[384px_minmax(0,1fr)] xl:grid-cols-[404px_minmax(0,1fr)]'}`}>
+      <div className="mx-auto h-[calc(100vh-4.75rem)] w-[min(94vw,1320px)] overflow-hidden px-3 py-3 xl:px-3 2xl:px-4">
+        <div className={`grid h-full min-h-0 grid-cols-1 gap-4 ${isSpecialThreeDRender ? 'lg:grid-cols-5' : 'lg:grid-cols-[436px_minmax(0,1fr)] xl:grid-cols-[456px_minmax(0,1fr)]'}`}>
           <div className={`${isSpecialThreeDRender ? 'lg:col-span-3' : 'space-y-4 lg:self-start'}`}>
             <AnimatePresence>
               {error && (
@@ -2196,16 +2277,20 @@ export default function GeneratePage() {
                         </div>
                       </div>
                       <span className={`inline-flex items-center rounded-full px-4 py-2 text-xs font-semibold ${darkMode ? 'bg-gray-800 text-gray-300' : 'bg-gray-100 text-gray-600'}`}>
-                        {allImages.length > 0 ? '参数已就绪，可直接开始' : '请先上传至少一张参考图'}
+                        {canGenerateCurrentMode
+                          ? '参数已就绪，可直接开始'
+                          : missingRequiredVariable
+                            ? `请先完成「${missingRequiredVariable.label}」`
+                            : '请先上传至少一张参考图'}
                       </span>
                     </div>
 
                     <div className="flex flex-col items-center justify-center pt-8 pb-4">
                       <button
                         onClick={handleGenerate}
-                        disabled={generating || allImages.length === 0}
+                        disabled={generating || !canGenerateCurrentMode}
                         className={`group relative flex w-full max-w-md items-center justify-center gap-3 overflow-hidden rounded-2xl px-8 py-5 text-lg font-bold text-white transition-all hover:scale-[1.02] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100 shadow-xl ${
-                          allImages.length === 0 ? 'grayscale opacity-50' : ''
+                          !canGenerateCurrentMode ? 'grayscale opacity-50' : ''
                         }`}
                       >
                         {/* 棱彩渐变背景 */}
@@ -2225,9 +2310,11 @@ export default function GeneratePage() {
                           </span>
                         </div>
                       </button>
-                      {allImages.length === 0 && (
+                      {!canGenerateCurrentMode && (
                         <p className={`mt-4 text-sm font-medium ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
-                          请先上传至少一张参考图以开启创作
+                          {missingRequiredVariable
+                            ? `请先完成必填项「${missingRequiredVariable.label}」后再创作`
+                            : '请先上传至少一张参考图以开启创作'}
                         </p>
                       )}
                     </div>
@@ -2271,7 +2358,7 @@ export default function GeneratePage() {
                     </div>
                   </div>
 
-                  <div className="min-h-0 overflow-y-auto px-4 py-4 lg:flex-1">
+                  <div className="haipablo-scrollbar min-h-0 overflow-y-auto px-4 py-4 lg:flex-1">
                     <div className="space-y-4">
                       {hasTemplateReferenceWorkspace && (
                         <div className={`rounded-2xl border p-3.5 ${darkMode ? 'border-gray-800 bg-gray-950/60' : 'border-gray-200 bg-gray-50/80'}`}>
@@ -2548,23 +2635,33 @@ export default function GeneratePage() {
                           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                             <div>
                               <label className={`mb-1.5 block text-xs font-medium ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>输出尺寸</label>
-                              <select
-                                value={size}
-                                onChange={(e) => setSize(e.target.value)}
-                                className={`w-full rounded-xl border px-3 py-2 text-xs outline-none ${darkMode ? 'border-gray-700 bg-gray-900 text-white' : 'border-gray-200 bg-white text-gray-900'}`}
-                              >
-                                {SIZE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-                              </select>
+                              <div className={`relative overflow-hidden rounded-2xl border shadow-[0_10px_28px_-18px_rgba(15,23,42,0.38)] transition-all ${darkMode ? 'border-gray-700/80 bg-gray-900/90' : 'border-white/80 bg-white/95'}`}>
+                                <div className={`pointer-events-none absolute inset-x-0 top-0 h-px ${darkMode ? 'bg-gradient-to-r from-transparent via-white/20 to-transparent' : 'bg-gradient-to-r from-transparent via-slate-200 to-transparent'}`} />
+                                <select
+                                  value={size}
+                                  onChange={(e) => setSize(e.target.value)}
+                                  className={`w-full appearance-none bg-transparent px-4 py-3 pr-11 text-sm font-medium outline-none ${darkMode ? 'text-white' : 'text-gray-900'}`}
+                                >
+                                  {SIZE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                                </select>
+                                <ChevronDown className={`pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`} />
+                              </div>
+                              <p className={`mt-1.5 text-[11px] leading-5 ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>预设为 2K+ 构图，覆盖方图、海报、电影宽幕与横幅场景。</p>
                             </div>
                             <div>
                               <label className={`mb-1.5 block text-xs font-medium ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>质量</label>
-                              <select
-                                value={quality}
-                                onChange={(e) => setQuality(e.target.value)}
-                                className={`w-full rounded-xl border px-3 py-2 text-xs outline-none ${darkMode ? 'border-gray-700 bg-gray-900 text-white' : 'border-gray-200 bg-white text-gray-900'}`}
-                              >
-                                {QUALITY_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-                              </select>
+                              <div className={`relative overflow-hidden rounded-2xl border shadow-[0_10px_28px_-18px_rgba(15,23,42,0.38)] transition-all ${darkMode ? 'border-gray-700/80 bg-gray-900/90' : 'border-white/80 bg-white/95'}`}>
+                                <div className={`pointer-events-none absolute inset-x-0 top-0 h-px ${darkMode ? 'bg-gradient-to-r from-transparent via-white/20 to-transparent' : 'bg-gradient-to-r from-transparent via-slate-200 to-transparent'}`} />
+                                <select
+                                  value={quality}
+                                  onChange={(e) => setQuality(e.target.value)}
+                                  className={`w-full appearance-none bg-transparent px-4 py-3 pr-11 text-sm font-medium outline-none ${darkMode ? 'text-white' : 'text-gray-900'}`}
+                                >
+                                  {QUALITY_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                                </select>
+                                <ChevronDown className={`pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`} />
+                              </div>
+                              <p className={`mt-1.5 text-[11px] leading-5 ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>建议预览用“均衡模式”，最终交付再切到“质量优先”。</p>
                             </div>
                           </div>
                           <div className={`mt-3 rounded-xl border p-3 text-xs leading-5 ${darkMode ? 'border-gray-800 bg-gray-900/70 text-gray-300' : 'border-gray-200 bg-white text-gray-600'}`}>
@@ -2684,17 +2781,43 @@ export default function GeneratePage() {
                           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                             <div>
                               <h2 className={`text-base font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>指定色配置</h2>
-                              <p className={`mt-1 text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                                检测到模板存在可编辑颜色，占位模块会自动显示，不再留空。
-                              </p>
                             </div>
-                            <div className="flex items-center gap-3">
-                              <span className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>共 {specifiedColors.length} 个</span>
+                            <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
+                              <button
+                                type="button"
+                                onClick={() => setUseSmartColoring((prev) => !prev)}
+                                className={`inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 py-1.5 text-[11px] font-semibold transition-colors ${
+                                  useSmartColoring
+                                    ? darkMode
+                                      ? 'border-fuchsia-500/60 bg-fuchsia-500/15 text-fuchsia-200'
+                                      : 'border-fuchsia-300 bg-fuchsia-100 text-fuchsia-700'
+                                    : darkMode
+                                      ? 'border-gray-700 bg-gray-900 text-gray-300'
+                                      : 'border-gray-200 bg-white text-gray-600'
+                                }`}
+                              >
+                                <span
+                                  className={`relative h-5 w-9 rounded-full transition-colors ${
+                                    useSmartColoring
+                                      ? 'bg-[linear-gradient(135deg,#7c3aed,#ec4899,#f59e0b)]'
+                                      : darkMode
+                                        ? 'bg-gray-700'
+                                        : 'bg-gray-300'
+                                  }`}
+                                >
+                                  <span
+                                    className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${
+                                      useSmartColoring ? 'translate-x-4' : 'translate-x-0.5'
+                                    }`}
+                                  />
+                                </span>
+                                智能
+                              </button>
                               {hasPromptExtension && enableUserPrompt && (
                                 <button
                                   type="button"
                                   onClick={handleAddNewColorMarker}
-                                  className={`rounded-xl border px-3 py-2 text-xs font-medium transition-colors ${
+                                className={`shrink-0 rounded-xl border px-3 py-2 text-xs font-medium transition-colors ${
                                     darkMode ? 'border-violet-700 bg-violet-900/50 text-violet-300 hover:bg-violet-900/70' : 'border-violet-300 bg-violet-100 text-violet-700 hover:bg-violet-200'
                                   }`}
                                 >
@@ -2707,33 +2830,61 @@ export default function GeneratePage() {
                             {specifiedColors.map((color, index) => (
                               <div key={`${color.name}-${index}`} className={`flex items-center gap-3 rounded-xl border p-3 ${darkMode ? 'border-gray-800 bg-gray-900/50' : 'border-gray-200 bg-white'}`}>
                                 <div className="relative flex-shrink-0">
-                                  <div
-                                    className="h-8 w-8 cursor-pointer rounded-full border-2 border-gray-200 shadow-inner"
-                                    style={{ backgroundColor: color.color }}
-                                    onClick={() => setSelectedColorIndex(selectedColorIndex === index ? null : index)}
-                                  >
-                                    <input type="color" value={color.color} onChange={(e) => handleColorValueChange(index, e.target.value)} className="absolute inset-0 h-full w-full cursor-pointer opacity-0" />
-                                  </div>
+                                  {useSmartColoring ? (
+                                    <div className="relative h-8 w-8 overflow-hidden rounded-full border-2 border-fuchsia-200 shadow-inner">
+                                      <div className="absolute inset-0 rounded-full bg-[conic-gradient(from_180deg,#7c3aed,#06b6d4,#22c55e,#f59e0b,#ec4899,#7c3aed)] animate-[spin_3s_linear_infinite]" />
+                                      <div className={`absolute inset-[5px] rounded-full ${darkMode ? 'bg-gray-950/90' : 'bg-white/85'}`} />
+                                      <div className="absolute inset-0 flex items-center justify-center">
+                                        <Sparkles className="h-3.5 w-3.5 text-fuchsia-500" />
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div
+                                      className="h-8 w-8 cursor-pointer rounded-full border-2 border-gray-200 shadow-inner"
+                                      style={{ backgroundColor: color.color }}
+                                      onClick={() => {
+                                        const nextSelectedIndex = selectedColorIndex === index ? null : index;
+                                        setSelectedColorIndex(nextSelectedIndex);
+                                        if (nextSelectedIndex === index) {
+                                          setEditingColorValue(color.color);
+                                        }
+                                      }}
+                                    >
+                                      <input type="color" value={color.color} onChange={(e) => handleColorValueChange(index, e.target.value)} className="absolute inset-0 h-full w-full cursor-pointer opacity-0" />
+                                    </div>
+                                  )}
                                   <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-violet-600 text-[10px] font-bold text-white">
                                     {color.name.replace('指定色', '')}
                                   </span>
                                 </div>
                                 <div className="min-w-0 flex-1 truncate text-sm">{color.label || color.name}</div>
-                                <input
-                                  type="text"
-                                  value={selectedColorIndex === index ? editingColorValue : color.color}
-                                  onChange={(e) => {
-                                    setEditingColorValue(e.target.value);
-                                    handleColorValueChange(index, e.target.value);
-                                  }}
-                                  onFocus={() => {
-                                    setSelectedColorIndex(index);
-                                    setEditingColorValue(color.color);
-                                  }}
-                                  onBlur={() => setSelectedColorIndex(null)}
-                                  className={`w-24 rounded border px-2 py-1 text-xs font-mono ${darkMode ? 'border-gray-700 bg-gray-950' : 'border-gray-200 bg-white'}`}
-                                  placeholder="#888888"
-                                />
+                                {useSmartColoring ? (
+                                  <div
+                                    className={`flex h-[30px] w-24 items-center justify-center rounded border px-2 py-1 text-xs font-semibold ${
+                                      darkMode
+                                        ? 'border-fuchsia-500/40 bg-fuchsia-500/10 text-fuchsia-200'
+                                        : 'border-fuchsia-200 bg-fuchsia-50 text-fuchsia-700'
+                                    }`}
+                                  >
+                                    智能配色
+                                  </div>
+                                ) : (
+                                  <input
+                                    type="text"
+                                    value={selectedColorIndex === index ? editingColorValue : color.color}
+                                    onChange={(e) => {
+                                      setEditingColorValue(e.target.value);
+                                      handleColorValueChange(index, e.target.value);
+                                    }}
+                                    onFocus={() => {
+                                      setSelectedColorIndex(index);
+                                      setEditingColorValue(color.color);
+                                    }}
+                                    onBlur={() => setSelectedColorIndex(null)}
+                                    className={`w-24 rounded border px-2 py-1 text-xs font-mono ${darkMode ? 'border-gray-700 bg-gray-950' : 'border-gray-200 bg-white'}`}
+                                    placeholder="#888888"
+                                  />
+                                )}
                               </div>
                             ))}
                           </div>
@@ -2946,82 +3097,56 @@ export default function GeneratePage() {
             )}
           </div>
 
-          <div className={`${isSpecialThreeDRender ? 'lg:col-span-2' : 'space-y-4'}`}>
+          <div className={`${isSpecialThreeDRender ? 'lg:col-span-2' : 'space-y-4 lg:flex lg:h-[calc(100vh-5.5rem)] lg:flex-col'}`}>
             {!isSpecialThreeDRender && (
               <>
-                <div className={`overflow-hidden rounded-[22px] border shadow-sm transition-colors duration-500 ${
+                <div className={`overflow-hidden rounded-[22px] border shadow-sm transition-colors duration-500 lg:flex lg:min-h-0 lg:flex-1 lg:flex-col ${
                   darkMode ? 'border-gray-800 bg-gray-900' : 'border-gray-200 bg-white'
                 }`}>
                   <div className={`border-b px-4 py-3.5 ${darkMode ? 'border-gray-800 bg-gray-900' : 'border-gray-200 bg-gray-50/70'}`}>
-                    <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-                      <div>
-                        <h2 className={`text-base font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                          {referenceBatchMode ? '批量结果预览' : '生成结果预览'}
-                        </h2>
-                      </div>
-                      <div className="flex flex-wrap items-center gap-3">
+                    <div className="flex items-start justify-between gap-4">
+                      <h2 className={`text-base font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                        {referenceBatchMode ? '批量结果预览' : '生成结果预览'}
+                      </h2>
+                      <div className="flex items-center gap-2">
                         {referenceBatchMode ? (
-                          <button
-                            type="button"
+                          <ActionIconButton
+                            label="打包下载"
+                            icon={Archive}
                             onClick={handleBatchDownload}
                             disabled={successfulBatchResults.length === 0}
-                            className={`rounded-xl border px-3 py-1.5 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
-                              darkMode ? 'border-gray-700 bg-gray-800 text-white hover:bg-gray-700' : 'border-gray-200 bg-white text-gray-900 hover:bg-gray-50'
-                            }`}
-                          >
-                            <span className="inline-flex items-center gap-2">
-                              <Archive className="h-4 w-4" />
-                              打包下载
-                            </span>
-                          </button>
+                            darkMode={darkMode}
+                          />
                         ) : (
-                          <button
-                            type="button"
+                          <ActionIconButton
+                            label="下载"
+                            icon={Download}
                             onClick={handleDownload}
                             disabled={!result?.imageUrl}
-                            className={`rounded-xl border px-3 py-1.5 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
-                              darkMode ? 'border-gray-700 bg-gray-800 text-white hover:bg-gray-700' : 'border-gray-200 bg-white text-gray-900 hover:bg-gray-50'
-                            }`}
-                          >
-                            <span className="inline-flex items-center gap-2">
-                              <Download className="h-4 w-4" />
-                              下载
-                            </span>
-                          </button>
+                            darkMode={darkMode}
+                          />
                         )}
-                        <button
-                          type="button"
+                        <ActionIconButton
+                          label={referenceBatchMode ? '重新批量生成' : '重新生成'}
+                          icon={RotateCcw}
                           onClick={handleGenerate}
                           disabled={isAnyGenerating || !canGenerateCurrentMode}
-                          className={`rounded-xl border px-3 py-1.5 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
-                            darkMode ? 'border-gray-700 bg-gray-800 text-white hover:bg-gray-700' : 'border-gray-200 bg-white text-gray-900 hover:bg-gray-50'
-                          }`}
-                        >
-                          <span className="inline-flex items-center gap-2">
-                            <RotateCcw className="h-4 w-4" />
-                            {referenceBatchMode ? '重新批量生成' : '重新生成'}
-                          </span>
-                        </button>
+                          darkMode={darkMode}
+                        />
                         {!referenceBatchMode && (
-                          <button
-                            type="button"
+                          <ActionIconButton
+                            label="全屏预览"
+                            icon={Eye}
                             onClick={() => result?.imageUrl && setPreviewImage(result.imageUrl)}
                             disabled={!result?.imageUrl}
-                            className={`rounded-xl border px-3 py-1.5 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
-                              darkMode ? 'border-gray-700 bg-gray-800 text-white hover:bg-gray-700' : 'border-gray-200 bg-white text-gray-900 hover:bg-gray-50'
-                            }`}
-                          >
-                            <span className="inline-flex items-center gap-2">
-                              <Eye className="h-4 w-4" />
-                              全屏预览
-                            </span>
-                          </button>
+                            darkMode={darkMode}
+                          />
                         )}
                       </div>
                     </div>
                   </div>
 
-                  <div className="p-4">
+                  <div className="p-4 lg:flex lg:min-h-0 lg:flex-1 lg:flex-col">
                     {referenceBatchMode ? (
                       <div className="space-y-4">
                         <div className={`rounded-2xl border px-4 py-3 text-sm ${darkMode ? 'border-gray-800 bg-gray-950/60 text-gray-300' : 'border-gray-200 bg-gray-50 text-gray-600'}`}>
@@ -3121,7 +3246,9 @@ export default function GeneratePage() {
                       </div>
                     ) : (
                       <>
-                        <div className={`relative flex min-h-[360px] items-center justify-center overflow-hidden rounded-[20px] border ${
+                        <div className={`relative flex items-center justify-center overflow-hidden rounded-[20px] border transition-[min-height] duration-300 lg:flex-1 ${
+                          result?.imageUrl || generating ? 'min-h-[360px]' : 'min-h-[320px]'
+                        } ${
                           darkMode ? 'border-gray-800 bg-gray-950' : 'border-gray-200 bg-gray-50'
                         }`}>
                           {result?.imageUrl ? (
@@ -3140,11 +3267,11 @@ export default function GeneratePage() {
                               </AnimatePresence>
                             </div>
                           ) : (
-                            <div className="flex max-w-xl flex-col items-center justify-center px-8 py-12 text-center">
-                              <div className={`flex h-16 w-16 items-center justify-center rounded-[20px] ${darkMode ? 'bg-gray-800 text-gray-400' : 'bg-gray-100 text-gray-500'}`}>
-                                {generating ? <Loader2 className="h-8 w-8 animate-spin" /> : <ImageIcon className="h-8 w-8" />}
+                            <div className="flex max-w-xl flex-col items-center justify-center px-6 py-6 text-center">
+                              <div className={`flex h-12 w-12 items-center justify-center rounded-2xl ${darkMode ? 'bg-gray-800 text-gray-400' : 'bg-gray-100 text-gray-500'}`}>
+                                {generating ? <Loader2 className="h-6 w-6 animate-spin" /> : <ImageIcon className="h-6 w-6" />}
                               </div>
-                              <h3 className={`mt-5 text-xl font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                              <h3 className={`mt-3 text-base font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
                                 {generating ? '正在创作' : '等待生成'}
                               </h3>
                             </div>
@@ -3167,141 +3294,225 @@ export default function GeneratePage() {
                   </div>
                 </div>
 
-                <div className={`overflow-hidden rounded-[22px] border shadow-sm transition-colors duration-500 ${
+                <div className={`relative overflow-hidden rounded-[22px] border shadow-sm transition-colors duration-500 lg:flex lg:min-h-0 ${historyPanelOpen ? 'lg:flex-1' : 'lg:flex-none'} lg:flex-col ${
                   darkMode ? 'border-gray-800 bg-gray-900' : 'border-gray-200 bg-white'
                 }`}>
                   <div className={`border-b px-4 py-3.5 ${darkMode ? 'border-gray-800 bg-gray-900' : 'border-gray-200 bg-gray-50/70'}`}>
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                      <div>
-                        <h2 className={`text-base font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>该模板最近记录</h2>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setHistoryCollapsed((prev) => !prev)}
-                        className={`inline-flex w-fit items-center rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
-                          darkMode ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                        }`}
-                      >
-                        {historyCollapsed ? '展开' : '收起'}
-                      </button>
+                    <div className="flex items-center justify-between gap-3">
+                      <h2 className={`text-base font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>该模板最近记录</h2>
+                      <ActionIconButton
+                        label={historyPanelOpen ? '关闭最近记录' : '查看最近记录'}
+                        icon={Eye}
+                        onClick={() => setHistoryPanelOpen((prev) => !prev)}
+                        disabled={loadingTemplateHistories || templateHistories.length === 0}
+                        darkMode={darkMode}
+                        className="h-8 w-8 rounded-full"
+                      />
                     </div>
                   </div>
 
-                  <div className="p-4">
+                  <div className={`p-4 lg:flex lg:min-h-0 ${historyPanelOpen ? 'lg:flex-1' : 'lg:flex-none'} lg:flex-col`}>
                     {loadingTemplateHistories ? (
                       <div className="flex min-h-[220px] items-center justify-center">
                         <Loader2 className={`h-8 w-8 animate-spin ${darkMode ? 'text-gray-400' : 'text-gray-500'}`} />
                       </div>
                     ) : templateHistories.length > 0 ? (
-                      historyCollapsed ? (
-                        <div className="grid grid-cols-3 gap-3 md:grid-cols-4 xl:grid-cols-6">
-                          {collapsedHistoryItems.map((item) => (
+                      <>
+                        <div
+                          className="haipablo-scrollbar flex gap-3 overflow-x-auto pb-1"
+                          onWheel={(e) => {
+                            if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+                              e.preventDefault();
+                              e.currentTarget.scrollLeft += e.deltaY;
+                            }
+                          }}
+                        >
+                          {templateHistories.map((item) => (
                             <button
                               type="button"
                               key={item.id}
                               onClick={() => item.outputImageUrl && setPreviewImage(item.outputImageUrl)}
-                              className={`relative overflow-hidden rounded-xl border transition-colors ${darkMode ? 'border-gray-800 bg-gray-950/60 hover:border-gray-700' : 'border-gray-200 bg-gray-50/80 hover:border-gray-300'}`}
+                              className={`group relative w-[calc((100%-1.5rem)/3)] min-w-[calc((100%-1.5rem)/3)] flex-none overflow-hidden rounded-2xl border transition-colors ${darkMode ? 'border-gray-800 bg-gray-950/60 hover:border-gray-700' : 'border-gray-200 bg-gray-50/80 hover:border-gray-300'}`}
                             >
-                              <div className={`relative aspect-[16/10] ${darkMode ? 'bg-gray-950' : 'bg-white'}`}>
+                              <div className={`group relative aspect-[16/11] overflow-hidden ${darkMode ? 'bg-gray-950' : 'bg-white'}`}>
                                 {item.outputImageUrl ? (
                                   <img
                                     src={item.thumbnailUrl || item.outputImageUrl}
                                     alt={item.templateName}
-                                    className="h-full w-full object-cover"
+                                    className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
                                   />
                                 ) : (
                                   <div className="flex h-full items-center justify-center">
                                     <ImageIcon className={`h-5 w-5 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`} />
                                   </div>
                                 )}
+                                <div className={`absolute left-2 top-2 rounded-full px-2 py-0.5 text-[10px] font-semibold ${item.status === 'success' ? 'bg-violet-600 text-white' : 'bg-gray-800 text-white'}`}>
+                                  {item.status === 'success' ? '已生成' : item.status}
+                                </div>
+                                <div className="absolute inset-0 flex items-center justify-center gap-2 bg-black/50 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+                                  <ActionIconButton
+                                    label="套用本次参数"
+                                    icon={RotateCcw}
+                                    onClick={() => handleReuseHistory(item)}
+                                    darkMode={darkMode}
+                                    className="border-white/20 bg-white/10 text-white hover:bg-white/20 hover:text-white"
+                                  />
+                                  <ActionIconButton
+                                    label="预览"
+                                    icon={Eye}
+                                    onClick={() => item.outputImageUrl && setPreviewImage(item.outputImageUrl)}
+                                    disabled={!item.outputImageUrl}
+                                    darkMode={darkMode}
+                                    className="border-white/20 bg-white/10 text-white hover:bg-white/20 hover:text-white"
+                                  />
+                                  <ActionIconButton
+                                    label="下载"
+                                    icon={Download}
+                                    onClick={() => item.outputImageUrl && handleDownloadByUrl(item.outputImageUrl, item.templateName)}
+                                    disabled={!item.outputImageUrl}
+                                    darkMode={darkMode}
+                                    className="border-white/20 bg-white/10 text-white hover:bg-white/20 hover:text-white"
+                                  />
+                                </div>
                               </div>
                             </button>
                           ))}
                         </div>
-                      ) : (
-                        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-                          {templateHistories.map((item) => (
-                            <div
-                              key={item.id}
-                              className={`overflow-hidden rounded-2xl border transition-colors ${darkMode ? 'border-gray-800 bg-gray-950/60' : 'border-gray-200 bg-gray-50/80'}`}
+
+                        <AnimatePresence>
+                          {historyPanelOpen && (
+                            <motion.div
+                              initial={{ y: 48, opacity: 0 }}
+                              animate={{ y: 0, opacity: 1 }}
+                              exit={{ y: 48, opacity: 0 }}
+                              transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+                              className={`fixed inset-4 top-[5.25rem] z-[90] overflow-hidden rounded-[28px] border shadow-2xl lg:flex lg:min-h-0 lg:flex-col ${
+                                darkMode ? 'border-gray-700 bg-gray-950' : 'border-gray-200 bg-white'
+                              }`}
                             >
-                              <div
-                                className={`relative aspect-[16/10] cursor-pointer overflow-hidden ${darkMode ? 'bg-gray-950' : 'bg-white'}`}
-                                onClick={() => item.outputImageUrl && setPreviewImage(item.outputImageUrl)}
-                              >
-                                {item.outputImageUrl ? (
-                                  <img
-                                    src={item.thumbnailUrl || item.outputImageUrl}
-                                    alt={item.templateName}
-                                    className="h-full w-full object-cover"
-                                  />
-                                ) : (
-                                  <div className="flex h-full items-center justify-center">
-                                    <div className="text-center">
-                                      <ImageIcon className={`mx-auto h-8 w-8 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`} />
-                                      <p className={`mt-2 text-xs ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>暂无出图</p>
+                              <div className={`flex items-center justify-between gap-3 border-b px-4 py-3 ${darkMode ? 'border-gray-800 bg-gray-950' : 'border-gray-200 bg-gray-50'}`}>
+                                <div>
+                                  <p className={`text-sm font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>完整记录</p>
+                                  <p className={`mt-1 text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>鼠标移入后可在此区域内上下滑动</p>
+                                </div>
+                                <ActionIconButton
+                                  label="关闭完整记录"
+                                  icon={X}
+                                  onClick={() => setHistoryPanelOpen(false)}
+                                  darkMode={darkMode}
+                                  className="h-8 w-8 rounded-full"
+                                />
+                              </div>
+
+                              <div className="haipablo-scrollbar p-5 lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
+                                <div className="mx-auto grid w-full max-w-[1320px] grid-cols-1 gap-4 content-start md:grid-cols-2 lg:grid-cols-3">
+                                  {templateHistories.map((item) => (
+                                    <div
+                                      key={item.id}
+                                      className={`overflow-hidden rounded-2xl border transition-colors ${darkMode ? 'border-gray-800 bg-gray-950' : 'border-gray-200 bg-white'}`}
+                                    >
+                                      <div
+                                        className={`group relative aspect-[16/10] cursor-pointer overflow-hidden ${darkMode ? 'bg-gray-950' : 'bg-white'}`}
+                                        onClick={() => item.outputImageUrl && setPreviewImage(item.outputImageUrl)}
+                                      >
+                                        {item.outputImageUrl ? (
+                                          <img
+                                            src={item.thumbnailUrl || item.outputImageUrl}
+                                            alt={item.templateName}
+                                            className="h-full w-full object-cover"
+                                          />
+                                        ) : (
+                                          <div className="flex h-full items-center justify-center">
+                                            <div className="text-center">
+                                              <ImageIcon className={`mx-auto h-8 w-8 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`} />
+                                              <p className={`mt-2 text-xs ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>暂无出图</p>
+                                            </div>
+                                          </div>
+                                        )}
+                                        <div className={`absolute left-3 top-3 rounded-full px-2.5 py-1 text-[10px] font-semibold ${item.status === 'success' ? 'bg-violet-600 text-white' : 'bg-gray-800 text-white'}`}>
+                                          {item.status === 'success' ? '已生成' : item.status}
+                                        </div>
+                                        <div className="absolute inset-0 flex items-center justify-center gap-2 bg-black/50 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+                                          <ActionIconButton
+                                            label="套用本次参数"
+                                            icon={RotateCcw}
+                                            onClick={() => handleReuseHistory(item)}
+                                            darkMode={darkMode}
+                                            className="border-white/20 bg-white/10 text-white hover:bg-white/20 hover:text-white"
+                                          />
+                                          <ActionIconButton
+                                            label="预览"
+                                            icon={Eye}
+                                            onClick={() => item.outputImageUrl && setPreviewImage(item.outputImageUrl)}
+                                            disabled={!item.outputImageUrl}
+                                            darkMode={darkMode}
+                                            className="border-white/20 bg-white/10 text-white hover:bg-white/20 hover:text-white"
+                                          />
+                                          <ActionIconButton
+                                            label="下载"
+                                            icon={Download}
+                                            onClick={() => item.outputImageUrl && handleDownloadByUrl(item.outputImageUrl, item.templateName)}
+                                            disabled={!item.outputImageUrl}
+                                            darkMode={darkMode}
+                                            className="border-white/20 bg-white/10 text-white hover:bg-white/20 hover:text-white"
+                                          />
+                                        </div>
+                                      </div>
+
+                                      <div className="space-y-3 p-4">
+                                        <div className="flex items-start justify-between gap-3">
+                                          <div className="min-w-0">
+                                            <p className={`truncate text-sm font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{item.templateName}</p>
+                                            <p className={`mt-1 text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                                              {new Date(item.createdAt).toLocaleString('zh-CN', {
+                                                month: '2-digit',
+                                                day: '2-digit',
+                                                hour: '2-digit',
+                                                minute: '2-digit'
+                                              })}
+                                            </p>
+                                          </div>
+                                          <span className={`rounded-full px-2 py-1 text-[10px] font-semibold ${darkMode ? 'bg-gray-800 text-gray-300' : 'bg-white text-gray-600 border border-gray-200'}`}>
+                                            消耗 {item.creditsUsed ?? (item.status === 'success' ? 1 : 0)}
+                                          </span>
+                                        </div>
+
+                                        <div className="flex items-center justify-end gap-2">
+                                          <ActionIconButton
+                                            label="套用本次参数"
+                                            icon={RotateCcw}
+                                            onClick={() => handleReuseHistory(item)}
+                                            darkMode={darkMode}
+                                          />
+                                          <ActionIconButton
+                                            label="预览"
+                                            icon={Eye}
+                                            onClick={() => item.outputImageUrl && setPreviewImage(item.outputImageUrl)}
+                                            disabled={!item.outputImageUrl}
+                                            darkMode={darkMode}
+                                          />
+                                          <ActionIconButton
+                                            label="下载"
+                                            icon={Download}
+                                            onClick={() => item.outputImageUrl && handleDownloadByUrl(item.outputImageUrl, item.templateName)}
+                                            disabled={!item.outputImageUrl}
+                                            darkMode={darkMode}
+                                          />
+                                        </div>
+                                      </div>
                                     </div>
-                                  </div>
-                                )}
-                                <div className={`absolute left-3 top-3 rounded-full px-2.5 py-1 text-[10px] font-semibold ${item.status === 'success' ? 'bg-violet-600 text-white' : 'bg-gray-800 text-white'}`}>
-                                  {item.status === 'success' ? '已生成' : item.status}
+                                  ))}
                                 </div>
                               </div>
-
-                              <div className="space-y-3 p-4">
-                                <div className="flex items-start justify-between gap-3">
-                                  <div className="min-w-0">
-                                    <p className={`truncate text-sm font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{item.templateName}</p>
-                                    <p className={`mt-1 text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                                      {new Date(item.createdAt).toLocaleString('zh-CN', {
-                                        month: '2-digit',
-                                        day: '2-digit',
-                                        hour: '2-digit',
-                                        minute: '2-digit'
-                                      })}
-                                    </p>
-                                  </div>
-                                  <span className={`rounded-full px-2 py-1 text-[10px] font-semibold ${darkMode ? 'bg-gray-800 text-gray-300' : 'bg-white text-gray-600 border border-gray-200'}`}>
-                                    消耗 {item.creditsUsed ?? (item.status === 'success' ? 1 : 0)}
-                                  </span>
-                                </div>
-
-                                <div className="flex flex-wrap gap-2">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleReuseHistory(item)}
-                                    className={`rounded-xl px-3 py-2 text-xs font-medium transition-colors ${darkMode ? 'bg-violet-600 text-white hover:bg-violet-500' : 'bg-violet-100 text-violet-700 hover:bg-violet-200'}`}
-                                  >
-                                    套用本次参数
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => item.outputImageUrl && setPreviewImage(item.outputImageUrl)}
-                                    disabled={!item.outputImageUrl}
-                                    className={`rounded-xl px-3 py-2 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${darkMode ? 'bg-gray-800 text-gray-200 hover:bg-gray-700' : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'}`}
-                                  >
-                                    预览
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => item.outputImageUrl && handleDownloadByUrl(item.outputImageUrl, item.templateName)}
-                                    disabled={!item.outputImageUrl}
-                                    className={`rounded-xl px-3 py-2 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${darkMode ? 'bg-gray-800 text-gray-200 hover:bg-gray-700' : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'}`}
-                                  >
-                                    下载
-                                  </button>
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </>
                     ) : (
-                      <div className="flex min-h-[220px] items-center justify-center rounded-[24px] border border-dashed border-gray-300 px-8 text-center dark:border-gray-700">
+                      <div className="flex min-h-[140px] items-center justify-center rounded-[24px] border border-dashed border-gray-300 px-8 text-center dark:border-gray-700 lg:flex-1">
                         <div>
-                          <History className={`mx-auto h-10 w-10 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`} />
-                          <p className={`mt-4 text-base font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>当前模板还没有历史记录</p>
-                          <p className={`mt-2 text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>完成一次生成后，最近记录会自动展示在这里。</p>
+                          <History className={`mx-auto h-8 w-8 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`} />
+                          <p className={`mt-3 text-sm font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>暂无记录</p>
                         </div>
                       </div>
                     )}

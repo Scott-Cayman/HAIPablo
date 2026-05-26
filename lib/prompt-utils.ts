@@ -83,12 +83,13 @@ export function validateSize(size: string): { valid: boolean; message?: string }
 
 export const SIZE_OPTIONS = [
   { value: 'auto', label: '自动' },
-  { value: '1024x1024', label: '1:1 (1024×1024)' },
-  { value: '1536x1024', label: '3:2 横版 (1536×1024)' },
-  { value: '1024x1536', label: '2:3 竖版 (1024×1536)' },
-  { value: '2048x2048', label: '1:1 高清 (2048×2048)' },
-  { value: '2048x1152', label: '16:9 宽屏 (2048×1152)' },
-  { value: '1920x1080', label: '16:9 全高清 (1920×1080)' },
+  { value: '2048x2048', label: '1:1 经典方形 (2048×2048)' },
+  { value: '2304x3072', label: '3:4 竖构图 (2304×3072)' },
+  { value: '3072x2304', label: '4:3 横构图 (3072×2304)' },
+  { value: '3840x2160', label: '16:9 宽屏标准 (3840×2160)' },
+  { value: '2160x3840', label: '9:16 竖屏海报 (2160×3840)' },
+  { value: '3584x1536', label: '21:9 电影宽幕 (3584×1536)' },
+  { value: '3840x1280', label: '3:1 横幅全景 (3840×1280)' },
 ];
 
 export const QUALITY_OPTIONS = [

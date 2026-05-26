@@ -126,7 +126,7 @@ export const THREE_D_AI_RENDER_PRESET: SpecialTemplatePreset = {
     '不要出现错误阴影。',
     '不要出现混乱背景。'
   ].join('\n'),
-  defaultSize: '1536x1024',
+  defaultSize: '3840x2160',
   defaultQuality: 'high',
   showMainVisual: true,
   allowUserPrompt: true,

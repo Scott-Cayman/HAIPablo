@@ -13,7 +13,6 @@ import {
   User,
   Sparkles,
   Plus,
-  ArrowRight,
   Edit,
   Trash2,
   Loader2,
@@ -80,6 +79,88 @@ const iconMap: Record<string, any> = {
   LayersIcon
 };
 
+function TemplatePreviewImage({
+  url,
+  alt,
+  title,
+  darkMode
+}: {
+  url: string;
+  alt: string;
+  title?: string;
+  darkMode: boolean;
+}) {
+  const [isPortrait, setIsPortrait] = useState(false);
+
+  const handleImageLoad = (event: React.SyntheticEvent<HTMLImageElement>) => {
+    const { naturalWidth, naturalHeight } = event.currentTarget;
+    setIsPortrait(naturalHeight > naturalWidth * 1.08);
+  };
+
+  return (
+    <div
+      className={`relative mb-3 w-full aspect-video overflow-hidden rounded-lg ${
+        darkMode ? 'bg-gray-800' : 'bg-gray-100'
+      }`}
+    >
+      {isPortrait ? (
+        <>
+          <div
+            className="absolute inset-y-0 left-0 w-[34%] scale-110 bg-cover bg-left blur-2xl opacity-80"
+            style={{ backgroundImage: `url(${url})` }}
+            aria-hidden="true"
+          />
+          <div
+            className="absolute inset-y-0 right-0 w-[34%] scale-110 bg-cover bg-right blur-2xl opacity-80"
+            style={{ backgroundImage: `url(${url})` }}
+            aria-hidden="true"
+          />
+          <div
+            className="absolute inset-y-0 left-[24%] right-[24%] bg-gradient-to-r from-transparent via-white/10 to-transparent"
+            aria-hidden="true"
+          />
+        </>
+      ) : (
+        <div
+          className="absolute inset-0 scale-105 bg-cover bg-center blur-3xl opacity-55"
+          style={{ backgroundImage: `url(${url})` }}
+          aria-hidden="true"
+        />
+      )}
+      <div
+        className={`absolute inset-0 ${
+          isPortrait
+            ? 'bg-gradient-to-r from-black/10 via-white/5 to-black/10'
+            : 'bg-gradient-to-br from-white/20 via-white/5 to-black/10'
+        }`}
+        aria-hidden="true"
+      />
+      <div
+        className={`absolute inset-0 z-10 ${
+          isPortrait
+            ? 'bg-[radial-gradient(ellipse_at_center,transparent_54%,rgba(255,255,255,0.12)_74%,rgba(255,255,255,0.2)_100%)]'
+            : 'bg-[radial-gradient(ellipse_at_center,transparent_58%,rgba(255,255,255,0.1)_78%,rgba(255,255,255,0.18)_100%)]'
+        }`}
+        aria-hidden="true"
+      />
+      <img
+        src={url}
+        alt={alt}
+        className="relative z-20 w-full h-full object-contain"
+        style={{ objectPosition: 'center top' }}
+        onLoad={handleImageLoad}
+      />
+      {title && (
+        <div className="absolute bottom-0 left-0 right-0 z-30 bg-gradient-to-t from-black/70 to-transparent p-3">
+          <p className="truncate text-sm font-medium text-white">
+            {title}
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function TemplatesPage() {
   const [featureGroups, setFeatureGroups] = useState<FeatureGroup[]>([]);
   const [selectedGroup, setSelectedGroup] = useState<FeatureGroup | null>(null);
@@ -92,6 +173,14 @@ export default function TemplatesPage() {
   const [showAddGroupModal, setShowAddGroupModal] = useState(false);
   const [showEditGroupModal, setShowEditGroupModal] = useState(false);
   const [editingGroup, setEditingGroup] = useState<FeatureGroup | null>(null);
+  const [templatePendingDelete, setTemplatePendingDelete] = useState<{
+    template: Template;
+    a: number;
+    b: number;
+    expected: number;
+  } | null>(null);
+  const [deleteVerificationInput, setDeleteVerificationInput] = useState('');
+  const [deletingTemplateId, setDeletingTemplateId] = useState<string | null>(null);
   const [newGroupData, setNewGroupData] = useState({
     name: '',
     key: '',
@@ -240,6 +329,12 @@ export default function TemplatesPage() {
     router.push(`/templates/config?id=${template.id}`);
   };
 
+  const closeDeleteTemplateModal = () => {
+    if (deletingTemplateId) return;
+    setTemplatePendingDelete(null);
+    setDeleteVerificationInput('');
+  };
+
   const handleDeleteTemplate = async (e: React.MouseEvent, template: Template) => {
     e.stopPropagation();
     
@@ -250,22 +345,35 @@ export default function TemplatesPage() {
     
     const a = Math.floor(Math.random() * 90) + 10;
     const b = Math.floor(Math.random() * 90) + 10;
-    const expected = a * b;
-    const input = window.prompt(`删除校验：请输入 ${a} × ${b} 的答案，确认删除模板「${template.name}」。\n取消则不删除。`);
-    if (input === null) return;
-    const parsed = parseInt(input.trim(), 10);
-    if (!Number.isFinite(parsed) || parsed !== expected) {
+    setTemplatePendingDelete({
+      template,
+      a,
+      b,
+      expected: a * b
+    });
+    setDeleteVerificationInput('');
+  };
+
+  const handleConfirmDeleteTemplate = async () => {
+    if (!templatePendingDelete || !user) return;
+
+    const parsed = parseInt(deleteVerificationInput.trim(), 10);
+    if (!Number.isFinite(parsed) || parsed !== templatePendingDelete.expected) {
       alert('答案不正确，已取消删除');
+      setDeleteVerificationInput('');
       return;
     }
 
+    setDeletingTemplateId(templatePendingDelete.template.id);
     try {
-      const response = await fetch(`/api/templates/${template.id}?requesterId=${user.id}`, {
+      const response = await fetch(`/api/templates/${templatePendingDelete.template.id}?requesterId=${user.id}`, {
         method: 'DELETE'
       });
 
       if (response.ok) {
         alert('模板删除成功');
+        setTemplatePendingDelete(null);
+        setDeleteVerificationInput('');
         fetchFeatureGroups(user.id);
       } else {
         throw new Error('删除失败');
@@ -273,6 +381,8 @@ export default function TemplatesPage() {
     } catch (error) {
       console.error('删除模板失败:', error);
       alert('删除失败，请重试');
+    } finally {
+      setDeletingTemplateId(null);
     }
   };
 
@@ -609,9 +719,9 @@ export default function TemplatesPage() {
           <motion.div 
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
-            className="col-span-12 lg:col-span-3"
+            className="col-span-12 lg:col-span-3 lg:self-start lg:sticky lg:top-24"
           >
-            <div className={`rounded-2xl shadow-sm border transition-colors duration-500 overflow-hidden ${
+            <div className={`rounded-2xl shadow-sm border transition-colors duration-500 overflow-hidden lg:flex lg:max-h-[calc(100vh-7rem)] lg:flex-col ${
               darkMode 
                 ? 'bg-gray-900 border-gray-800' 
                 : 'bg-white border-gray-200'
@@ -621,7 +731,7 @@ export default function TemplatesPage() {
                 <p className={`text-sm transition-colors duration-500 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>选择生成大类</p>
               </div>
               
-              <div className="p-2">
+              <div className="p-2 lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
                 {featureGroupsError && (
                   <div className={`mb-3 rounded-xl border px-4 py-3 text-sm ${
                     darkMode
@@ -880,8 +990,8 @@ export default function TemplatesPage() {
                           )}
                           
                           <div className="relative">
-                            <div className="flex items-start justify-between mb-3">
-                              <div className="flex items-center gap-3">
+                            <div className="mb-2 flex items-center justify-between gap-3">
+                              <div className="flex min-w-0 items-center gap-3">
                                 {batchMode && (
                                   <div className={`w-6 h-6 rounded-md border-2 flex items-center justify-center transition-colors ${
                                     selectedTemplates.includes(template.id)
@@ -895,11 +1005,9 @@ export default function TemplatesPage() {
                                     )}
                                   </div>
                                 )}
-                                <div className={`w-10 h-10 rounded-lg flex items-center justify-center group-hover:scale-105 transition-transform ${
-                                  darkMode ? 'bg-gray-700' : 'bg-gray-100'
-                                }`}>
-                                  <Sparkles className={`w-5 h-5 ${darkMode ? 'text-gray-300' : 'text-gray-600'}`} />
-                                </div>
+                                <h3 className={`min-w-0 text-base font-semibold line-clamp-1 transition-colors duration-500 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                                  {template.name}
+                                </h3>
                               </div>
                               {canManage && !batchMode && (
                                 <div className="flex items-center gap-1">
@@ -939,10 +1047,6 @@ export default function TemplatesPage() {
                                 </div>
                               )}
                             </div>
-                            
-                            <h3 className={`text-base font-semibold mb-2 line-clamp-1 h-6 transition-colors duration-500 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                              {template.name}
-                            </h3>
 
                             {template.coverMetadata?.specialTemplateType && (
                               <div className="mb-2">
@@ -952,35 +1056,19 @@ export default function TemplatesPage() {
                               </div>
                             )}
                             
-                            <p className={`text-sm mb-3 line-clamp-2 h-10 transition-colors duration-500 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                              {template.description || ' '}
-                            </p>
-                            
                             {template.coverImage ? (
-                              <div className="relative w-full aspect-video rounded-lg overflow-hidden bg-gray-100 mb-3">
-                                <img
-                                  src={template.coverImage.url}
-                                  alt={template.coverImage.name}
-                                  className="w-full h-full object-contain"
-                                  style={{ objectPosition: 'center top' }}
-                                />
-                                {template.coverMetadata?.title && (
-                                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-3">
-                                    <p className="text-white text-sm font-medium truncate">
-                                      {template.coverMetadata.title}
-                                    </p>
-                                  </div>
-                                )}
-                              </div>
+                              <TemplatePreviewImage
+                                url={template.coverImage.url}
+                                alt={template.coverImage.name}
+                                title={template.coverMetadata?.title}
+                                darkMode={darkMode}
+                              />
                             ) : template.referenceImages && template.referenceImages.length > 0 ? (
-                              <div className="relative w-full aspect-video rounded-lg overflow-hidden bg-gray-100 mb-3">
-                                <img
-                                  src={template.referenceImages[0].url}
-                                  alt={template.referenceImages[0].name}
-                                  className="w-full h-full object-contain"
-                                  style={{ objectPosition: 'center top' }}
-                                />
-                              </div>
+                              <TemplatePreviewImage
+                                url={template.referenceImages[0].url}
+                                alt={template.referenceImages[0].name}
+                                darkMode={darkMode}
+                              />
                             ) : (
                               <div className={`w-full aspect-video rounded-lg flex items-center justify-center mb-3 ${
                                 darkMode ? 'bg-gray-800' : 'bg-gray-100'
@@ -988,21 +1076,20 @@ export default function TemplatesPage() {
                                 <ImageIcon className={`w-8 h-8 ${darkMode ? 'text-gray-600' : 'text-gray-400'}`} />
                               </div>
                             )}
+
+                            {template.description?.trim() && (
+                              <p className={`text-sm mb-2 line-clamp-1 h-5 transition-colors duration-500 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                                {template.description}
+                              </p>
+                            )}
                             
-                            {batchMode ? (
+                            {batchMode && (
                               <div className={`text-sm font-medium ${
                                 selectedTemplates.includes(template.id)
                                   ? darkMode ? 'text-green-400' : 'text-green-600'
                                   : darkMode ? 'text-gray-500' : 'text-gray-500'
                               }`}>
                                 {selectedTemplates.includes(template.id) ? '✓ 已选择' : '点击选择'}
-                              </div>
-                            ) : (
-                              <div className={`flex items-center gap-2 text-sm font-medium group-hover:gap-3 transition-all ${
-                                darkMode ? 'text-white' : 'text-gray-900'
-                              }`}>
-                                <span>开始使用</span>
-                                <ArrowRight className="w-4 h-4" />
                               </div>
                             )}
                           </div>
@@ -1402,6 +1489,115 @@ export default function TemplatesPage() {
                     <>
                       <Edit className="w-4 h-4" />
                       保存修改
+                    </>
+                  )}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {templatePendingDelete && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+            onClick={closeDeleteTemplateModal}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className={`w-full max-w-md overflow-hidden rounded-2xl shadow-2xl transition-colors duration-500 ${
+                darkMode ? 'bg-gray-900' : 'bg-white'
+              }`}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className={`flex items-center justify-between border-b p-6 transition-colors duration-500 ${
+                darkMode ? 'border-gray-800' : 'border-gray-100'
+              }`}>
+                <div>
+                  <h3 className={`text-xl font-semibold transition-colors duration-500 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                    删除模板校验
+                  </h3>
+                  <p className={`mt-1 text-sm transition-colors duration-500 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                    输入正确答案后才会删除模板
+                  </p>
+                </div>
+                <button
+                  onClick={closeDeleteTemplateModal}
+                  disabled={!!deletingTemplateId}
+                  className={`rounded-lg p-2 transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+                    darkMode ? 'text-gray-400 hover:bg-gray-800' : 'text-gray-600 hover:bg-gray-100'
+                  }`}
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="space-y-4 p-6">
+                <div className={`rounded-xl border px-4 py-3 text-sm ${
+                  darkMode ? 'border-red-900/40 bg-red-950/20 text-red-200' : 'border-red-100 bg-red-50 text-red-700'
+                }`}>
+                  即将删除模板「{templatePendingDelete.template.name}」，此操作不可恢复。
+                </div>
+
+                <div>
+                  <label className={`mb-2 block text-sm font-medium transition-colors duration-500 ${
+                    darkMode ? 'text-gray-300' : 'text-gray-700'
+                  }`}>
+                    请输入 {templatePendingDelete.a} x {templatePendingDelete.b} 的答案
+                  </label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={deleteVerificationInput}
+                    onChange={(e) => setDeleteVerificationInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        void handleConfirmDeleteTemplate();
+                      }
+                    }}
+                    placeholder="输入计算结果"
+                    disabled={!!deletingTemplateId}
+                    className={`w-full rounded-lg border px-4 py-2.5 outline-none transition-all focus:border-transparent focus:ring-2 focus:ring-red-500 disabled:cursor-not-allowed disabled:opacity-60 ${
+                      darkMode
+                        ? 'border-gray-700 bg-gray-800 text-white placeholder-gray-500'
+                        : 'border-gray-200 text-gray-900'
+                    }`}
+                  />
+                </div>
+              </div>
+
+              <div className={`flex justify-end gap-3 border-t p-6 transition-colors duration-500 ${
+                darkMode ? 'border-gray-800' : 'border-gray-100'
+              }`}>
+                <button
+                  onClick={closeDeleteTemplateModal}
+                  disabled={!!deletingTemplateId}
+                  className={`rounded-lg px-4 py-2 transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+                    darkMode ? 'text-gray-300 hover:bg-gray-800' : 'text-gray-700 hover:bg-gray-100'
+                  }`}
+                >
+                  取消
+                </button>
+                <button
+                  onClick={() => void handleConfirmDeleteTemplate()}
+                  disabled={!deleteVerificationInput.trim() || !!deletingTemplateId}
+                  className="flex items-center gap-2 rounded-lg bg-red-600 px-6 py-2 text-white transition-all hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {deletingTemplateId ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      删除中...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="w-4 h-4" />
+                      确认删除
                     </>
                   )}
                 </button>

@@ -8,7 +8,7 @@ import {
   ArrowLeft, 
   Clock, 
   Image as ImageIcon,
-  Sparkles,
+  RotateCcw,
   User,
   LogOut,
   Loader2,
@@ -435,9 +435,10 @@ export default function HistoryPage() {
                             <button
                               onClick={() => handleReuse(history)}
                               className="w-10 h-10 bg-white/20 hover:bg-violet-500 rounded-full flex items-center justify-center text-white transition-all transform hover:scale-110"
-                              title="再来一张"
+                              title="套用本次参数"
+                              aria-label="套用本次参数"
                             >
-                              <Sparkles className="w-5 h-5" />
+                              <RotateCcw className="w-5 h-5" />
                             </button>
                             <button
                               onClick={() => setPreviewImage(history.outputImageUrl)}
@@ -474,6 +475,32 @@ export default function HistoryPage() {
                         <div className="w-full h-full flex flex-col items-center justify-center text-gray-400">
                           <ImageIcon className="w-8 h-8 mb-2 opacity-50" />
                           <span className="text-xs">生成失败</span>
+                          <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-row items-center justify-center gap-4 backdrop-blur-sm">
+                            <button
+                              onClick={() => handleReuse(history)}
+                              className="w-10 h-10 bg-white/20 hover:bg-violet-500 rounded-full flex items-center justify-center text-white transition-all transform hover:scale-110"
+                              title="套用本次参数"
+                              aria-label="套用本次参数"
+                            >
+                              <RotateCcw className="w-5 h-5" />
+                            </button>
+                            <button
+                              disabled
+                              className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center text-white/60 cursor-not-allowed opacity-50"
+                              title="预览"
+                              aria-label="预览"
+                            >
+                              <Eye className="w-5 h-5" />
+                            </button>
+                            <button
+                              disabled
+                              className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center text-white/60 cursor-not-allowed opacity-50"
+                              title="下载"
+                              aria-label="下载"
+                            >
+                              <Download className="w-5 h-5" />
+                            </button>
+                          </div>
                           <div className="absolute top-2 right-2 flex flex-col gap-1 items-end pointer-events-none">
                             <span className="px-2 py-0.5 bg-black/40 text-white text-[10px] rounded backdrop-blur-md">
                               {history.templateName}

@@ -37,8 +37,8 @@ export class ImageApiClient {
   constructor() {
     this.baseUrl = process.env.GPT_IMAGE_API_BASE_URL || 'https://api.jyf.ai';
     this.apiKey = process.env.GPT_IMAGE_API_KEY || '';
-    this.timeoutMs = Number(process.env.IMAGE_API_TIMEOUT_MS || 180000);
-    this.maxRetries = Number(process.env.IMAGE_API_MAX_RETRIES || 1);
+    this.timeoutMs = Number(process.env.IMAGE_API_TIMEOUT_MS || 240000);
+    this.maxRetries = Number(process.env.IMAGE_API_MAX_RETRIES || 0);
 
     if (!this.apiKey) {
       throw new Error('缺少 GPT_IMAGE_API_KEY 环境变量');
@@ -51,6 +51,10 @@ export class ImageApiClient {
 
   private async delay(ms: number): Promise<void> {
     await new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  private isEditToolChoiceCompatibilityError(message: string): boolean {
+    return message.includes("Tool choice 'image_generation' not found in 'tools' parameter");
   }
 
   private async createEditForm(input: EditImageInput): Promise<FormData> {
@@ -153,6 +157,15 @@ export class ImageApiClient {
 
         if (!res.ok) {
           const text = await res.text();
+          if (res.status === 400 && this.isEditToolChoiceCompatibilityError(text)) {
+            console.warn('图片编辑接口与当前上游实现不兼容，降级为生成接口重试');
+            return this.generate({
+              prompt: input.prompt,
+              size: input.size,
+              quality: input.quality,
+              response_format: input.response_format
+            });
+          }
           const error = new Error(`图片编辑失败: ${res.status} ${text}`);
 
           if (attempt < this.maxRetries && this.isRetryableStatus(res.status)) {

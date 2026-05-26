@@ -5,6 +5,17 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
 
+function getUserFacingErrorMessage(error: unknown): string {
+  const rawMessage = error instanceof Error ? error.message : String(error || '');
+  const matchedStatus = rawMessage.match(/\b(5\d{2})\b/)?.[1];
+
+  if (matchedStatus === '524' || matchedStatus === '542') {
+    return '524：上游服务器繁忙，请稍后重试';
+  }
+
+  return '生成过程中遇到问题，请稍后重试';
+}
+
 async function persistGeneratedImage(
   result: any,
   outputPath: string
@@ -87,18 +98,7 @@ export async function POST(request: NextRequest) {
       : 0;
     const mainImageCount = config?.selectedUserImage ? 1 : 0;
     const totalImages = referenceImageCount + userImageCount;
-
-    // 优化后的校验逻辑：
-    // 1. 如果模式是 'edit' (图生图)，则必须提供至少一张图片（无论是预设的还是用户上传的）
-    // 2. 只有当 totalImages >= 2 时，底层 API 才会进入 edit 模式
-    if (mode === 'edit') {
-      if (totalImages === 0) {
-        return NextResponse.json(
-          { error: '编辑模式需要至少一张参考图片' },
-          { status: 400 }
-        );
-      }
-    }
+    const shouldUseEditMode = (mode === 'edit' && totalImages > 0) || totalImages >= 2;
 
     finalPrompt = promptTemplate;
     
@@ -180,9 +180,9 @@ export async function POST(request: NextRequest) {
     console.log('variableImageCount:', variableImageCount);
     console.log('mainImageCount:', mainImageCount);
     console.log('totalImages:', totalImages);
-    console.log('will use edit mode:', mode === 'edit' || totalImages >= 2);
+    console.log('will use edit mode:', shouldUseEditMode);
 
-    if (mode === 'edit' || totalImages >= 2) {
+    if (shouldUseEditMode) {
       console.log('=== 使用编辑模式 ===');
       const allImages: string[] = [];
       
@@ -316,7 +316,7 @@ export async function POST(request: NextRequest) {
           { 
             success: false,
             error: '图片生成失败',
-            message: isAdmin ? (error.message || '未知错误') : '生成过程中遇到问题，请稍后重试',
+            message: getUserFacingErrorMessage(error),
             // 不要在非管理员响应中包含 prompt 等敏感信息
             details: isAdmin ? {
               errorName: error.name,
