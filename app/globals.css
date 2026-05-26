@@ -27,20 +27,114 @@
 }
 
 .dark {
-  --background: #030712;
-  --foreground: #F8FAFC;
-  --muted: #1E293B;
-  --muted-foreground: #94A3B8;
-  --accent: #F8FAFC;
-  --accent-foreground: #0F172A;
-  --card: #0F172A;
-  --card-foreground: #F8FAFC;
-  --border: #1E293B;
-  --input: #1E293B;
-  --primary: #F8FAFC;
-  --primary-foreground: #0F172A;
-  --secondary: #1E293B;
-  --secondary-foreground: #F8FAFC;
+  --background: #101411;
+  --foreground: #F7F2EA;
+  --muted: #1A211C;
+  --muted-foreground: #B8B1A4;
+  --accent: #F6E7CB;
+  --accent-foreground: #17140F;
+  --card: #171C18;
+  --card-foreground: #F7F2EA;
+  --border: #283128;
+  --input: #283128;
+  --primary: #F3E1BD;
+  --primary-foreground: #17140F;
+  --secondary: #1D241F;
+  --secondary-foreground: #F7F2EA;
+  --haipablo-shell-glow-1: rgba(245, 158, 11, 0.13);
+  --haipablo-shell-glow-2: rgba(45, 212, 191, 0.12);
+  --haipablo-shell-bg-start: #121712;
+  --haipablo-shell-bg-mid: #171c18;
+  --haipablo-shell-bg-end: #0f120f;
+  --haipablo-topbar-start: rgba(24, 30, 25, 0.9);
+  --haipablo-topbar-end: rgba(17, 22, 18, 0.78);
+  --haipablo-topbar-border: rgba(255, 244, 214, 0.08);
+  --haipablo-topbar-shadow: 0 20px 48px -32px rgba(8, 10, 8, 0.6);
+  --haipablo-panel-start: rgba(25, 31, 27, 0.9);
+  --haipablo-panel-end: rgba(18, 23, 19, 0.8);
+  --haipablo-panel-border: rgba(245, 236, 217, 0.08);
+  --haipablo-panel-shadow: 0 30px 100px -48px rgba(8, 10, 8, 0.76);
+  --haipablo-subtle-start: rgba(27, 33, 28, 0.8);
+  --haipablo-subtle-end: rgba(18, 22, 19, 0.68);
+  --haipablo-subtle-border: rgba(245, 236, 217, 0.07);
+  --haipablo-modal-start: rgba(27, 33, 28, 0.94);
+  --haipablo-modal-end: rgba(18, 23, 19, 0.82);
+  --haipablo-modal-border: rgba(245, 236, 217, 0.08);
+  --haipablo-modal-shadow: 0 30px 90px -44px rgba(8, 10, 8, 0.8);
+}
+
+.dark[data-admin-theme='midnight-blue'] {
+  --background: #0b1020;
+  --foreground: #eef4ff;
+  --muted: #151c33;
+  --muted-foreground: #9db0d0;
+  --accent: #dce9ff;
+  --accent-foreground: #0d1528;
+  --card: #12192e;
+  --card-foreground: #eef4ff;
+  --border: #27314f;
+  --input: #27314f;
+  --primary: #dbe7ff;
+  --primary-foreground: #0d1528;
+  --secondary: #151d34;
+  --secondary-foreground: #eef4ff;
+  --haipablo-shell-glow-1: rgba(96, 165, 250, 0.17);
+  --haipablo-shell-glow-2: rgba(129, 140, 248, 0.14);
+  --haipablo-shell-bg-start: #09101d;
+  --haipablo-shell-bg-mid: #10182a;
+  --haipablo-shell-bg-end: #0a0f1a;
+  --haipablo-topbar-start: rgba(15, 23, 42, 0.92);
+  --haipablo-topbar-end: rgba(12, 18, 32, 0.8);
+  --haipablo-topbar-border: rgba(219, 234, 254, 0.08);
+  --haipablo-topbar-shadow: 0 20px 48px -32px rgba(2, 6, 23, 0.66);
+  --haipablo-panel-start: rgba(17, 24, 39, 0.92);
+  --haipablo-panel-end: rgba(12, 18, 32, 0.82);
+  --haipablo-panel-border: rgba(219, 234, 254, 0.08);
+  --haipablo-panel-shadow: 0 30px 100px -48px rgba(2, 6, 23, 0.8);
+  --haipablo-subtle-start: rgba(19, 27, 46, 0.84);
+  --haipablo-subtle-end: rgba(12, 18, 32, 0.72);
+  --haipablo-subtle-border: rgba(191, 219, 254, 0.08);
+  --haipablo-modal-start: rgba(18, 26, 44, 0.95);
+  --haipablo-modal-end: rgba(12, 18, 32, 0.84);
+  --haipablo-modal-border: rgba(219, 234, 254, 0.08);
+  --haipablo-modal-shadow: 0 30px 90px -44px rgba(2, 6, 23, 0.82);
+}
+
+.dark[data-admin-theme='plum-rose'] {
+  --background: #171116;
+  --foreground: #faedf1;
+  --muted: #241821;
+  --muted-foreground: #c8aebc;
+  --accent: #f6dce6;
+  --accent-foreground: #23141d;
+  --card: #20161d;
+  --card-foreground: #faedf1;
+  --border: #392533;
+  --input: #392533;
+  --primary: #f4dbe5;
+  --primary-foreground: #23141d;
+  --secondary: #261923;
+  --secondary-foreground: #faedf1;
+  --haipablo-shell-glow-1: rgba(251, 113, 133, 0.16);
+  --haipablo-shell-glow-2: rgba(192, 132, 252, 0.13);
+  --haipablo-shell-bg-start: #1a1217;
+  --haipablo-shell-bg-mid: #211620;
+  --haipablo-shell-bg-end: #130d12;
+  --haipablo-topbar-start: rgba(35, 23, 31, 0.92);
+  --haipablo-topbar-end: rgba(24, 16, 22, 0.8);
+  --haipablo-topbar-border: rgba(250, 237, 241, 0.08);
+  --haipablo-topbar-shadow: 0 20px 48px -32px rgba(12, 6, 10, 0.62);
+  --haipablo-panel-start: rgba(35, 23, 31, 0.92);
+  --haipablo-panel-end: rgba(24, 16, 22, 0.82);
+  --haipablo-panel-border: rgba(250, 237, 241, 0.08);
+  --haipablo-panel-shadow: 0 30px 100px -48px rgba(12, 6, 10, 0.8);
+  --haipablo-subtle-start: rgba(42, 26, 36, 0.82);
+  --haipablo-subtle-end: rgba(24, 16, 22, 0.72);
+  --haipablo-subtle-border: rgba(250, 237, 241, 0.08);
+  --haipablo-modal-start: rgba(36, 24, 33, 0.95);
+  --haipablo-modal-end: rgba(24, 16, 22, 0.84);
+  --haipablo-modal-border: rgba(250, 237, 241, 0.08);
+  --haipablo-modal-shadow: 0 30px 90px -44px rgba(12, 6, 10, 0.84);
 }
 
 * {
@@ -100,7 +194,7 @@ body {
   }
 
   .dark .glass {
-    background: rgba(15, 23, 42, 0.8);
+    background: rgba(23, 28, 24, 0.82);
     border: 1px solid rgba(255, 255, 255, 0.1);
   }
 
@@ -116,7 +210,7 @@ body {
   }
 
   .dark .text-gradient {
-    background: linear-gradient(135deg, #F8FAFC 0%, #E2E8F0 100%);
+    background: linear-gradient(135deg, #fff4d9 0%, #d8f0d6 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
@@ -147,8 +241,9 @@ body {
 
   .dark .haipablo-static-shell {
     background:
-      radial-gradient(circle at top, rgba(99, 102, 241, 0.18), transparent 28%),
-      linear-gradient(180deg, #050816 0%, #0b1120 56%, #09090f 100%);
+      radial-gradient(circle at top, var(--haipablo-shell-glow-1), transparent 24%),
+      radial-gradient(circle at 82% 18%, var(--haipablo-shell-glow-2), transparent 26%),
+      linear-gradient(180deg, var(--haipablo-shell-bg-start) 0%, var(--haipablo-shell-bg-mid) 52%, var(--haipablo-shell-bg-end) 100%);
   }
 
   .haipablo-topbar {
@@ -158,9 +253,9 @@ body {
   }
 
   .dark .haipablo-topbar {
-    background: linear-gradient(180deg, rgba(17, 24, 39, 0.84), rgba(15, 23, 42, 0.72));
-    border-color: rgba(255, 255, 255, 0.08);
-    box-shadow: 0 20px 48px -32px rgba(15, 23, 42, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    background: linear-gradient(180deg, var(--haipablo-topbar-start), var(--haipablo-topbar-end));
+    border-color: var(--haipablo-topbar-border);
+    box-shadow: var(--haipablo-topbar-shadow), inset 0 1px 0 rgba(255, 244, 214, 0.06);
   }
 
   .haipablo-glass-panel {
@@ -172,9 +267,9 @@ body {
   }
 
   .dark .haipablo-glass-panel {
-    background: linear-gradient(180deg, rgba(17, 24, 39, 0.88), rgba(15, 23, 42, 0.74));
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    box-shadow: 0 30px 100px -48px rgba(15, 23, 42, 0.72), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    background: linear-gradient(180deg, var(--haipablo-panel-start), var(--haipablo-panel-end));
+    border: 1px solid var(--haipablo-panel-border);
+    box-shadow: var(--haipablo-panel-shadow), inset 0 1px 0 rgba(255, 244, 214, 0.05);
   }
 
   .haipablo-glass-subtle {
@@ -186,9 +281,9 @@ body {
   }
 
   .dark .haipablo-glass-subtle {
-    background: linear-gradient(180deg, rgba(17, 24, 39, 0.78), rgba(15, 23, 42, 0.62));
-    border: 1px solid rgba(255, 255, 255, 0.07);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    background: linear-gradient(180deg, var(--haipablo-subtle-start), var(--haipablo-subtle-end));
+    border: 1px solid var(--haipablo-subtle-border);
+    box-shadow: inset 0 1px 0 rgba(255, 244, 214, 0.04);
   }
 
   .haipablo-ghost-button {
@@ -218,9 +313,9 @@ body {
   }
 
   .dark .haipablo-modal-panel {
-    background: linear-gradient(180deg, rgba(17, 24, 39, 0.92), rgba(15, 23, 42, 0.78));
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    box-shadow: 0 30px 90px -44px rgba(15, 23, 42, 0.78), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    background: linear-gradient(180deg, var(--haipablo-modal-start), var(--haipablo-modal-end));
+    border: 1px solid var(--haipablo-modal-border);
+    box-shadow: var(--haipablo-modal-shadow), inset 0 1px 0 rgba(255, 244, 214, 0.05);
   }
 }
 

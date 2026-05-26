@@ -4,6 +4,13 @@ import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import { UserAvatar } from '@/components/UserAvatar';
+import { AdminThemeModal } from '@/components/AdminThemeModal';
+import {
+  applyAdminColorTheme,
+  getStoredAdminColorTheme,
+  persistAdminColorTheme,
+  type AdminColorTheme
+} from '@/lib/admin-color-theme';
 import { 
   ArrowLeft, 
   Layers, 
@@ -25,6 +32,7 @@ import {
   Users,
   History,
   LogOut,
+  Settings2,
   Moon,
   Sun
 } from 'lucide-react';
@@ -189,6 +197,8 @@ export default function TemplatesPage() {
   });
   const [saving, setSaving] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [showAdminThemeModal, setShowAdminThemeModal] = useState(false);
+  const [adminColorTheme, setAdminColorTheme] = useState<AdminColorTheme>('forest-amber');
   const featureGroupsScrollRef = useRef<HTMLDivElement | null>(null);
   const templatesScrollRef = useRef<HTMLDivElement | null>(null);
   const router = useRouter();
@@ -206,6 +216,9 @@ export default function TemplatesPage() {
 
   useEffect(() => {
     const savedDarkMode = localStorage.getItem('darkMode');
+    const savedAdminTheme = getStoredAdminColorTheme();
+    setAdminColorTheme(savedAdminTheme);
+    applyAdminColorTheme(savedAdminTheme);
     if (savedDarkMode === 'true') {
       setDarkMode(true);
       document.documentElement.classList.add('dark');
@@ -260,6 +273,12 @@ export default function TemplatesPage() {
     setDarkMode(!darkMode);
     localStorage.setItem('darkMode', (!darkMode).toString());
     document.documentElement.classList.toggle('dark');
+  };
+
+  const handleAdminColorThemeChange = (theme: AdminColorTheme) => {
+    setAdminColorTheme(theme);
+    persistAdminColorTheme(theme);
+    applyAdminColorTheme(theme);
   };
 
   const handleToggleBatchMode = () => {
@@ -582,26 +601,34 @@ export default function TemplatesPage() {
 
   if (loading) {
     return (
-      <div className={`haipablo-static-shell min-h-screen flex items-center justify-center transition-colors duration-500 ${darkMode ? 'bg-gray-950' : ''}`}>
+      <div className={`haipablo-static-shell min-h-screen flex items-center justify-center transition-colors duration-500 ${darkMode ? 'bg-[#121612]' : ''}`}>
         <Loader2 className={`w-12 h-12 animate-spin ${darkMode ? 'text-white' : 'text-gray-800'}`} />
       </div>
     );
   }
 
   return (
-    <div className={`haipablo-static-shell min-h-screen transition-colors duration-500 lg:flex lg:h-screen lg:flex-col lg:overflow-hidden ${darkMode ? 'bg-gray-950' : ''}`}>
+    <div className={`haipablo-static-shell min-h-screen transition-colors duration-500 lg:flex lg:h-screen lg:flex-col lg:overflow-hidden ${darkMode ? 'bg-[#121612]' : ''}`}>
+      <AdminThemeModal
+        darkMode={darkMode}
+        isOpen={showAdminThemeModal}
+        currentTheme={adminColorTheme}
+        onClose={() => setShowAdminThemeModal(false)}
+        onThemeChange={handleAdminColorThemeChange}
+        onOpenAdminUsers={() => router.push('/admin/users')}
+      />
       <header className="z-50 px-4 pt-4 transition-colors duration-500 lg:shrink-0 sm:px-6 lg:px-8">
         <div
           className={`mx-auto flex w-[min(96vw,1880px)] items-center relative rounded-[1.75rem] px-6 py-4 shadow-[0_10px_40px_rgba(10,10,30,0.18),inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-2xl 2xl:px-8 ${
             darkMode
-              ? 'border border-white/[0.08] bg-[linear-gradient(90deg,rgba(255,255,255,0.05),rgba(255,255,255,0.1),rgba(255,255,255,0.05))]'
+              ? 'border border-[#f5ecd9]/10 bg-[linear-gradient(90deg,rgba(245,236,217,0.06),rgba(245,236,217,0.12),rgba(193,245,214,0.06))] shadow-[0_12px_42px_rgba(8,10,8,0.28),inset_0_1px_0_rgba(255,244,214,0.06)]'
               : 'border border-black/[0.06] bg-[linear-gradient(90deg,rgba(255,255,255,0.78),rgba(255,255,255,0.92),rgba(255,255,255,0.78))] shadow-[0_10px_40px_rgba(15,23,42,0.08),inset_0_1px_0_rgba(255,255,255,0.7)]'
           }`}
         >
           <div className="flex items-center gap-4">
             <button 
               onClick={() => router.push('/')}
-              className={`p-2 rounded-lg transition-colors ${darkMode ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-100 text-gray-700'}`}
+              className={`p-2 rounded-lg transition-colors ${darkMode ? 'text-stone-400 hover:bg-white/[0.07] hover:text-stone-100' : 'hover:bg-gray-100 text-gray-700'}`}
             >
               <ArrowLeft className="w-5 h-5" />
             </button>
@@ -625,7 +652,7 @@ export default function TemplatesPage() {
             {user && (
               <div className={`hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full border ${
                 darkMode 
-                  ? 'bg-white text-gray-950 border-white/20' 
+                  ? 'bg-[#f4ede0] text-[#2b241d] border-[#f4ede0]/25' 
                   : 'bg-gray-950 text-white border-gray-900'
               }`}>
                 <Sparkles className="w-4 h-4" />
@@ -636,7 +663,7 @@ export default function TemplatesPage() {
               onClick={toggleDarkMode}
               className={`p-2.5 rounded-xl transition-all duration-300 group ${
                 darkMode 
-                  ? 'bg-white/[0.08] hover:bg-white/[0.14] text-white hover:text-white hover:-translate-y-0.5 hover:shadow-[0_10px_24px_-16px_rgba(255,255,255,0.55)]' 
+                  ? 'bg-[#f5ecd9]/10 hover:bg-[#f5ecd9]/16 text-[#f7f2ea] hover:text-white hover:-translate-y-0.5 hover:shadow-[0_10px_24px_-16px_rgba(245,236,217,0.35)]' 
                   : 'bg-gray-900 hover:bg-black text-white hover:text-white hover:-translate-y-0.5 hover:shadow-[0_10px_24px_-16px_rgba(15,23,42,0.45)]'
               }`}
             >
@@ -663,14 +690,14 @@ export default function TemplatesPage() {
                       exit={{ opacity: 0, y: -10 }}
                       className={`haipablo-modal-panel absolute right-0 top-full mt-2 w-56 rounded-xl shadow-lg border overflow-hidden z-50 transition-colors duration-500 ${
                         darkMode 
-                          ? 'bg-gray-900 border-white/10' 
+                          ? 'bg-[#1b211c]/95 border-[#f5ecd9]/10' 
                           : 'bg-white border-white/60'
                       }`}
                       onClick={() => setShowUserMenu(false)}
                     >
                       <div className={`p-4 border-b transition-colors duration-500 ${
                         darkMode 
-                          ? 'bg-white/[0.04] border-white/10' 
+                          ? 'bg-[#f5ecd9]/[0.035] border-[#f5ecd9]/10' 
                           : 'bg-white/45 border-white/60'
                       }`}>
                         <div className="flex items-center gap-3">
@@ -683,7 +710,7 @@ export default function TemplatesPage() {
                         <div className="mt-3 flex items-center gap-2">
                           <span className={`px-2 py-1 text-xs font-medium rounded-full flex items-center gap-1 w-fit ${
                             darkMode 
-                              ? 'bg-violet-900/50 text-violet-200 border border-violet-800' 
+                              ? 'bg-amber-950/40 text-amber-200 border border-amber-800/60' 
                               : 'bg-violet-50 text-violet-700 border border-violet-100'
                           }`}>
                             <Sparkles className="w-3 h-3" />
@@ -692,7 +719,7 @@ export default function TemplatesPage() {
                           {isAdmin && (
                             <span className={`px-2 py-1 text-xs font-medium rounded-full flex items-center gap-1 w-fit ${
                               darkMode 
-                                ? 'bg-amber-900/50 text-amber-400' 
+                                ? 'bg-amber-950/45 text-amber-300' 
                                 : 'bg-amber-100 text-amber-700'
                             }`}>
                               <Shield className="w-3 h-3" />
@@ -702,7 +729,7 @@ export default function TemplatesPage() {
                           {isSubAdmin && (
                             <span className={`px-2 py-1 text-xs font-medium rounded-full flex items-center gap-1 w-fit ${
                               darkMode 
-                                ? 'bg-blue-900/50 text-blue-400' 
+                                ? 'bg-teal-950/45 text-teal-300' 
                                 : 'bg-blue-100 text-blue-700'
                             }`}>
                               <Shield className="w-3 h-3" />
@@ -717,7 +744,7 @@ export default function TemplatesPage() {
                           onClick={() => router.push('/history')}
                           className={`w-full px-4 py-2.5 text-left rounded-lg transition-colors flex items-center gap-3 ${
                             darkMode 
-                              ? 'text-gray-300 hover:bg-white/[0.06] hover:text-white' 
+                              ? 'text-stone-300 hover:bg-white/[0.06] hover:text-white' 
                               : 'text-gray-700 hover:bg-white/80 hover:text-gray-900'
                           }`}
                         >
@@ -727,10 +754,27 @@ export default function TemplatesPage() {
 
                         {canManage && (
                           <button
+                            onClick={() => {
+                              setShowUserMenu(false);
+                              setShowAdminThemeModal(true);
+                            }}
+                            className={`w-full px-4 py-2.5 text-left rounded-lg transition-colors flex items-center gap-3 mt-1 ${
+                              darkMode
+                                ? 'text-stone-300 hover:bg-white/[0.06] hover:text-white'
+                                : 'text-gray-700 hover:bg-white/80 hover:text-gray-900'
+                            }`}
+                          >
+                            <Settings2 className="w-4 h-4" />
+                            后台管理
+                          </button>
+                        )}
+
+                        {canManage && (
+                          <button
                             onClick={() => router.push('/admin/users')}
                             className={`w-full px-4 py-2.5 text-left rounded-lg transition-colors flex items-center gap-3 mt-1 ${
                               darkMode 
-                                ? 'text-amber-400 hover:bg-amber-950/30' 
+                                ? 'text-amber-300 hover:bg-amber-950/30' 
                                 : 'text-amber-700 hover:bg-amber-50/80'
                             }`}
                           >
@@ -739,7 +783,7 @@ export default function TemplatesPage() {
                           </button>
                         )}
 
-                            <div className={`my-2 border-t transition-colors duration-500 ${darkMode ? 'border-white/10' : 'border-white/55'}`} />
+                        <div className={`my-2 border-t transition-colors duration-500 ${darkMode ? 'border-white/10' : 'border-white/55'}`} />
 
                         <button
                           onClick={handleLogout}
@@ -799,10 +843,10 @@ export default function TemplatesPage() {
                         className={`w-full p-4 rounded-xl flex items-center gap-3 transition-all ${
                           isSelected 
                             ? darkMode
-                              ? 'bg-[linear-gradient(180deg,rgba(255,255,255,0.12),rgba(255,255,255,0.06))] text-white shadow-lg'
+                              ? 'bg-[linear-gradient(180deg,rgba(245,236,217,0.16),rgba(193,245,214,0.07))] text-white shadow-lg shadow-black/20'
                               : 'bg-[linear-gradient(180deg,rgba(15,23,42,0.92),rgba(30,41,59,0.88))] text-white shadow-lg'
                             : darkMode
-                              ? 'hover:bg-white/[0.06] text-gray-300'
+                              ? 'hover:bg-white/[0.05] text-stone-300'
                               : 'hover:bg-white/75 text-gray-700'
                         }`}
                       >
@@ -846,7 +890,7 @@ export default function TemplatesPage() {
                                   ? 'bg-white/20 hover:bg-white/30 text-white' 
                                   : 'bg-white/20 hover:bg-white/30 text-white'
                                 : darkMode 
-                                  ? 'bg-white/[0.08] hover:bg-white/[0.12] text-gray-300' 
+                                  ? 'bg-white/[0.07] hover:bg-white/[0.11] text-stone-300' 
                                   : 'bg-white/80 hover:bg-white text-gray-600'
                             }`}
                             title="编辑分类"
@@ -864,7 +908,7 @@ export default function TemplatesPage() {
                                   ? 'bg-white/20 hover:bg-red-500/50 text-white hover:text-white' 
                                   : 'bg-white/20 hover:bg-red-500/50 text-white hover:text-white'
                                 : darkMode 
-                                  ? 'bg-white/[0.08] hover:bg-red-900/30 text-gray-300 hover:text-red-400' 
+                                  ? 'bg-white/[0.07] hover:bg-red-950/30 text-stone-300 hover:text-red-300' 
                                   : 'bg-white/80 hover:bg-red-50 text-gray-600 hover:text-red-600'
                             }`}
                             title="删除分类"
@@ -885,12 +929,12 @@ export default function TemplatesPage() {
                     onClick={handleAddGroup}
                     className={`w-full p-4 rounded-xl flex items-center gap-3 transition-all mb-2 border-2 border-dashed ${
                       darkMode 
-                        ? 'hover:bg-white/[0.05] text-gray-400 border-white/10 hover:border-white/15' 
+                        ? 'hover:bg-white/[0.04] text-stone-400 border-[#f5ecd9]/10 hover:border-[#f5ecd9]/15' 
                         : 'hover:bg-white/75 text-gray-600 border-white/60 hover:border-white/90'
                     }`}
                   >
-                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${darkMode ? 'bg-white/[0.08]' : 'bg-white/80'}`}>
-                      <FolderPlus className={`w-5 h-5 ${darkMode ? 'text-gray-300' : 'text-gray-600'}`} />
+                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${darkMode ? 'bg-white/[0.07]' : 'bg-white/80'}`}>
+                      <FolderPlus className={`w-5 h-5 ${darkMode ? 'text-stone-300' : 'text-gray-600'}`} />
                     </div>
                     <div className="flex-1 text-left">
                       <div className="font-medium">添加分类</div>
@@ -934,10 +978,10 @@ export default function TemplatesPage() {
                       className={`px-4 py-2 rounded-lg transition-colors flex items-center gap-2 border ${
                         batchMode 
                           ? darkMode
-                            ? 'bg-white text-gray-950 border-white/20 hover:bg-gray-100'
+                            ? 'bg-[#f4ede0] text-[#2b241d] border-[#f4ede0]/25 hover:bg-[#fbf6ed]'
                             : 'bg-gray-950 text-white border-gray-900 hover:bg-gray-800'
                           : darkMode
-                            ? 'bg-gray-900 text-white border-white/10 hover:bg-gray-800'
+                            ? 'bg-[#1d231e] text-[#f7f2ea] border-[#f5ecd9]/10 hover:bg-[#252c26]'
                             : 'bg-white text-gray-900 border-gray-300 hover:bg-gray-100'
                       }`}
                     >
@@ -949,7 +993,7 @@ export default function TemplatesPage() {
                         onClick={handleNewTemplate}
                         className={`px-4 py-2 rounded-lg transition-colors flex items-center gap-2 ${
                           darkMode 
-                            ? 'bg-white text-gray-900 hover:bg-gray-200' 
+                            ? 'bg-[#f4ede0] text-[#2b241d] hover:bg-[#fbf6ed]' 
                             : 'bg-gray-900 text-white hover:bg-gray-800'
                         }`}
                       >
@@ -977,7 +1021,7 @@ export default function TemplatesPage() {
                           onClick={handleSelectAll}
                           className={`px-4 py-1.5 rounded-lg transition-colors flex items-center gap-2 text-sm ${
                             darkMode 
-                              ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' 
+                              ? 'bg-[#202722] text-stone-300 hover:bg-[#283029]' 
                               : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                           }`}
                         >
@@ -1008,21 +1052,21 @@ export default function TemplatesPage() {
                             batchMode 
                               ? selectedTemplates.includes(template.id)
                                 ? darkMode
-                                  ? 'border-green-500/70 bg-green-950/25'
+                                  ? 'border-emerald-400/60 bg-emerald-950/18'
                                   : 'border-green-400/80 bg-emerald-50/70'
                                 : darkMode
-                                  ? 'border-white/10 hover:border-white/15 hover:shadow-lg bg-[linear-gradient(180deg,rgba(255,255,255,0.07),rgba(255,255,255,0.04))]'
-                                  : 'border-white/65 hover:border-white/90 hover:shadow-lg bg-[linear-gradient(180deg,rgba(255,255,255,0.9),rgba(255,255,255,0.72))]'
+                                  ? 'border-[#f5ecd9]/10 hover:border-[#f5ecd9]/15 hover:shadow-lg bg-[linear-gradient(180deg,rgba(245,236,217,0.08),rgba(193,245,214,0.04))]'
+                                  : 'border-slate-200/85 shadow-[0_10px_30px_-22px_rgba(15,23,42,0.35),inset_0_1px_0_rgba(255,255,255,0.95)] hover:border-slate-300 hover:shadow-lg bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(255,255,255,0.76))]'
                               : darkMode
-                                ? 'border-white/10 hover:border-white/15 hover:shadow-lg bg-[linear-gradient(180deg,rgba(255,255,255,0.07),rgba(255,255,255,0.04))]'
-                                : 'border-white/65 hover:border-white/90 hover:shadow-lg bg-[linear-gradient(180deg,rgba(255,255,255,0.9),rgba(255,255,255,0.72))]'
+                                ? 'border-[#f5ecd9]/10 hover:border-[#f5ecd9]/15 hover:shadow-lg bg-[linear-gradient(180deg,rgba(245,236,217,0.08),rgba(193,245,214,0.04))]'
+                                : 'border-slate-200/85 shadow-[0_10px_30px_-22px_rgba(15,23,42,0.35),inset_0_1px_0_rgba(255,255,255,0.95)] hover:border-slate-300 hover:shadow-lg bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(255,255,255,0.76))]'
                           }`}
                         >
-                          <div className={`absolute inset-0 transition-opacity ${darkMode ? 'bg-white/5 opacity-0 group-hover:opacity-100' : 'bg-slate-200/20 opacity-0 group-hover:opacity-100'}`} />
+                          <div className={`absolute inset-0 transition-opacity ${darkMode ? 'bg-[linear-gradient(180deg,rgba(255,244,214,0.05),rgba(193,245,214,0.04))] opacity-0 group-hover:opacity-100' : 'bg-slate-200/20 opacity-0 group-hover:opacity-100'}`} />
                           {template.enabled === false && (batchMode || !canManage) && (
                             <div
                               className={`absolute right-3 top-3 z-10 rounded-lg border px-2 py-1 ${
-                                darkMode ? 'border-white/10 bg-slate-950/80 text-gray-400' : 'border-white/75 bg-white/85 text-gray-500'
+                                darkMode ? 'border-[#f5ecd9]/10 bg-[#161b17]/85 text-stone-400' : 'border-white/75 bg-white/85 text-gray-500'
                               }`}
                               title="已关闭"
                               onClick={(e) => e.stopPropagation()}
@@ -1056,7 +1100,7 @@ export default function TemplatesPage() {
                                   {template.enabled === false && (
                                     <div
                                       className={`rounded-lg border px-2 py-1 ${
-                                        darkMode ? 'border-white/10 bg-slate-950/60 text-gray-400' : 'border-white/75 bg-white/80 text-gray-500'
+                                        darkMode ? 'border-[#f5ecd9]/10 bg-[#171c18]/70 text-stone-400' : 'border-white/75 bg-white/80 text-gray-500'
                                       }`}
                                       title="已关闭"
                                       onClick={(e) => e.stopPropagation()}
@@ -1068,7 +1112,7 @@ export default function TemplatesPage() {
                                     onClick={(e) => handleEditTemplate(e, template)}
                                     className={`p-1.5 rounded-lg transition-colors ${
                                       darkMode 
-                                        ? 'hover:bg-white/[0.08] text-gray-400 hover:text-white' 
+                                        ? 'hover:bg-white/[0.08] text-stone-400 hover:text-white' 
                                         : 'hover:bg-white/80 text-gray-500 hover:text-gray-700'
                                     }`}
                                     title="编辑模板"
@@ -1079,7 +1123,7 @@ export default function TemplatesPage() {
                                     onClick={(e) => handleDeleteTemplate(e, template)}
                                     className={`p-1.5 rounded-lg transition-colors ${
                                       darkMode 
-                                        ? 'hover:bg-red-950/30 text-gray-400 hover:text-red-400' 
+                                        ? 'hover:bg-red-950/30 text-stone-400 hover:text-red-300' 
                                         : 'hover:bg-red-50/80 text-gray-500 hover:text-red-600'
                                     }`}
                                     title="删除模板"
@@ -1145,7 +1189,7 @@ export default function TemplatesPage() {
                         animate={{ opacity: 1, y: 0 }}
                         className={`haipablo-glass-subtle mt-6 p-4 rounded-2xl border transition-colors duration-500 ${
                           darkMode 
-                            ? 'bg-green-950/20 border-green-700/40' 
+                            ? 'bg-[linear-gradient(90deg,rgba(5,46,22,0.35),rgba(6,78,59,0.18))] border-emerald-700/35' 
                             : 'bg-gradient-to-r from-green-50/80 to-emerald-50/80 border-white/70'
                         }`}
                       >
@@ -1178,7 +1222,7 @@ export default function TemplatesPage() {
                         onClick={handleNewTemplate}
                         className={`px-6 py-3 rounded-lg transition-colors inline-flex items-center gap-2 ${
                           darkMode 
-                            ? 'bg-white text-gray-900 hover:bg-gray-200' 
+                            ? 'bg-[#f4ede0] text-[#2b241d] hover:bg-[#fbf6ed]' 
                             : 'bg-gray-900 text-white hover:bg-gray-800'
                         }`}
                       >

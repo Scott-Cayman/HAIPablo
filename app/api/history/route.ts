@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { getCurrentUser } from '@/lib/auth';
 
 export async function GET(request: NextRequest) {
   try {
@@ -114,6 +115,52 @@ export async function POST(request: NextRequest) {
         error: '保存历史记录失败',
         message: '处理请求时遇到问题' 
       },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const currentUser = await getCurrentUser();
+
+    if (!currentUser) {
+      return NextResponse.json(
+        { error: '未登录' },
+        { status: 401 }
+      );
+    }
+
+    const body = await request.json();
+    const historyIds = Array.isArray(body?.historyIds)
+      ? body.historyIds.filter((id: unknown): id is string => typeof id === 'string' && id.length > 0)
+      : [];
+
+    if (historyIds.length === 0) {
+      return NextResponse.json(
+        { error: '缺少要删除的失败任务 ID' },
+        { status: 400 }
+      );
+    }
+
+    const result = await prisma.generationHistory.deleteMany({
+      where: {
+        id: {
+          in: historyIds
+        },
+        userId: currentUser.userId,
+        status: 'failed'
+      }
+    });
+
+    return NextResponse.json({
+      success: true,
+      deletedCount: result.count
+    });
+  } catch (error) {
+    console.error('删除失败任务失败:', error);
+    return NextResponse.json(
+      { error: '删除失败任务失败' },
       { status: 500 }
     );
   }

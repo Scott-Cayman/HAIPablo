@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { UserAvatar } from '@/components/UserAvatar';
 import { AnnotationEditorModal } from '@/components/AnnotationEditorModal';
+import { AdminThemeModal } from '@/components/AdminThemeModal';
 import { 
   ArrowLeft, 
   Upload,
@@ -45,6 +46,12 @@ import {
   buildThreeDAIRenderPrompt,
   type SpecialTemplateOption
 } from '@/lib/special-template-presets';
+import {
+  applyAdminColorTheme,
+  getStoredAdminColorTheme,
+  persistAdminColorTheme,
+  type AdminColorTheme
+} from '@/lib/admin-color-theme';
 
 const SIZE_OPTIONS = [
   { value: 'auto', label: '自动' },
@@ -211,7 +218,7 @@ function ActionIconButton({
       disabled={disabled}
       className={`inline-flex h-9 w-9 items-center justify-center rounded-xl border transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-40 ${
         darkMode
-          ? 'border-gray-700 bg-gray-800 text-gray-200 hover:bg-gray-700 hover:text-white'
+          ? 'border-[#334034] bg-[#222923] text-stone-200 hover:bg-[#2a332b] hover:text-white'
           : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-100 hover:text-gray-900'
       } ${className}`}
     >
@@ -275,6 +282,8 @@ export default function GeneratePage() {
   const [user, setUser] = useState<any>(null);
   const [darkMode, setDarkMode] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [showAdminThemeModal, setShowAdminThemeModal] = useState(false);
+  const [adminColorTheme, setAdminColorTheme] = useState<AdminColorTheme>('forest-amber');
   const [loading, setLoading] = useState(true);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [selectedPresetImage, setSelectedPresetImage] = useState<ReferenceImage | null>(null);
@@ -307,6 +316,8 @@ export default function GeneratePage() {
   const [templateHistories, setTemplateHistories] = useState<GenerationHistoryItem[]>([]);
   const [loadingTemplateHistories, setLoadingTemplateHistories] = useState(false);
   const [historyPanelOpen, setHistoryPanelOpen] = useState(false);
+  const [deletingFailedHistories, setDeletingFailedHistories] = useState(false);
+  const [deleteFailedModalOpen, setDeleteFailedModalOpen] = useState(false);
 
   // 预览图片缩放和拖拽状态
   const [zoomScale, setZoomScale] = useState(1);
@@ -321,6 +332,9 @@ export default function GeneratePage() {
 
   useEffect(() => {
     const savedDarkMode = localStorage.getItem('darkMode');
+    const savedAdminTheme = getStoredAdminColorTheme();
+    setAdminColorTheme(savedAdminTheme);
+    applyAdminColorTheme(savedAdminTheme);
     if (savedDarkMode === 'true') {
       setDarkMode(true);
       document.documentElement.classList.add('dark');
@@ -386,6 +400,12 @@ export default function GeneratePage() {
     setDarkMode(!darkMode);
     localStorage.setItem('darkMode', (!darkMode).toString());
     document.documentElement.classList.toggle('dark');
+  };
+
+  const handleAdminColorThemeChange = (theme: AdminColorTheme) => {
+    setAdminColorTheme(theme);
+    persistAdminColorTheme(theme);
+    applyAdminColorTheme(theme);
   };
 
   const fetchTemplate = async () => {
@@ -1483,6 +1503,60 @@ export default function GeneratePage() {
     router.push(`/generate?templateId=${nextTemplateId}&historyId=${item.id}`);
   };
 
+  const handleOpenDeleteFailedHistoriesModal = () => {
+    const failedHistoryIds = templateHistories
+      .filter((item) => item.status === 'failed')
+      .map((item) => item.id);
+
+    if (failedHistoryIds.length === 0) {
+      setError('当前没有失败任务可删除');
+      return;
+    }
+
+    setDeleteFailedModalOpen(true);
+  };
+
+  const handleConfirmDeleteFailedHistories = async () => {
+    const failedHistoryIds = templateHistories
+      .filter((item) => item.status === 'failed')
+      .map((item) => item.id);
+
+    if (failedHistoryIds.length === 0) {
+      setDeleteFailedModalOpen(false);
+      setError('当前没有失败任务可删除');
+      return;
+    }
+
+    setDeletingFailedHistories(true);
+    setError('');
+
+    try {
+      const response = await fetch('/api/history', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          historyIds: failedHistoryIds
+        })
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(data.error || '删除失败任务失败');
+      }
+
+      setDeleteFailedModalOpen(false);
+      await refreshCurrentTemplateHistories();
+    } catch (deleteError: any) {
+      console.error('删除失败任务失败:', deleteError);
+      setError(deleteError?.message || '删除失败任务失败，请稍后重试');
+    } finally {
+      setDeletingFailedHistories(false);
+    }
+  };
+
   const handleToggleReferenceBatchMode = () => {
     if (!supportsReferenceBatch || isAnyGenerating) {
       return;
@@ -1527,6 +1601,7 @@ export default function GeneratePage() {
     : (hasMainVisualUpload ? allImages.length > 0 : true) && !missingRequiredVariable;
   const isAnyGenerating = generating || batchGenerating;
   const successfulBatchResults = batchResults.filter((item) => item.result?.imageUrl);
+  const failedTemplateHistories = templateHistories.filter((item) => item.status === 'failed');
   const specialTemplateSections = isSpecialThreeDRender
     ? template?.variables?.reduce<Array<{
         title: string;
@@ -1556,7 +1631,7 @@ export default function GeneratePage() {
 
   if (loading) {
     return (
-      <div className={`haipablo-static-shell min-h-screen flex items-center justify-center transition-colors duration-500 ${darkMode ? 'bg-gray-950' : ''}`}>
+      <div className={`haipablo-static-shell min-h-screen flex items-center justify-center transition-colors duration-500 ${darkMode ? 'bg-[#121612]' : ''}`}>
         <div className="text-center">
           <Loader2 className={`w-12 h-12 animate-spin mx-auto mb-4 ${darkMode ? 'text-white' : 'text-gray-800'}`} />
           <p className={darkMode ? 'text-gray-400' : 'text-gray-600'}>加载模板中...</p>
@@ -1566,7 +1641,7 @@ export default function GeneratePage() {
   }
 
   return (
-    <div className={`haipablo-static-shell h-screen overflow-hidden transition-colors duration-500 ${darkMode ? 'bg-gray-950' : ''}`}>
+    <div className={`haipablo-static-shell h-screen overflow-hidden transition-colors duration-500 ${darkMode ? 'bg-[#121612]' : ''}`}>
       <AnnotationEditorModal
         isOpen={!!annotationEditorTarget}
         darkMode={darkMode}
@@ -1577,6 +1652,135 @@ export default function GeneratePage() {
         }}
         onSave={handleSaveAnnotatedImage}
       />
+      <AdminThemeModal
+        darkMode={darkMode}
+        isOpen={showAdminThemeModal}
+        currentTheme={adminColorTheme}
+        onClose={() => setShowAdminThemeModal(false)}
+        onThemeChange={handleAdminColorThemeChange}
+        onOpenAdminUsers={() => router.push('/admin/users')}
+      />
+
+      <AnimatePresence>
+        {deleteFailedModalOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[95] flex items-center justify-center bg-black/55 p-4 backdrop-blur-md"
+            onClick={() => {
+              if (!deletingFailedHistories) {
+                setDeleteFailedModalOpen(false);
+              }
+            }}
+          >
+            <motion.div
+              initial={{ opacity: 0, y: 20, scale: 0.96 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 16, scale: 0.97 }}
+              transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+              className={`w-full max-w-md overflow-hidden rounded-[28px] border shadow-2xl ${
+                darkMode
+                  ? 'border-[#3a463b] bg-[#161b17] text-white'
+                  : 'border-white/70 bg-white text-gray-900'
+              }`}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className={`relative overflow-hidden px-6 pb-5 pt-6 ${
+                darkMode
+                  ? 'bg-[radial-gradient(circle_at_top,rgba(239,68,68,0.22),transparent_52%),linear-gradient(180deg,rgba(255,255,255,0.03),transparent)]'
+                  : 'bg-[radial-gradient(circle_at_top,rgba(248,113,113,0.24),transparent_52%),linear-gradient(180deg,rgba(248,250,252,0.9),rgba(255,255,255,0.98))]'
+              }`}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!deletingFailedHistories) {
+                      setDeleteFailedModalOpen(false);
+                    }
+                  }}
+                  disabled={deletingFailedHistories}
+                  className={`absolute right-4 top-4 inline-flex h-9 w-9 items-center justify-center rounded-full transition-colors ${
+                    darkMode
+                      ? 'text-gray-400 hover:bg-white/10 hover:text-white'
+                      : 'text-gray-500 hover:bg-gray-100 hover:text-gray-900'
+                  }`}
+                  aria-label="关闭删除确认弹窗"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+
+                <div className={`inline-flex h-14 w-14 items-center justify-center rounded-2xl border ${
+                  darkMode
+                    ? 'border-red-500/25 bg-red-500/12 text-red-300'
+                    : 'border-red-200 bg-red-50 text-red-500'
+                }`}>
+                  <Trash2 className="h-6 w-6" />
+                </div>
+
+                <h3 className="mt-5 text-xl font-semibold tracking-tight">删除失败任务</h3>
+                <p className={`mt-2 text-sm leading-6 ${
+                  darkMode ? 'text-gray-300' : 'text-gray-600'
+                }`}>
+                  将删除当前模板最近记录中的
+                  <span className={`mx-1 inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${
+                    darkMode ? 'bg-red-500/15 text-red-200' : 'bg-red-50 text-red-600'
+                  }`}>
+                    {failedTemplateHistories.length} 条失败任务
+                  </span>
+                  ，删除后不可恢复。
+                </p>
+
+                <div className={`mt-4 rounded-2xl border px-4 py-3 text-xs leading-5 ${
+                  darkMode
+                    ? 'border-[#334034] bg-[#111611] text-gray-400'
+                    : 'border-gray-200 bg-gray-50 text-gray-500'
+                }`}>
+                  仅删除状态为 `failed` 的记录，成功出图不会受影响。
+                </div>
+              </div>
+
+              <div className={`flex items-center justify-end gap-3 px-6 py-5 ${
+                darkMode ? 'border-t border-white/10 bg-[#121612]' : 'border-t border-gray-100 bg-gray-50/70'
+              }`}>
+                <button
+                  type="button"
+                  onClick={() => setDeleteFailedModalOpen(false)}
+                  disabled={deletingFailedHistories}
+                  className={`rounded-2xl px-4 py-2.5 text-sm font-medium transition-colors ${
+                    darkMode
+                      ? 'bg-[#242b25] text-stone-300 hover:bg-[#2c352d] hover:text-white'
+                      : 'bg-white text-gray-600 hover:bg-gray-100 hover:text-gray-900 border border-gray-200'
+                  }`}
+                >
+                  取消
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmDeleteFailedHistories}
+                  disabled={deletingFailedHistories}
+                  className={`inline-flex min-w-[132px] items-center justify-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-semibold text-white transition-all ${
+                    deletingFailedHistories
+                      ? 'cursor-not-allowed bg-red-400/80'
+                      : 'bg-gradient-to-r from-red-500 to-rose-500 shadow-lg shadow-red-500/25 hover:scale-[1.01] hover:from-red-600 hover:to-rose-600 active:scale-[0.99]'
+                  }`}
+                >
+                  {deletingFailedHistories ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      删除中...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="h-4 w-4" />
+                      确认删除
+                    </>
+                  )}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <AnimatePresence>
         {previewImage && (
@@ -1630,12 +1834,12 @@ export default function GeneratePage() {
         )}
       </AnimatePresence>
 
-      <header className={`haipablo-topbar sticky top-0 z-50 border-b backdrop-blur-xl transition-colors duration-500 ${darkMode ? 'bg-gray-950/70 border-white/10' : 'bg-white/60 border-white/50'}`}>
+      <header className={`haipablo-topbar sticky top-0 z-50 border-b backdrop-blur-xl transition-colors duration-500 ${darkMode ? 'bg-[#171c18]/72 border-[#f5ecd9]/10' : 'bg-white/60 border-white/50'}`}>
         <div className="mx-auto flex w-[min(94vw,1320px)] items-center relative px-4 py-3 xl:px-3 2xl:px-4">
           <div className="flex items-center gap-4">
             <button 
               onClick={handleBackToTemplates}
-              className={`p-2 rounded-lg transition-colors ${darkMode ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-100 text-gray-700'}`}
+              className={`p-2 rounded-lg transition-colors ${darkMode ? 'text-stone-400 hover:bg-white/[0.07] hover:text-stone-100' : 'hover:bg-gray-100 text-gray-700'}`}
             >
               <ArrowLeft className="w-5 h-5" />
             </button>
@@ -1663,7 +1867,7 @@ export default function GeneratePage() {
             {user && (
               <div className={`hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full border ${
                 darkMode 
-                  ? 'bg-white border-white/20 text-gray-950' 
+                  ? 'bg-[#f4ede0] border-[#f4ede0]/25 text-[#2b241d]' 
                   : 'bg-gray-950 border-gray-900 text-white'
               }`}>
                 <Sparkles className="w-4 h-4" />
@@ -1673,7 +1877,7 @@ export default function GeneratePage() {
             {user?.role === 'admin' && (
               <span className={`hidden sm:flex px-2 py-1 text-xs font-medium rounded-full items-center gap-1 w-fit ${
                 darkMode 
-                  ? 'bg-amber-900/50 text-amber-400 border border-amber-800' 
+                  ? 'bg-amber-950/45 text-amber-300 border border-amber-800/70' 
                   : 'bg-amber-50 text-amber-700 border border-amber-200'
               }`}>
                 <Shield className="w-3 h-3" />
@@ -1683,7 +1887,7 @@ export default function GeneratePage() {
             {user?.role === 'sub_admin' && (
               <span className={`hidden sm:flex px-2 py-1 text-xs font-medium rounded-full items-center gap-1 w-fit ${
                 darkMode 
-                  ? 'bg-blue-900/50 text-blue-400 border border-blue-800' 
+                  ? 'bg-teal-950/45 text-teal-300 border border-teal-800/70' 
                   : 'bg-blue-50 text-blue-700 border border-blue-200'
               }`}>
                 <Shield className="w-3 h-3" />
@@ -1695,7 +1899,7 @@ export default function GeneratePage() {
               onClick={toggleDarkMode}
               className={`p-2.5 rounded-xl transition-all duration-300 group ${
                 darkMode 
-                  ? 'bg-gray-800 hover:bg-gray-700 text-amber-400 hover:text-amber-300' 
+                  ? 'bg-[#26211b] hover:bg-[#312922] text-amber-300 hover:text-amber-200' 
                   : 'bg-gray-100 hover:bg-gray-200 text-gray-700 hover:text-gray-900'
               }`}
             >
@@ -1726,14 +1930,14 @@ export default function GeneratePage() {
                       exit={{ opacity: 0, y: -10 }}
                       className={`haipablo-modal-panel absolute right-0 top-full mt-2 w-56 rounded-xl shadow-lg border overflow-hidden z-50 transition-colors duration-500 ${
                         darkMode 
-                          ? 'bg-gray-900 border-white/10' 
+                          ? 'bg-[#1b211c]/95 border-[#f5ecd9]/10' 
                           : 'bg-white border-white/60'
                       }`}
                       onClick={(e) => e.stopPropagation()}
                     >
                       <div className={`p-4 border-b transition-colors duration-500 ${
                         darkMode 
-                          ? 'bg-white/[0.04] border-white/10' 
+                          ? 'bg-[#f5ecd9]/[0.035] border-[#f5ecd9]/10' 
                           : 'bg-white/45 border-white/60'
                       }`}>
                         <div className="flex items-center gap-3">
@@ -1745,7 +1949,7 @@ export default function GeneratePage() {
                         <div className="mt-3 flex items-center gap-2">
                           <span className={`px-2 py-1 text-xs font-medium rounded-full flex items-center gap-1 w-fit ${
                             darkMode 
-                              ? 'bg-white text-gray-950 border border-white/20' 
+                              ? 'bg-[#f4ede0] text-[#2b241d] border border-[#f4ede0]/25' 
                               : 'bg-gray-950 text-white border border-gray-900'
                           }`}>
                             <Sparkles className="w-3 h-3" />
@@ -1754,7 +1958,7 @@ export default function GeneratePage() {
                           {isAdmin && (
                             <span className={`px-2 py-1 text-xs font-medium rounded-full flex items-center gap-1 w-fit ${
                               darkMode 
-                                ? 'bg-amber-900/50 text-amber-400' 
+                                ? 'bg-amber-950/45 text-amber-300' 
                                 : 'bg-amber-100 text-amber-700'
                             }`}>
                               <Shield className="w-3 h-3" />
@@ -1764,7 +1968,7 @@ export default function GeneratePage() {
                           {isSubAdmin && (
                             <span className={`px-2 py-1 text-xs font-medium rounded-full flex items-center gap-1 w-fit ${
                               darkMode 
-                                ? 'bg-blue-900/50 text-blue-400' 
+                                ? 'bg-teal-950/45 text-teal-300' 
                                 : 'bg-blue-100 text-blue-700'
                             }`}>
                               <Shield className="w-3 h-3" />
@@ -1779,7 +1983,7 @@ export default function GeneratePage() {
                           onClick={() => router.push('/history')}
                           className={`w-full px-4 py-2.5 text-left rounded-lg transition-colors flex items-center gap-3 ${
                             darkMode 
-                              ? 'text-gray-300 hover:bg-white/[0.06] hover:text-white' 
+                              ? 'text-stone-300 hover:bg-white/[0.06] hover:text-white' 
                               : 'text-gray-700 hover:bg-white/80 hover:text-gray-900'
                           }`}
                         >
@@ -1789,10 +1993,27 @@ export default function GeneratePage() {
 
                         {canManage && (
                           <button
+                            onClick={() => {
+                              setShowUserMenu(false);
+                              setShowAdminThemeModal(true);
+                            }}
+                            className={`w-full px-4 py-2.5 text-left rounded-lg transition-colors flex items-center gap-3 mt-1 ${
+                              darkMode
+                                ? 'text-stone-300 hover:bg-white/[0.06] hover:text-white'
+                                : 'text-gray-700 hover:bg-white/80 hover:text-gray-900'
+                            }`}
+                          >
+                            <Settings2 className="w-4 h-4" />
+                            后台管理
+                          </button>
+                        )}
+
+                        {canManage && (
+                          <button
                             onClick={() => router.push('/admin/users')}
                             className={`w-full px-4 py-2.5 text-left rounded-lg transition-colors flex items-center gap-3 ${
                               darkMode 
-                                ? 'text-amber-400 hover:bg-amber-950/30' 
+                                ? 'text-amber-300 hover:bg-amber-950/30' 
                                 : 'text-amber-700 hover:bg-amber-50/80'
                             }`}
                           >
@@ -1824,7 +2045,7 @@ export default function GeneratePage() {
                 onClick={() => router.push('/auth')}
                 className={`px-4 py-2 rounded-lg font-medium transition-colors ${
                   darkMode 
-                    ? 'bg-white text-gray-900 hover:bg-gray-200' 
+                    ? 'bg-[#f4ede0] text-[#2b241d] hover:bg-[#fbf6ed]' 
                     : 'bg-gray-900 text-white hover:bg-gray-800'
                 }`}
               >
@@ -1838,37 +2059,16 @@ export default function GeneratePage() {
       <div className="mx-auto h-[calc(100vh-4.75rem)] w-[min(94vw,1320px)] overflow-hidden px-3 py-3 xl:px-3 2xl:px-4">
         <div className={`grid h-full min-h-0 grid-cols-1 gap-4 ${isSpecialThreeDRender ? 'lg:grid-cols-5' : 'lg:grid-cols-[436px_minmax(0,1fr)] xl:grid-cols-[456px_minmax(0,1fr)]'}`}>
           <div className={`${isSpecialThreeDRender ? 'lg:col-span-3' : 'space-y-4 lg:self-start'}`}>
-            <AnimatePresence>
-              {error && (
-                <motion.div
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  className={`p-4 rounded-xl flex items-start gap-3 transition-colors duration-500 ${
-                    darkMode 
-                      ? 'bg-red-900/30 border border-red-800 text-red-400' 
-                      : 'bg-red-50 border border-red-200 text-red-700'
-                  }`}
-                >
-                  <XCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
-                  <div>
-                    <p className="font-medium mb-1">生成失败</p>
-                    <p className="text-sm">{error}</p>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-
             {isSpecialThreeDRender && template && (
               <div className={`haipablo-glass-panel rounded-[30px] shadow-sm border p-6 md:p-8 transition-colors duration-500 overflow-hidden ${
                 darkMode
-                  ? 'bg-gray-900 border-white/10'
+                  ? 'bg-[#1b211c]/90 border-[#f5ecd9]/10'
                   : 'bg-white border-white/60'
               }`}>
                 <div className="relative">
                   <div className={`absolute inset-0 rounded-[26px] opacity-70 ${
                     darkMode
-                      ? 'bg-[radial-gradient(circle_at_top_left,rgba(20,184,166,0.18),transparent_40%),radial-gradient(circle_at_bottom_right,rgba(59,130,246,0.16),transparent_40%)]'
+                      ? 'bg-[radial-gradient(circle_at_top_left,rgba(245,158,11,0.14),transparent_38%),radial-gradient(circle_at_bottom_right,rgba(45,212,191,0.16),transparent_42%)]'
                       : 'bg-[radial-gradient(circle_at_top_left,rgba(16,185,129,0.12),transparent_38%),radial-gradient(circle_at_bottom_right,rgba(59,130,246,0.10),transparent_38%)]'
                   }`} />
                   <div className="relative space-y-8">
@@ -1887,7 +2087,7 @@ export default function GeneratePage() {
                         </p>
                       </div>
                       <div className={`haipablo-glass-subtle rounded-2xl border px-4 py-3 min-w-[240px] ${
-                        darkMode ? 'border-white/10 bg-gray-950/45' : 'border-white/65 bg-white/70'
+                        darkMode ? 'border-[#f5ecd9]/10 bg-[#141915]/55' : 'border-white/65 bg-white/70'
                       }`}>
                         <p className={`text-xs uppercase tracking-[0.2em] ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>当前状态</p>
                         <div className="mt-3 space-y-2">
@@ -1909,11 +2109,11 @@ export default function GeneratePage() {
 
                     <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
                       <div className={`haipablo-glass-subtle xl:col-span-2 rounded-[24px] border p-5 ${
-                        darkMode ? 'border-white/10 bg-gray-950/45' : 'border-white/65 bg-white/72'
+                        darkMode ? 'border-[#f5ecd9]/10 bg-[#141915]/55' : 'border-white/65 bg-white/72'
                       }`}>
                         <div className="flex items-center gap-3">
                           <div className={`flex h-11 w-11 items-center justify-center rounded-2xl ${
-                            darkMode ? 'bg-gray-800 text-emerald-300' : 'bg-emerald-100 text-emerald-700'
+                            darkMode ? 'bg-[#222923] text-emerald-300' : 'bg-emerald-100 text-emerald-700'
                           }`}>
                             <Upload className="w-5 h-5" />
                           </div>
@@ -1999,7 +2199,7 @@ export default function GeneratePage() {
                                 })}
                               </div>
                               <label className={`flex cursor-pointer items-center justify-center rounded-2xl border-2 border-dashed px-4 py-3 text-sm transition-colors ${
-                                darkMode ? 'border-gray-700 text-gray-300 hover:border-gray-600' : 'border-gray-300 text-gray-600 hover:border-gray-400'
+                              darkMode ? 'border-[#334034] text-stone-300 hover:border-[#425143]' : 'border-gray-300 text-gray-600 hover:border-gray-400'
                               }`}>
                                 <input type="file" accept="image/*" multiple onChange={handleImageUpload} className="hidden" disabled={uploadingImage} />
                                 {uploadingImage ? '上传中...' : '继续添加参考图'}
@@ -2007,7 +2207,7 @@ export default function GeneratePage() {
                             </div>
                           ) : (
                             <div className={`rounded-[24px] border-2 border-dashed px-6 py-10 text-center transition-colors ${
-                              darkMode ? 'border-gray-700 hover:border-gray-600' : 'border-gray-300 hover:border-gray-400'
+                              darkMode ? 'border-[#334034] hover:border-[#425143]' : 'border-gray-300 hover:border-gray-400'
                             }`}>
                               <input type="file" accept="image/*" multiple onChange={handleImageUpload} className="hidden" id="special-user-image-upload" disabled={uploadingImage} />
                               <label htmlFor="special-user-image-upload" className="cursor-pointer">
@@ -2024,7 +2224,7 @@ export default function GeneratePage() {
                         darkMode ? 'border-white/10 bg-gray-950/45' : 'border-white/65 bg-white/72'
                       }`}>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div className={`rounded-2xl border p-4 ${darkMode ? 'border-white/10 bg-white/[0.04]' : 'border-white/65 bg-white/80'}`}>
+                          <div className={`rounded-2xl border p-4 ${darkMode ? 'border-[#f5ecd9]/10 bg-[#f5ecd9]/[0.035]' : 'border-white/65 bg-white/80'}`}>
                             <div className="flex items-center gap-2">
                               <Palette className={`w-4 h-4 ${darkMode ? 'text-emerald-300' : 'text-emerald-700'}`} />
                               <p className={`text-sm font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>输出参数</p>
@@ -2035,7 +2235,7 @@ export default function GeneratePage() {
                                 <select
                                   value={size}
                                   onChange={(e) => setSize(e.target.value)}
-                                  className={`w-full rounded-xl border px-3 py-2.5 text-sm outline-none ${darkMode ? 'border-white/10 bg-slate-950/60 text-white' : 'border-white/70 bg-white text-gray-900'}`}
+                                  className={`w-full rounded-xl border px-3 py-2.5 text-sm outline-none ${darkMode ? 'border-[#f5ecd9]/10 bg-[#151a16]/80 text-white' : 'border-white/70 bg-white text-gray-900'}`}
                                 >
                                   {SIZE_OPTIONS.map((option) => (
                                     <option key={option.value} value={option.value}>{option.label}</option>
@@ -2047,7 +2247,7 @@ export default function GeneratePage() {
                                 <select
                                   value={quality}
                                   onChange={(e) => setQuality(e.target.value)}
-                                  className={`w-full rounded-xl border px-3 py-2.5 text-sm outline-none ${darkMode ? 'border-white/10 bg-slate-950/60 text-white' : 'border-white/70 bg-white text-gray-900'}`}
+                                  className={`w-full rounded-xl border px-3 py-2.5 text-sm outline-none ${darkMode ? 'border-[#f5ecd9]/10 bg-[#151a16]/80 text-white' : 'border-white/70 bg-white text-gray-900'}`}
                                 >
                                   {QUALITY_OPTIONS.map((option) => (
                                     <option key={option.value} value={option.value}>{option.label}</option>
@@ -2057,7 +2257,7 @@ export default function GeneratePage() {
                             </div>
                           </div>
 
-                          <div className={`rounded-2xl border p-4 ${darkMode ? 'border-gray-800 bg-gray-900' : 'border-gray-200 bg-gray-50'}`}>
+                          <div className={`rounded-2xl border p-4 ${darkMode ? 'border-[#2f3a31] bg-[#1a201b]' : 'border-gray-200 bg-gray-50'}`}>
                             <div className="flex items-center gap-2">
                               <Settings2 className={`w-4 h-4 ${darkMode ? 'text-cyan-300' : 'text-cyan-700'}`} />
                               <p className={`text-sm font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>系统规则</p>
@@ -2069,7 +2269,7 @@ export default function GeneratePage() {
                         </div>
 
                         {template.allowUserPrompt !== false && (
-                          <div className={`mt-4 rounded-2xl border p-4 ${darkMode ? 'border-gray-800 bg-gray-900' : 'border-gray-200 bg-gray-50'}`}>
+                          <div className={`mt-4 rounded-2xl border p-4 ${darkMode ? 'border-[#2f3a31] bg-[#1a201b]' : 'border-gray-200 bg-gray-50'}`}>
                             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                               <div>
                                 <p className={`text-sm font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>附加文本要求</p>
@@ -2083,7 +2283,7 @@ export default function GeneratePage() {
                                     !userPromptPriority
                                       ? 'bg-amber-500 text-white'
                                       : darkMode
-                                        ? 'bg-gray-800 text-gray-300'
+                                        ? 'bg-[#242b25] text-stone-300'
                                         : 'bg-white text-gray-600 border border-gray-200'
                                   }`}
                                 >
@@ -2096,7 +2296,7 @@ export default function GeneratePage() {
                                     enableUserPrompt
                                       ? 'bg-violet-600 text-white'
                                       : darkMode
-                                        ? 'bg-gray-800 text-gray-300'
+                                        ? 'bg-[#242b25] text-stone-300'
                                         : 'bg-white text-gray-600 border border-gray-200'
                                   }`}
                                 >
@@ -2144,7 +2344,7 @@ export default function GeneratePage() {
                                   value={userPrompt}
                                   onChange={(e) => handleUserPromptChange(e.target.value)}
                                   rows={4}
-                                  className={`mt-4 w-full rounded-2xl border px-4 py-3 text-sm outline-none resize-none ${darkMode ? 'border-gray-700 bg-gray-950 text-white placeholder-gray-500' : 'border-gray-200 bg-white text-gray-900 placeholder-gray-400'}`}
+                                  className={`mt-4 w-full rounded-2xl border px-4 py-3 text-sm outline-none resize-none ${darkMode ? 'border-[#334034] bg-[#141915] text-white placeholder:text-stone-500' : 'border-gray-200 bg-white text-gray-900 placeholder-gray-400'}`}
                                   placeholder="例如：强化品牌高级感，入口视觉更聚焦，灯光不要过冷。"
                                 />
                               </>
@@ -2158,7 +2358,7 @@ export default function GeneratePage() {
                       {specialTemplateSections.map((section) => (
                         <div
                           key={section.title}
-                          className={`rounded-[24px] border p-5 ${darkMode ? 'border-gray-800 bg-gray-950/70' : 'border-gray-200 bg-white/80'}`}
+                          className={`rounded-[24px] border p-5 ${darkMode ? 'border-[#2f3a31] bg-[#141915]/80' : 'border-gray-200 bg-white/80'}`}
                         >
                           <div className="flex flex-col gap-1 md:flex-row md:items-end md:justify-between">
                             <div>
@@ -2200,7 +2400,7 @@ export default function GeneratePage() {
                                               active
                                                 ? 'border-emerald-400 bg-emerald-500 text-white shadow-lg shadow-emerald-500/20'
                                                 : darkMode
-                                                  ? 'border-gray-700 bg-gray-900 text-gray-300 hover:border-gray-600'
+                                                  ? 'border-[#334034] bg-[#1b211c] text-stone-300 hover:border-[#425143]'
                                                   : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
                                             }`}
                                           >
@@ -2225,7 +2425,7 @@ export default function GeneratePage() {
                                               active
                                                 ? 'border-cyan-400 bg-cyan-500 text-white shadow-lg shadow-cyan-500/20'
                                                 : darkMode
-                                                  ? 'border-gray-700 bg-gray-900 text-gray-300 hover:border-gray-600'
+                                                  ? 'border-[#334034] bg-[#1b211c] text-stone-300 hover:border-[#425143]'
                                                   : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
                                             }`}
                                           >
@@ -2242,7 +2442,7 @@ export default function GeneratePage() {
                                       value={formData[variable.key] || ''}
                                       onChange={(e) => handleFormChange(variable.key, e.target.value)}
                                       rows={4}
-                                      className={`w-full rounded-2xl border px-4 py-3 text-sm outline-none resize-none ${darkMode ? 'border-gray-700 bg-gray-900 text-white placeholder-gray-500' : 'border-gray-200 bg-white text-gray-900 placeholder-gray-400'}`}
+                                      className={`w-full rounded-2xl border px-4 py-3 text-sm outline-none resize-none ${darkMode ? 'border-[#334034] bg-[#1b211c] text-white placeholder:text-stone-500' : 'border-gray-200 bg-white text-gray-900 placeholder-gray-400'}`}
                                       placeholder={variable.placeholder || `请输入${variable.label}`}
                                     />
                                   )}
@@ -2252,7 +2452,7 @@ export default function GeneratePage() {
                                       type="text"
                                       value={formData[variable.key] || ''}
                                       onChange={(e) => handleFormChange(variable.key, e.target.value)}
-                                      className={`w-full rounded-2xl border px-4 py-3 text-sm outline-none ${darkMode ? 'border-gray-700 bg-gray-900 text-white placeholder-gray-500' : 'border-gray-200 bg-white text-gray-900 placeholder-gray-400'}`}
+                                      className={`w-full rounded-2xl border px-4 py-3 text-sm outline-none ${darkMode ? 'border-[#334034] bg-[#1b211c] text-white placeholder:text-stone-500' : 'border-gray-200 bg-white text-gray-900 placeholder-gray-400'}`}
                                       placeholder={variable.placeholder || `请输入${variable.label}`}
                                     />
                                   )}
@@ -2264,9 +2464,9 @@ export default function GeneratePage() {
                       ))}
                     </div>
 
-                    <div className={`flex flex-col gap-4 rounded-[24px] border p-5 md:flex-row md:items-center md:justify-between ${darkMode ? 'border-gray-800 bg-gray-950/70' : 'border-gray-200 bg-white/80'}`}>
+                    <div className={`flex flex-col gap-4 rounded-[24px] border p-5 md:flex-row md:items-center md:justify-between ${darkMode ? 'border-[#2f3a31] bg-[#141915]/80' : 'border-gray-200 bg-white/80'}`}>
                       <div className="flex flex-1 min-w-0 items-start gap-3">
-                        <div className={`flex h-11 w-11 items-center justify-center rounded-2xl ${darkMode ? 'bg-gray-800 text-cyan-300' : 'bg-cyan-100 text-cyan-700'}`}>
+                        <div className={`flex h-11 w-11 items-center justify-center rounded-2xl ${darkMode ? 'bg-[#222923] text-cyan-300' : 'bg-cyan-100 text-cyan-700'}`}>
                           <Camera className="w-5 h-5" />
                         </div>
                         <div>
@@ -2274,7 +2474,7 @@ export default function GeneratePage() {
                           <p className={`mt-1 text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>系统会自动拼接中英文结构化 Prompt，并把本次配置完整保存到历史记录。</p>
                         </div>
                       </div>
-                      <span className={`inline-flex items-center rounded-full px-4 py-2 text-xs font-semibold ${darkMode ? 'bg-gray-800 text-gray-300' : 'bg-gray-100 text-gray-600'}`}>
+                      <span className={`inline-flex items-center rounded-full px-4 py-2 text-xs font-semibold ${darkMode ? 'bg-[#222923] text-stone-300' : 'bg-gray-100 text-gray-600'}`}>
                         {canGenerateCurrentMode
                           ? '参数已就绪，可直接开始'
                           : missingRequiredVariable
@@ -2324,9 +2524,9 @@ export default function GeneratePage() {
             {!isSpecialThreeDRender && (
               <div className="lg:sticky lg:top-16">
                 <div className={`overflow-hidden rounded-[22px] border shadow-sm transition-colors duration-500 lg:flex lg:h-[calc(100vh-5.5rem)] lg:flex-col ${
-                  darkMode ? 'border-gray-800 bg-gray-900' : 'border-gray-200 bg-white'
+                  darkMode ? 'border-[#2f3a31] bg-[#1a201b]' : 'border-gray-200 bg-white'
                 }`}>
-                  <div className={`border-b px-4 py-3.5 ${darkMode ? 'border-gray-800 bg-gray-900' : 'border-gray-200 bg-gray-50/70'}`}>
+                  <div className={`border-b px-4 py-3.5 ${darkMode ? 'border-[#2f3a31] bg-[#1a201b]' : 'border-gray-200 bg-gray-50/70'}`}>
                     <p className={`text-[11px] font-semibold tracking-[0.24em] uppercase ${darkMode ? 'text-violet-300/70' : 'text-violet-600'}`}>Template Workspace</p>
                     <div className="mt-2 flex items-start justify-between gap-4">
                       <div>
@@ -2346,7 +2546,7 @@ export default function GeneratePage() {
                             referenceBatchMode
                               ? 'bg-orange-500 text-white hover:bg-orange-600'
                               : darkMode
-                                ? 'border border-gray-700 bg-gray-800 text-gray-200 hover:bg-gray-700'
+                                ? 'border border-[#334034] bg-[#222923] text-stone-200 hover:bg-[#2a332b]'
                                 : 'border border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
                           }`}
                         >
@@ -2359,7 +2559,7 @@ export default function GeneratePage() {
                   <div className="haipablo-scrollbar min-h-0 overflow-y-auto px-4 py-4 lg:flex-1">
                     <div className="space-y-4">
                       {hasTemplateReferenceWorkspace && (
-                        <div className={`rounded-2xl border p-3.5 ${darkMode ? 'border-gray-800 bg-gray-950/60' : 'border-gray-200 bg-gray-50/80'}`}>
+                        <div className={`rounded-2xl border p-3.5 ${darkMode ? 'border-[#2f3a31] bg-[#141915]/72' : 'border-gray-200 bg-gray-50/80'}`}>
                           <div className="mb-3 flex items-start justify-between gap-3">
                             <div>
                               <h2 className={`flex items-center gap-2 text-sm font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
@@ -2377,7 +2577,7 @@ export default function GeneratePage() {
                                 hasActiveCustomReferences
                                   ? 'bg-emerald-500 text-white'
                                   : darkMode
-                                    ? 'bg-gray-800 text-gray-300'
+                                    ? 'bg-[#222923] text-stone-300'
                                     : 'bg-white text-gray-600 ring-1 ring-gray-200'
                               }`}>
                                 {hasActiveCustomReferences ? `已替换 ${activeTemplateReferenceImages.length} 张` : '使用预设'}
@@ -2423,7 +2623,7 @@ export default function GeneratePage() {
                                 <div
                                   key={image.id}
                                   className={`group relative cursor-pointer overflow-hidden rounded-xl transition-all ${
-                                    isSelected ? 'ring-2 ring-emerald-500 ring-offset-2' : 'hover:ring-2 hover:ring-gray-300'
+                                    isSelected ? 'ring-2 ring-emerald-500 ring-offset-2' : 'hover:ring-2 hover:ring-stone-400/35'
                                   }`}
                                   onClick={() => handleToggleCustomReferenceSelection(image.id)}
                                 >
@@ -2485,7 +2685,7 @@ export default function GeneratePage() {
                             {hasCustomReferenceUpload && (
                               <label className={`group relative flex h-[68px] cursor-pointer flex-col items-center justify-center overflow-hidden rounded-xl border border-dashed transition-all ${
                                 darkMode
-                                  ? 'border-gray-700 bg-gray-900 text-gray-300 hover:border-gray-600'
+                                  ? 'border-[#334034] bg-[#1b211c] text-stone-300 hover:border-[#425143]'
                                   : 'border-gray-300 bg-white text-gray-600 hover:border-gray-400'
                               }`}>
                                 <input
@@ -2505,7 +2705,7 @@ export default function GeneratePage() {
                           </div>
                           {hasCustomReferenceUpload && (
                             <div className={`mt-3 rounded-xl border px-3 py-2 text-[11px] leading-5 ${
-                              darkMode ? 'border-gray-800 bg-gray-900 text-gray-400' : 'border-gray-200 bg-white text-gray-600'
+                              darkMode ? 'border-[#2f3a31] bg-[#1a201b] text-stone-400' : 'border-gray-200 bg-white text-gray-600'
                             }`}>
                               {template?.allowMultipleCustomReferences === true
                                 ? '支持多张自定义模板参考图。点击卡片可选择或取消，当前选中的图片会按顺序替代模板预设参考图。'
@@ -2516,7 +2716,7 @@ export default function GeneratePage() {
                       )}
 
                       {hasMainVisualUpload && (
-                        <div className={`rounded-2xl border p-3.5 ${darkMode ? 'border-gray-800 bg-gray-950/60' : 'border-gray-200 bg-gray-50/80'}`}>
+                        <div className={`rounded-2xl border p-3.5 ${darkMode ? 'border-[#2f3a31] bg-[#141915]/72' : 'border-gray-200 bg-gray-50/80'}`}>
                           <h2 className={`mb-3 flex items-center gap-2 text-sm font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
                             <Upload className={`h-4 w-4 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`} />
                             上传参考图
@@ -2604,7 +2804,7 @@ export default function GeneratePage() {
                                 })}
                               </div>
                               <label className={`block cursor-pointer rounded-xl border-2 border-dashed py-2 text-center transition-colors ${
-                                darkMode ? 'border-gray-700 text-gray-400 hover:border-gray-600' : 'border-gray-300 text-gray-600 hover:border-gray-400'
+                                darkMode ? 'border-[#334034] text-stone-400 hover:border-[#425143]' : 'border-gray-300 text-gray-600 hover:border-gray-400'
                               }`}>
                                 <input type="file" accept="image/*" multiple={supportsReferenceBatch} onChange={handleImageUpload} className="hidden" disabled={uploadingImage} />
                                 <span className="text-xs">{uploadingImage ? '上传中...' : supportsReferenceBatch ? '+ 添加图片' : '重新上传'}</span>
@@ -2612,12 +2812,12 @@ export default function GeneratePage() {
                             </div>
                           ) : (
                             <div className={`rounded-xl border-2 border-dashed p-5 text-center transition-colors ${
-                              darkMode ? 'border-gray-700 hover:border-gray-600' : 'border-gray-300 hover:border-gray-400'
+                              darkMode ? 'border-[#334034] hover:border-[#425143]' : 'border-gray-300 hover:border-gray-400'
                             }`}>
                               <input type="file" accept="image/*" multiple={supportsReferenceBatch} onChange={handleImageUpload} className="hidden" id="user-image-upload" disabled={uploadingImage} />
                               <label htmlFor="user-image-upload" className="cursor-pointer">
-                                <Upload className={`mx-auto mb-2 h-8 w-8 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`} />
-                                <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>{supportsReferenceBatch ? '点击上传参考图片' : '点击上传 1 张参考图片'}</p>
+                                <Upload className={`mx-auto mb-2 h-8 w-8 ${darkMode ? 'text-stone-500' : 'text-gray-400'}`} />
+                                <p className={`text-xs ${darkMode ? 'text-stone-400' : 'text-gray-600'}`}>{supportsReferenceBatch ? '点击上传参考图片' : '点击上传 1 张参考图片'}</p>
                               </label>
                             </div>
                           )}
@@ -2625,15 +2825,15 @@ export default function GeneratePage() {
                       )}
 
                       {showTopMetaGrid && (
-                        <div className={`rounded-2xl border p-3.5 ${darkMode ? 'border-gray-800 bg-gray-950/60' : 'border-gray-200 bg-gray-50/80'}`}>
+                        <div className={`rounded-2xl border p-3.5 ${darkMode ? 'border-[#2f3a31] bg-[#141915]/72' : 'border-gray-200 bg-gray-50/80'}`}>
                           <h2 className={`mb-3 flex items-center gap-2 text-sm font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                            <Palette className={`h-4 w-4 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`} />
+                            <Palette className={`h-4 w-4 ${darkMode ? 'text-stone-400' : 'text-gray-600'}`} />
                             生成参数
                           </h2>
                           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                             <div>
-                              <label className={`mb-1.5 block text-xs font-medium ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>输出尺寸</label>
-                              <div className={`relative overflow-hidden rounded-2xl border shadow-[0_10px_28px_-18px_rgba(15,23,42,0.38)] transition-all ${darkMode ? 'border-gray-700/80 bg-gray-900/90' : 'border-white/80 bg-white/95'}`}>
+                              <label className={`mb-1.5 block text-xs font-medium ${darkMode ? 'text-stone-400' : 'text-gray-600'}`}>输出尺寸</label>
+                              <div className={`relative overflow-hidden rounded-2xl border shadow-[0_10px_28px_-18px_rgba(15,23,42,0.38)] transition-all ${darkMode ? 'border-[#334034]/80 bg-[#1b211c]/90' : 'border-white/80 bg-white/95'}`}>
                                 <div className={`pointer-events-none absolute inset-x-0 top-0 h-px ${darkMode ? 'bg-gradient-to-r from-transparent via-white/20 to-transparent' : 'bg-gradient-to-r from-transparent via-slate-200 to-transparent'}`} />
                                 <select
                                   value={size}
@@ -2642,13 +2842,13 @@ export default function GeneratePage() {
                                 >
                                   {SIZE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                                 </select>
-                                <ChevronDown className={`pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`} />
+                                <ChevronDown className={`pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 ${darkMode ? 'text-stone-500' : 'text-gray-400'}`} />
                               </div>
-                              <p className={`mt-1.5 text-[11px] leading-5 ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>预设为 2K+ 构图，覆盖方图、海报、电影宽幕与横幅场景。</p>
+                              <p className={`mt-1.5 text-[11px] leading-5 ${darkMode ? 'text-stone-500' : 'text-gray-500'}`}>预设为 2K+ 构图，覆盖方图、海报、电影宽幕与横幅场景。</p>
                             </div>
                             <div>
-                              <label className={`mb-1.5 block text-xs font-medium ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>质量</label>
-                              <div className={`relative overflow-hidden rounded-2xl border shadow-[0_10px_28px_-18px_rgba(15,23,42,0.38)] transition-all ${darkMode ? 'border-gray-700/80 bg-gray-900/90' : 'border-white/80 bg-white/95'}`}>
+                              <label className={`mb-1.5 block text-xs font-medium ${darkMode ? 'text-stone-400' : 'text-gray-600'}`}>质量</label>
+                              <div className={`relative overflow-hidden rounded-2xl border shadow-[0_10px_28px_-18px_rgba(15,23,42,0.38)] transition-all ${darkMode ? 'border-[#334034]/80 bg-[#1b211c]/90' : 'border-white/80 bg-white/95'}`}>
                                 <div className={`pointer-events-none absolute inset-x-0 top-0 h-px ${darkMode ? 'bg-gradient-to-r from-transparent via-white/20 to-transparent' : 'bg-gradient-to-r from-transparent via-slate-200 to-transparent'}`} />
                                 <select
                                   value={quality}
@@ -2657,19 +2857,19 @@ export default function GeneratePage() {
                                 >
                                   {QUALITY_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                                 </select>
-                                <ChevronDown className={`pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`} />
+                                <ChevronDown className={`pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 ${darkMode ? 'text-stone-500' : 'text-gray-400'}`} />
                               </div>
-                              <p className={`mt-1.5 text-[11px] leading-5 ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>建议预览用“均衡模式”，最终交付再切到“质量优先”。</p>
+                              <p className={`mt-1.5 text-[11px] leading-5 ${darkMode ? 'text-stone-500' : 'text-gray-500'}`}>建议预览用“均衡模式”，最终交付再切到“质量优先”。</p>
                             </div>
                           </div>
-                          <div className={`mt-3 rounded-xl border p-3 text-xs leading-5 ${darkMode ? 'border-gray-800 bg-gray-900/70 text-gray-300' : 'border-gray-200 bg-white text-gray-600'}`}>
+                          <div className={`mt-3 rounded-xl border p-3 text-xs leading-5 ${darkMode ? 'border-[#2f3a31] bg-[#1a201b]/90 text-stone-300' : 'border-gray-200 bg-white text-gray-600'}`}>
                             系统会自动沿用模板默认参数，并根据模板是否开放补充提示词、颜色编辑、参考图上传等能力来动态展示对应模块。
                           </div>
                         </div>
                       )}
 
                       {hasPromptExtension && (
-                        <div className={`rounded-2xl border p-3.5 ${darkMode ? 'border-gray-800 bg-gray-950/60' : 'border-gray-200 bg-gray-50/80'}`}>
+                        <div className={`rounded-2xl border p-3.5 ${darkMode ? 'border-[#2f3a31] bg-[#141915]/72' : 'border-gray-200 bg-gray-50/80'}`}>
                           <div className="flex flex-col gap-4">
                             <div
                               onClick={() => setUserPromptPriority(!userPromptPriority)}
@@ -2698,7 +2898,7 @@ export default function GeneratePage() {
                               onClick={() => setEnableUserPrompt(!enableUserPrompt)}
                             >
                               <div className={`flex h-5 w-5 items-center justify-center rounded-lg border-2 transition-all ${
-                                enableUserPrompt ? 'border-violet-500 bg-violet-500' : darkMode ? 'border-gray-600 bg-gray-800' : 'border-gray-300 bg-white'
+                                enableUserPrompt ? 'border-violet-500 bg-violet-500' : darkMode ? 'border-[#425143] bg-[#222923]' : 'border-gray-300 bg-white'
                               }`}>
                                 {enableUserPrompt && <div className="h-2 w-2 rounded-full bg-white" />}
                               </div>
@@ -2749,7 +2949,7 @@ export default function GeneratePage() {
                               <div className="relative w-full">
                                 {userPrompt && (
                                   <div className={`absolute inset-0 overflow-y-auto whitespace-pre-wrap break-words rounded-xl border px-4 py-3 text-sm font-mono pointer-events-none ${
-                                    darkMode ? 'border-gray-700 bg-gray-900 text-white' : 'border-gray-200 bg-white text-gray-900'
+                                    darkMode ? 'border-[#334034] bg-[#1b211c] text-white' : 'border-gray-200 bg-white text-gray-900'
                                   }`}>
                                     {userPrompt.split(/(指定色\d+)/).map((part, index) => (
                                       /^指定色\d+$/.test(part)
@@ -2763,7 +2963,7 @@ export default function GeneratePage() {
                                   onChange={(e) => handleUserPromptChange(e.target.value)}
                                   rows={4}
                                   className={`w-full resize-none rounded-xl border px-4 py-3 text-sm font-mono outline-none transition-colors duration-300 ${
-                                    darkMode ? 'border-gray-700 bg-transparent text-white placeholder-gray-500' : 'border-gray-200 bg-transparent text-gray-900 placeholder-gray-400'
+                                    darkMode ? 'border-[#334034] bg-transparent text-white placeholder:text-stone-500' : 'border-gray-200 bg-transparent text-gray-900 placeholder-gray-400'
                                   } ${userPrompt ? 'relative z-10 bg-transparent' : ''}`}
                                   placeholder="请输入补充提示词..."
                                   style={userPrompt ? { color: 'transparent', caretColor: darkMode ? '#fff' : '#000' } : {}}
@@ -2775,7 +2975,7 @@ export default function GeneratePage() {
                       )}
 
                       {hasSpecifiedColorEditor && (
-                        <div className={`rounded-2xl border p-3.5 ${darkMode ? 'border-gray-800 bg-gray-950/60' : 'border-gray-200 bg-gray-50/80'}`}>
+                        <div className={`rounded-2xl border p-3.5 ${darkMode ? 'border-[#2f3a31] bg-[#141915]/72' : 'border-gray-200 bg-gray-50/80'}`}>
                           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                             <div>
                               <h2 className={`text-base font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>指定色配置</h2>
@@ -2790,7 +2990,7 @@ export default function GeneratePage() {
                                       ? 'border-fuchsia-500/60 bg-fuchsia-500/15 text-fuchsia-200'
                                       : 'border-fuchsia-300 bg-fuchsia-100 text-fuchsia-700'
                                     : darkMode
-                                      ? 'border-gray-700 bg-gray-900 text-gray-300'
+                                      ? 'border-[#334034] bg-[#1b211c] text-stone-300'
                                       : 'border-gray-200 bg-white text-gray-600'
                                 }`}
                               >
@@ -2799,7 +2999,7 @@ export default function GeneratePage() {
                                     useSmartColoring
                                       ? 'bg-[linear-gradient(135deg,#7c3aed,#ec4899,#f59e0b)]'
                                       : darkMode
-                                        ? 'bg-gray-700'
+                                        ? 'bg-[#425143]'
                                         : 'bg-gray-300'
                                   }`}
                                 >
@@ -2826,12 +3026,12 @@ export default function GeneratePage() {
                           </div>
                           <div className="space-y-2">
                             {specifiedColors.map((color, index) => (
-                              <div key={`${color.name}-${index}`} className={`flex items-center gap-3 rounded-xl border p-3 ${darkMode ? 'border-gray-800 bg-gray-900/50' : 'border-gray-200 bg-white'}`}>
+                              <div key={`${color.name}-${index}`} className={`flex items-center gap-3 rounded-xl border p-3 ${darkMode ? 'border-[#2f3a31] bg-[#1b211c]/70' : 'border-gray-200 bg-white'}`}>
                                 <div className="relative flex-shrink-0">
                                   {useSmartColoring ? (
                                     <div className="relative h-8 w-8 overflow-hidden rounded-full border-2 border-fuchsia-200 shadow-inner">
                                       <div className="absolute inset-0 rounded-full bg-[conic-gradient(from_180deg,#7c3aed,#06b6d4,#22c55e,#f59e0b,#ec4899,#7c3aed)] animate-[spin_3s_linear_infinite]" />
-                                      <div className={`absolute inset-[5px] rounded-full ${darkMode ? 'bg-gray-950/90' : 'bg-white/85'}`} />
+                                      <div className={`absolute inset-[5px] rounded-full ${darkMode ? 'bg-[#141915]/90' : 'bg-white/85'}`} />
                                       <div className="absolute inset-0 flex items-center justify-center">
                                         <Sparkles className="h-3.5 w-3.5 text-fuchsia-500" />
                                       </div>
@@ -2879,7 +3079,7 @@ export default function GeneratePage() {
                                       setEditingColorValue(color.color);
                                     }}
                                     onBlur={() => setSelectedColorIndex(null)}
-                                    className={`w-24 rounded border px-2 py-1 text-xs font-mono ${darkMode ? 'border-gray-700 bg-gray-950' : 'border-gray-200 bg-white'}`}
+                                    className={`w-24 rounded border px-2 py-1 text-xs font-mono ${darkMode ? 'border-[#334034] bg-[#141915]' : 'border-gray-200 bg-white'}`}
                                     placeholder="#888888"
                                   />
                                 )}
@@ -2890,16 +3090,16 @@ export default function GeneratePage() {
                       )}
 
                       {!!template?.variables?.length && (
-                        <div className={`rounded-2xl border p-3.5 ${darkMode ? 'border-gray-800 bg-gray-950/60' : 'border-gray-200 bg-gray-50/80'}`}>
+                        <div className={`rounded-2xl border p-3.5 ${darkMode ? 'border-[#2f3a31] bg-[#141915]/72' : 'border-gray-200 bg-gray-50/80'}`}>
                           <h2 className={`mb-3 flex items-center gap-2 text-sm font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                            <Info className={`h-4 w-4 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`} />
+                            <Info className={`h-4 w-4 ${darkMode ? 'text-stone-400' : 'text-gray-600'}`} />
                             填写信息
                           </h2>
 
                           <div className="space-y-4">
                             {template.variables.map((variable) => (
                               <div key={variable.key}>
-                                <label className={`mb-2 block text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                                <label className={`mb-2 block text-sm font-medium ${darkMode ? 'text-stone-300' : 'text-gray-700'}`}>
                                   {variable.label}
                                   {variable.required && <span className="ml-1 text-red-500">*</span>}
                                 </label>
@@ -2911,7 +3111,7 @@ export default function GeneratePage() {
                                     rows={3}
                                     className={`w-full resize-none rounded-xl border px-4 py-3 text-sm outline-none transition-colors duration-300 ${
                                       darkMode
-                                        ? 'border-gray-700 bg-gray-800 text-white placeholder-gray-500'
+                                        ? 'border-[#334034] bg-[#222923] text-white placeholder:text-stone-500'
                                         : 'border-gray-200 bg-white text-gray-900 placeholder-gray-400'
                                     }`}
                                     placeholder={variable.placeholder || `请输入${variable.label}`}
@@ -2920,7 +3120,7 @@ export default function GeneratePage() {
                                   <div className="flex items-center gap-3">
                                     <div
                                       className={`relative h-12 w-12 overflow-hidden rounded-lg border-2 shadow-inner ${
-                                        darkMode ? 'border-gray-700' : 'border-gray-200'
+                                        darkMode ? 'border-[#334034]' : 'border-gray-200'
                                       }`}
                                       style={{ backgroundColor: formData[variable.key] || '#ffffff' }}
                                     >
@@ -2937,7 +3137,7 @@ export default function GeneratePage() {
                                       onChange={(e) => handleFormChange(variable.key, e.target.value)}
                                       className={`flex-1 rounded-xl border px-4 py-3 font-mono text-sm outline-none transition-colors duration-300 ${
                                         darkMode
-                                          ? 'border-gray-700 bg-gray-800 text-white placeholder-gray-500'
+                                          ? 'border-[#334034] bg-[#222923] text-white placeholder:text-stone-500'
                                           : 'border-gray-200 bg-white text-gray-900 placeholder-gray-400'
                                       }`}
                                       placeholder="#FFFFFF"
@@ -2948,7 +3148,7 @@ export default function GeneratePage() {
                                     value={formData[variable.key] || ''}
                                     onChange={(e) => handleFormChange(variable.key, e.target.value)}
                                     className={`w-full rounded-xl border px-4 py-3 text-sm outline-none transition-colors duration-300 ${
-                                      darkMode ? 'border-gray-700 bg-gray-800 text-white' : 'border-gray-200 bg-white text-gray-900'
+                                      darkMode ? 'border-[#334034] bg-[#222923] text-white' : 'border-gray-200 bg-white text-gray-900'
                                     }`}
                                   >
                                     <option value="">请选择{variable.label}</option>
@@ -3028,7 +3228,7 @@ export default function GeneratePage() {
                                         htmlFor={`upload-${variable.key}`}
                                         className={`flex h-32 w-full cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed transition-colors ${
                                           darkMode
-                                            ? 'border-gray-700 bg-gray-800/50 hover:border-violet-500/50'
+                                            ? 'border-[#334034] bg-[#222923]/60 hover:border-violet-500/50'
                                             : 'border-gray-200 bg-gray-50 hover:border-violet-400'
                                         }`}
                                       >
@@ -3047,7 +3247,7 @@ export default function GeneratePage() {
                                     onChange={(e) => handleFormChange(variable.key, e.target.value)}
                                     className={`w-full rounded-xl border px-4 py-3 text-sm outline-none transition-colors duration-300 ${
                                       darkMode
-                                        ? 'border-gray-700 bg-gray-800 text-white placeholder-gray-500'
+                                        ? 'border-[#334034] bg-[#222923] text-white placeholder:text-stone-500'
                                         : 'border-gray-200 bg-white text-gray-900 placeholder-gray-400'
                                     }`}
                                     placeholder={variable.placeholder || `请输入${variable.label}`}
@@ -3061,7 +3261,7 @@ export default function GeneratePage() {
                     </div>
                   </div>
 
-                  <div className={`border-t px-4 py-3.5 lg:mt-auto ${darkMode ? 'border-gray-800 bg-gray-950/90' : 'border-gray-200 bg-gray-50/90'}`}>
+                  <div className={`border-t px-4 py-3.5 lg:mt-auto ${darkMode ? 'border-[#2f3a31] bg-[#141915]/90' : 'border-gray-200 bg-gray-50/90'}`}>
                     <div className="space-y-3">
                       <button
                         onClick={handleGenerate}
@@ -3099,9 +3299,9 @@ export default function GeneratePage() {
             {!isSpecialThreeDRender && (
               <>
                 <div className={`overflow-hidden rounded-[22px] border shadow-sm transition-colors duration-500 lg:flex lg:min-h-0 lg:flex-1 lg:flex-col ${
-                  darkMode ? 'border-gray-800 bg-gray-900' : 'border-gray-200 bg-white'
+                  darkMode ? 'border-[#2f3a31] bg-[#1a201b]' : 'border-gray-200 bg-white'
                 }`}>
-                  <div className={`border-b px-4 py-3.5 ${darkMode ? 'border-gray-800 bg-gray-900' : 'border-gray-200 bg-gray-50/70'}`}>
+                  <div className={`border-b px-4 py-3.5 ${darkMode ? 'border-[#2f3a31] bg-[#1a201b]' : 'border-gray-200 bg-gray-50/70'}`}>
                     <div className="flex items-start justify-between gap-4">
                       <h2 className={`text-base font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
                         {referenceBatchMode ? '批量结果预览' : '生成结果预览'}
@@ -3147,7 +3347,7 @@ export default function GeneratePage() {
                   <div className="p-4 lg:flex lg:min-h-0 lg:flex-1 lg:flex-col">
                     {referenceBatchMode ? (
                       <div className="space-y-4">
-                        <div className={`rounded-2xl border px-4 py-3 text-sm ${darkMode ? 'border-gray-800 bg-gray-950/60 text-gray-300' : 'border-gray-200 bg-gray-50 text-gray-600'}`}>
+                        <div className={`rounded-2xl border px-4 py-3 text-sm ${darkMode ? 'border-[#2f3a31] bg-[#141915]/72 text-stone-300' : 'border-gray-200 bg-gray-50 text-gray-600'}`}>
                           {batchGenerating
                             ? `正在按参考图轮换生成 (${batchProgress.current}/${batchProgress.total})`
                             : `共 ${userImages.length} 张参考图，已成功生成 ${successfulBatchResults.length} 张`}
@@ -3157,9 +3357,9 @@ export default function GeneratePage() {
                             {batchResults.map((item, index) => (
                               <div
                                 key={item.id}
-                                className={`overflow-hidden rounded-2xl border ${darkMode ? 'border-gray-800 bg-gray-950/60' : 'border-gray-200 bg-gray-50/80'}`}
+                                className={`overflow-hidden rounded-2xl border ${darkMode ? 'border-[#2f3a31] bg-[#141915]/72' : 'border-gray-200 bg-gray-50/80'}`}
                               >
-                                <div className={`flex items-center justify-between border-b px-4 py-3 ${darkMode ? 'border-gray-800 bg-gray-900/80' : 'border-gray-200 bg-white/80'}`}>
+                                <div className={`flex items-center justify-between border-b px-4 py-3 ${darkMode ? 'border-[#2f3a31] bg-[#1a201b]/90' : 'border-gray-200 bg-white/80'}`}>
                                   <div className="min-w-0">
                                     <p className={`truncate text-sm font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>批量结果 {index + 1}</p>
                                     <p className={`truncate text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>{item.sourceImage.name}</p>
@@ -3172,7 +3372,7 @@ export default function GeneratePage() {
                                         : item.status === 'generating'
                                           ? 'bg-violet-500 text-white'
                                           : darkMode
-                                            ? 'bg-gray-800 text-gray-300'
+                                            ? 'bg-[#222923] text-stone-300'
                                             : 'bg-gray-200 text-gray-700'
                                   }`}>
                                     {item.status === 'success'
@@ -3184,11 +3384,11 @@ export default function GeneratePage() {
                                 </div>
                                 <div className="grid gap-3 p-4">
                                   <div className="grid grid-cols-2 gap-3">
-                                    <div className={`overflow-hidden rounded-xl border ${darkMode ? 'border-gray-800 bg-gray-900' : 'border-gray-200 bg-white'}`}>
+                                    <div className={`overflow-hidden rounded-xl border ${darkMode ? 'border-[#2f3a31] bg-[#1a201b]' : 'border-gray-200 bg-white'}`}>
                                       <div className="px-3 py-2 text-[11px] font-semibold tracking-[0.18em] text-gray-500">参考图</div>
                                       <img src={item.sourceImage.url} alt={item.sourceImage.name} className="h-32 w-full object-contain" />
                                     </div>
-                                    <div className={`overflow-hidden rounded-xl border ${darkMode ? 'border-gray-800 bg-gray-900' : 'border-gray-200 bg-white'}`}>
+                                    <div className={`overflow-hidden rounded-xl border ${darkMode ? 'border-[#2f3a31] bg-[#1a201b]' : 'border-gray-200 bg-white'}`}>
                                       <div className="px-3 py-2 text-[11px] font-semibold tracking-[0.18em] text-gray-500">生成结果</div>
                                       {item.result?.imageUrl ? (
                                         <button type="button" onClick={() => setPreviewImage(item.result.imageUrl)} className="block w-full">
@@ -3215,7 +3415,7 @@ export default function GeneratePage() {
                                       <button
                                         type="button"
                                         onClick={() => setPreviewImage(item.result.imageUrl)}
-                                        className={`flex-1 rounded-xl px-3 py-2 text-xs font-medium ${darkMode ? 'bg-gray-800 text-white hover:bg-gray-700' : 'bg-white text-gray-900 hover:bg-gray-50 border border-gray-200'}`}
+                                        className={`flex-1 rounded-xl px-3 py-2 text-xs font-medium ${darkMode ? 'bg-[#222923] text-white hover:bg-[#2a332b]' : 'bg-white text-gray-900 hover:bg-gray-50 border border-gray-200'}`}
                                       >
                                         预览
                                       </button>
@@ -3233,7 +3433,7 @@ export default function GeneratePage() {
                             ))}
                           </div>
                         ) : (
-                          <div className={`flex min-h-[360px] items-center justify-center rounded-[20px] border px-8 text-center ${darkMode ? 'border-gray-800 bg-gray-950 text-gray-400' : 'border-gray-200 bg-gray-50 text-gray-500'}`}>
+                          <div className={`flex min-h-[360px] items-center justify-center rounded-[20px] border px-8 text-center ${darkMode ? 'border-[#2f3a31] bg-[#141915] text-stone-400' : 'border-gray-200 bg-gray-50 text-gray-500'}`}>
                             <div>
                               <Archive className="mx-auto h-10 w-10" />
                               <p className="mt-4 text-base font-semibold">等待批量结果</p>
@@ -3247,8 +3447,28 @@ export default function GeneratePage() {
                         <div className={`relative flex items-center justify-center overflow-hidden rounded-[20px] border transition-[min-height] duration-300 lg:flex-1 ${
                           result?.imageUrl || generating ? 'min-h-[360px]' : 'min-h-[320px]'
                         } ${
-                          darkMode ? 'border-gray-800 bg-gray-950' : 'border-gray-200 bg-gray-50'
+                          darkMode ? 'border-[#2f3a31] bg-[#141915]' : 'border-gray-200 bg-gray-50'
                         }`}>
+                          <AnimatePresence>
+                            {error && (
+                              <motion.div
+                                initial={{ opacity: 0, y: -10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: -10 }}
+                                className={`absolute left-4 top-4 z-10 flex max-w-[calc(100%-2rem)] items-start gap-3 rounded-xl border p-4 shadow-lg backdrop-blur-sm transition-colors duration-500 ${
+                                  darkMode
+                                    ? 'border-red-800 bg-red-950/85 text-red-300'
+                                    : 'border-red-200 bg-red-50/95 text-red-700'
+                                }`}
+                              >
+                                <XCircle className="mt-0.5 h-5 w-5 flex-shrink-0" />
+                                <div className="min-w-0">
+                                  <p className="mb-1 font-medium">生成失败</p>
+                                  <p className="text-sm">{error}</p>
+                                </div>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
                           {result?.imageUrl ? (
                             <div className="w-full">
                               <AnimatePresence>
@@ -3266,7 +3486,7 @@ export default function GeneratePage() {
                             </div>
                           ) : (
                             <div className="flex max-w-xl flex-col items-center justify-center px-6 py-6 text-center">
-                              <div className={`flex h-12 w-12 items-center justify-center rounded-2xl ${darkMode ? 'bg-gray-800 text-gray-400' : 'bg-gray-100 text-gray-500'}`}>
+                              <div className={`flex h-12 w-12 items-center justify-center rounded-2xl ${darkMode ? 'bg-[#222923] text-stone-400' : 'bg-gray-100 text-gray-500'}`}>
                                 {generating ? <Loader2 className="h-6 w-6 animate-spin" /> : <ImageIcon className="h-6 w-6" />}
                               </div>
                               <h3 className={`mt-3 text-base font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
@@ -3279,7 +3499,7 @@ export default function GeneratePage() {
                     )}
 
                     {!referenceBatchMode && canManage && result?.revisedPrompt && (
-                      <div className={`mt-4 rounded-2xl border p-4 ${darkMode ? 'border-gray-800 bg-gray-950/60' : 'border-gray-200 bg-gray-50/80'}`}>
+                      <div className={`mt-4 rounded-2xl border p-4 ${darkMode ? 'border-[#2f3a31] bg-[#141915]/72' : 'border-gray-200 bg-gray-50/80'}`}>
                         <p className={`mb-2 flex items-center gap-2 text-xs font-medium ${darkMode ? 'text-gray-400' : 'text-gray-700'}`}>
                           <Shield className="h-4 w-4" />
                           管理员可见 - 实际使用的提示词
@@ -3293,19 +3513,33 @@ export default function GeneratePage() {
                 </div>
 
                 <div className={`relative overflow-hidden rounded-[22px] border shadow-sm transition-colors duration-500 lg:flex lg:min-h-0 ${historyPanelOpen ? 'lg:flex-1' : 'lg:flex-none'} lg:flex-col ${
-                  darkMode ? 'border-gray-800 bg-gray-900' : 'border-gray-200 bg-white'
+                  darkMode ? 'border-[#2f3a31] bg-[#1a201b]' : 'border-gray-200 bg-white'
                 }`}>
-                  <div className={`border-b px-4 py-3.5 ${darkMode ? 'border-gray-800 bg-gray-900' : 'border-gray-200 bg-gray-50/70'}`}>
+                  <div className={`border-b px-4 py-3.5 ${darkMode ? 'border-[#2f3a31] bg-[#1a201b]' : 'border-gray-200 bg-gray-50/70'}`}>
                     <div className="flex items-center justify-between gap-3">
                       <h2 className={`text-base font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>该模板最近记录</h2>
-                      <ActionIconButton
-                        label={historyPanelOpen ? '关闭最近记录' : '查看最近记录'}
-                        icon={Eye}
-                        onClick={() => setHistoryPanelOpen((prev) => !prev)}
-                        disabled={loadingTemplateHistories || templateHistories.length === 0}
-                        darkMode={darkMode}
-                        className="h-8 w-8 rounded-full"
-                      />
+                      <div className="flex items-center gap-2">
+                        <ActionIconButton
+                          label={historyPanelOpen ? '关闭最近记录' : '查看最近记录'}
+                          icon={Eye}
+                          onClick={() => setHistoryPanelOpen((prev) => !prev)}
+                          disabled={loadingTemplateHistories || templateHistories.length === 0}
+                          darkMode={darkMode}
+                          className="h-8 w-8 rounded-full"
+                        />
+                        <ActionIconButton
+                          label={`删除失败任务${failedTemplateHistories.length > 0 ? `（${failedTemplateHistories.length}）` : ''}`}
+                          icon={Trash2}
+                          onClick={handleOpenDeleteFailedHistoriesModal}
+                          disabled={loadingTemplateHistories || deletingFailedHistories || failedTemplateHistories.length === 0}
+                          darkMode={darkMode}
+                          className={`h-8 w-8 rounded-full ${
+                            darkMode
+                              ? 'border-red-900/60 bg-red-950/20 text-red-300 hover:bg-red-950/35 hover:text-red-200'
+                              : 'border-red-200 bg-white text-red-500 hover:bg-red-50 hover:text-red-600'
+                          }`}
+                        />
+                      </div>
                     </div>
                   </div>
 
@@ -3326,13 +3560,24 @@ export default function GeneratePage() {
                           }}
                         >
                           {templateHistories.map((item) => (
-                            <button
-                              type="button"
+                            <div
+                              role="button"
+                              tabIndex={item.outputImageUrl ? 0 : -1}
                               key={item.id}
                               onClick={() => item.outputImageUrl && setPreviewImage(item.outputImageUrl)}
-                              className={`group relative w-[calc((100%-1.5rem)/3)] min-w-[calc((100%-1.5rem)/3)] flex-none overflow-hidden rounded-2xl border transition-colors ${darkMode ? 'border-gray-800 bg-gray-950/60 hover:border-gray-700' : 'border-gray-200 bg-gray-50/80 hover:border-gray-300'}`}
+                              onKeyDown={(event) => {
+                                if (!item.outputImageUrl) return;
+                                if (event.key === 'Enter' || event.key === ' ') {
+                                  event.preventDefault();
+                                  setPreviewImage(item.outputImageUrl);
+                                }
+                              }}
+                              aria-disabled={!item.outputImageUrl}
+                              className={`group relative w-[calc((100%-1.5rem)/3)] min-w-[calc((100%-1.5rem)/3)] flex-none overflow-hidden rounded-2xl border transition-colors ${
+                                item.outputImageUrl ? 'cursor-pointer' : 'cursor-default'
+                              } ${darkMode ? 'border-[#2f3a31] bg-[#141915]/72 hover:border-[#425143]' : 'border-gray-200 bg-gray-50/80 hover:border-gray-300'}`}
                             >
-                              <div className={`group relative aspect-[16/11] overflow-hidden ${darkMode ? 'bg-gray-950' : 'bg-white'}`}>
+                              <div className={`group relative aspect-[16/11] overflow-hidden ${darkMode ? 'bg-[#141915]' : 'bg-white'}`}>
                                 {item.outputImageUrl ? (
                                   <img
                                     src={item.thumbnailUrl || item.outputImageUrl}
@@ -3373,7 +3618,7 @@ export default function GeneratePage() {
                                   />
                                 </div>
                               </div>
-                            </button>
+                            </div>
                           ))}
                         </div>
 
@@ -3385,10 +3630,10 @@ export default function GeneratePage() {
                               exit={{ y: 48, opacity: 0 }}
                               transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
                               className={`fixed inset-4 top-[5.25rem] z-[90] overflow-hidden rounded-[28px] border shadow-2xl lg:flex lg:min-h-0 lg:flex-col ${
-                                darkMode ? 'border-gray-700 bg-gray-950' : 'border-gray-200 bg-white'
+                                darkMode ? 'border-[#334034] bg-[#141915]' : 'border-gray-200 bg-white'
                               }`}
                             >
-                              <div className={`flex items-center justify-between gap-3 border-b px-4 py-3 ${darkMode ? 'border-gray-800 bg-gray-950' : 'border-gray-200 bg-gray-50'}`}>
+                              <div className={`flex items-center justify-between gap-3 border-b px-4 py-3 ${darkMode ? 'border-[#2f3a31] bg-[#141915]' : 'border-gray-200 bg-gray-50'}`}>
                                 <div>
                                   <p className={`text-sm font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>完整记录</p>
                                   <p className={`mt-1 text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>鼠标移入后可在此区域内上下滑动</p>
@@ -3407,10 +3652,10 @@ export default function GeneratePage() {
                                   {templateHistories.map((item) => (
                                     <div
                                       key={item.id}
-                                      className={`overflow-hidden rounded-2xl border transition-colors ${darkMode ? 'border-gray-800 bg-gray-950' : 'border-gray-200 bg-white'}`}
+                                      className={`overflow-hidden rounded-2xl border transition-colors ${darkMode ? 'border-[#2f3a31] bg-[#141915]' : 'border-gray-200 bg-white'}`}
                                     >
                                       <div
-                                        className={`group relative aspect-[16/10] cursor-pointer overflow-hidden ${darkMode ? 'bg-gray-950' : 'bg-white'}`}
+                                        className={`group relative aspect-[16/10] cursor-pointer overflow-hidden ${darkMode ? 'bg-[#141915]' : 'bg-white'}`}
                                         onClick={() => item.outputImageUrl && setPreviewImage(item.outputImageUrl)}
                                       >
                                         {item.outputImageUrl ? (
