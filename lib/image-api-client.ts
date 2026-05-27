@@ -57,6 +57,22 @@ export class ImageApiClient {
     return message.includes("Tool choice 'image_generation' not found in 'tools' parameter");
   }
 
+  private getMimeTypeForPath(filePath: string): string | undefined {
+    const ext = path.extname(filePath).toLowerCase();
+
+    switch (ext) {
+      case '.png':
+        return 'image/png';
+      case '.jpg':
+      case '.jpeg':
+        return 'image/jpeg';
+      case '.webp':
+        return 'image/webp';
+      default:
+        return undefined;
+    }
+  }
+
   private async createEditForm(input: EditImageInput): Promise<FormData> {
     const form = new FormData();
     form.append('model', 'gpt-image-2');
@@ -67,7 +83,10 @@ export class ImageApiClient {
 
     for (const imagePath of input.imagePaths) {
       const buffer = await fs.promises.readFile(imagePath);
-      const file = new Blob([buffer]);
+      const mimeType = this.getMimeTypeForPath(imagePath);
+      const file = mimeType
+        ? new Blob([buffer], { type: mimeType })
+        : new Blob([buffer]);
       form.append('image', file, path.basename(imagePath));
     }
 

@@ -5,15 +5,81 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
 
+const INVALID_IMAGE_INPUT_PREFIX = 'INVALID_IMAGE_INPUT:';
+const SUPPORTED_EDIT_IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.webp']);
+
+function getSupportedImageFormatsHint(): string {
+  return '当前仅支持 PNG、JPG/JPEG、WEBP 格式，请不要上传 ICO、SVG 等图标类格式';
+}
+
+function createInvalidImageInputError(message: string): Error {
+  return new Error(`${INVALID_IMAGE_INPUT_PREFIX}${message}`);
+}
+
+function getMimeTypeExtension(mimeType: string): string | null {
+  switch (mimeType.toLowerCase()) {
+    case 'image/png':
+      return '.png';
+    case 'image/jpeg':
+      return '.jpg';
+    case 'image/webp':
+      return '.webp';
+    default:
+      return null;
+  }
+}
+
+function ensureSupportedEditImageFormat(extension: string | null | undefined, sourceLabel: string): string {
+  const normalizedExtension = extension?.toLowerCase();
+  if (!normalizedExtension || !SUPPORTED_EDIT_IMAGE_EXTENSIONS.has(normalizedExtension)) {
+    throw createInvalidImageInputError(`${sourceLabel}格式不受支持。${getSupportedImageFormatsHint()}`);
+  }
+
+  return normalizedExtension;
+}
+
 function getUserFacingErrorMessage(error: unknown): string {
   const rawMessage = error instanceof Error ? error.message : String(error || '');
   const matchedStatus = rawMessage.match(/\b(5\d{2})\b/)?.[1];
+  const normalizedMessage = rawMessage.toLowerCase();
+
+  if (rawMessage.startsWith(INVALID_IMAGE_INPUT_PREFIX)) {
+    return rawMessage.slice(INVALID_IMAGE_INPUT_PREFIX.length);
+  }
 
   if (matchedStatus === '524' || matchedStatus === '542') {
     return '524：上游服务器繁忙，请稍后重试';
   }
 
+  if (
+    normalizedMessage.includes('image upload failed') ||
+    normalizedMessage.includes('invalid image') ||
+    normalizedMessage.includes('图片编辑失败: 400')
+  ) {
+    return `上传的参考图未通过图片校验，请检查以下内容：
+1. 图片格式是否为 PNG、JPG/JPEG 或 WEBP
+2. 不要上传 ICO、SVG 等图标或矢量格式
+3. 图片文件是否能正常打开，是否存在损坏或编码异常
+4. 图片尺寸不要过小、过大，长宽比不要过于极端`;
+  }
   return '生成过程中遇到问题，请稍后重试';
+}
+
+
+function getErrorResponseStatus(error: unknown): number {
+  const rawMessage = error instanceof Error ? error.message : String(error || '');
+  const normalizedMessage = rawMessage.toLowerCase();
+
+  if (
+    rawMessage.startsWith(INVALID_IMAGE_INPUT_PREFIX) ||
+    rawMessage.includes('没有可用的图片进行编辑') ||
+    normalizedMessage.includes('image upload failed') ||
+    normalizedMessage.includes('invalid image')
+  ) {
+    return 400;
+  }
+
+  return 500;
 }
 
 async function persistGeneratedImage(
@@ -199,17 +265,26 @@ export async function POST(request: NextRequest) {
         
         if (imgData.startsWith('data:')) {
           console.log(`处理base64图片 ${i}`);
+          const mimeTypeMatch = imgData.match(/^data:([^;]+);base64,/i);
+          const extension = ensureSupportedEditImageFormat(
+            getMimeTypeExtension(mimeTypeMatch?.[1] || ''),
+            `第 ${i + 1} 张图片`
+          );
           const base64Data = imgData.split(',')[1];
           const imageBuffer = Buffer.from(base64Data, 'base64');
-          const tempPath = path.join(outputDir, 'temp_' + timestamp + '_' + uniqueId + '_' + i + '.png');
+          const tempPath = path.join(outputDir, 'temp_' + timestamp + '_' + uniqueId + '_' + i + extension);
           await fs.writeFile(tempPath, new Uint8Array(imageBuffer));
           tempPaths.push(tempPath);
         } else if (imgData.startsWith('/storage/')) {
           console.log(`处理存储图片 ${i}: ${imgData}`);
+          const extension = ensureSupportedEditImageFormat(
+            path.extname(imgData),
+            `第 ${i + 1} 张图片`
+          );
           const filePath = path.join(process.cwd(), 'public', imgData);
           try {
             const imageBuffer = await fs.readFile(filePath);
-            const tempPath = path.join(outputDir, 'temp_' + timestamp + '_' + uniqueId + '_' + i + '.png');
+            const tempPath = path.join(outputDir, 'temp_' + timestamp + '_' + uniqueId + '_' + i + extension);
             await fs.writeFile(tempPath, new Uint8Array(imageBuffer));
             tempPaths.push(tempPath);
             console.log(`图片 ${i} 已复制到临时文件`);
@@ -320,11 +395,12 @@ export async function POST(request: NextRequest) {
             // 不要在非管理员响应中包含 prompt 等敏感信息
             details: isAdmin ? {
               errorName: error.name,
+              rawMessage: error.message,
               stack: error.stack,
               historyId
             } : undefined
           },
-          { status: 500 }
+          { status: getErrorResponseStatus(error) }
         );
       } catch (historyError: any) {
         console.error('保存失败状态及退还算力失败:', historyError);
@@ -343,9 +419,9 @@ export async function POST(request: NextRequest) {
       { 
         success: false,
         error: '图片生成失败',
-        message: '生成过程中遇到问题，请稍后重试'
+        message: getUserFacingErrorMessage(error)
       },
-      { status: 500 }
+      { status: getErrorResponseStatus(error) }
     );
   }
 }

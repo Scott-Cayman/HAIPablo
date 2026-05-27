@@ -87,6 +87,176 @@ const iconMap: Record<string, any> = {
   LayersIcon
 };
 
+type PreviewGlowColor = {
+  r: number;
+  g: number;
+  b: number;
+};
+
+type PreviewGlowPalette = {
+  left: PreviewGlowColor;
+  center: PreviewGlowColor;
+  right: PreviewGlowColor;
+};
+
+const clampChannel = (value: number) => Math.max(0, Math.min(255, Math.round(value)));
+
+const rgba = (color: PreviewGlowColor, alpha: number) =>
+  `rgba(${clampChannel(color.r)}, ${clampChannel(color.g)}, ${clampChannel(color.b)}, ${alpha})`;
+
+const mixColor = (
+  from: PreviewGlowColor,
+  to: PreviewGlowColor,
+  amount: number
+): PreviewGlowColor => ({
+  r: from.r + (to.r - from.r) * amount,
+  g: from.g + (to.g - from.g) * amount,
+  b: from.b + (to.b - from.b) * amount
+});
+
+const createFallbackGlowPalette = (darkMode: boolean): PreviewGlowPalette => {
+  if (darkMode) {
+    return {
+      left: { r: 54, g: 68, b: 88 },
+      center: { r: 78, g: 96, b: 120 },
+      right: { r: 72, g: 82, b: 108 }
+    };
+  }
+
+  return {
+    left: { r: 196, g: 205, b: 220 },
+    center: { r: 222, g: 228, b: 238 },
+    right: { r: 205, g: 212, b: 225 }
+  };
+};
+
+const getDominantRegionColor = (
+  pixels: Uint8ClampedArray,
+  imageWidth: number,
+  startX: number,
+  endX: number,
+  startY: number,
+  endY: number
+): PreviewGlowColor | null => {
+  const buckets = new Map<string, { score: number; r: number; g: number; b: number; weight: number }>();
+
+  for (let y = startY; y < endY; y += 1) {
+    for (let x = startX; x < endX; x += 1) {
+      const index = (y * imageWidth + x) * 4;
+      const alpha = pixels[index + 3] / 255;
+      if (alpha < 0.12) continue;
+
+      const r = pixels[index];
+      const g = pixels[index + 1];
+      const b = pixels[index + 2];
+      const maxChannel = Math.max(r, g, b);
+      const minChannel = Math.min(r, g, b);
+      const saturation = maxChannel - minChannel;
+      const brightness = (r + g + b) / 3;
+      const quantizedR = Math.round(r / 24) * 24;
+      const quantizedG = Math.round(g / 24) * 24;
+      const quantizedB = Math.round(b / 24) * 24;
+      const key = `${quantizedR}|${quantizedG}|${quantizedB}`;
+      const edgeWeight = 1 + saturation / 92 + Math.abs(brightness - 127) / 255 + alpha * 1.35;
+      const current = buckets.get(key) ?? { score: 0, r: 0, g: 0, b: 0, weight: 0 };
+
+      current.score += edgeWeight;
+      current.r += r * edgeWeight;
+      current.g += g * edgeWeight;
+      current.b += b * edgeWeight;
+      current.weight += edgeWeight;
+      buckets.set(key, current);
+    }
+  }
+
+  let dominant: { score: number; r: number; g: number; b: number; weight: number } | null = null;
+
+  for (const candidate of buckets.values()) {
+    if (!dominant || candidate.score > dominant.score) {
+      dominant = candidate;
+    }
+  }
+
+  if (!dominant || dominant.weight === 0) {
+    return null;
+  }
+
+  return {
+    r: dominant.r / dominant.weight,
+    g: dominant.g / dominant.weight,
+    b: dominant.b / dominant.weight
+  };
+};
+
+const samplePreviewGlowPalette = (image: HTMLImageElement): PreviewGlowPalette | null => {
+  const { naturalWidth, naturalHeight } = image;
+  if (!naturalWidth || !naturalHeight) {
+    return null;
+  }
+
+  const sampleMaxSize = 160;
+  const scale = Math.min(1, sampleMaxSize / Math.max(naturalWidth, naturalHeight));
+  const width = Math.max(12, Math.round(naturalWidth * scale));
+  const height = Math.max(12, Math.round(naturalHeight * scale));
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+
+  const context = canvas.getContext('2d', { willReadFrequently: true });
+  if (!context) {
+    return null;
+  }
+
+  context.drawImage(image, 0, 0, width, height);
+
+  let pixels: Uint8ClampedArray;
+  try {
+    pixels = context.getImageData(0, 0, width, height).data;
+  } catch {
+    return null;
+  }
+
+  const sideStripWidth = Math.max(2, Math.floor(width * 0.12));
+  const trimY = Math.max(0, Math.floor(height * 0.04));
+  const startY = trimY;
+  const endY = Math.max(startY + 1, height - trimY);
+
+  const left = getDominantRegionColor(pixels, width, 0, sideStripWidth, startY, endY);
+  const right = getDominantRegionColor(pixels, width, width - sideStripWidth, width, startY, endY);
+  const top = getDominantRegionColor(
+    pixels,
+    width,
+    sideStripWidth,
+    Math.max(sideStripWidth + 1, width - sideStripWidth),
+    0,
+    Math.max(1, Math.floor(height * 0.12))
+  );
+  const bottom = getDominantRegionColor(
+    pixels,
+    width,
+    sideStripWidth,
+    Math.max(sideStripWidth + 1, width - sideStripWidth),
+    Math.max(0, height - Math.max(1, Math.floor(height * 0.12))),
+    height
+  );
+
+  const fallback = left ?? right ?? top ?? bottom;
+  if (!fallback) {
+    return null;
+  }
+
+  const resolvedLeft = left ?? mixColor(fallback, right ?? fallback, 0.25);
+  const resolvedRight = right ?? mixColor(fallback, left ?? fallback, 0.25);
+  const verticalBlend = mixColor(top ?? fallback, bottom ?? fallback, 0.5);
+  const center = mixColor(mixColor(resolvedLeft, resolvedRight, 0.5), verticalBlend, 0.35);
+
+  return {
+    left: resolvedLeft,
+    center,
+    right: resolvedRight
+  };
+};
+
 function TemplatePreviewImage({
   url,
   alt,
@@ -99,11 +269,22 @@ function TemplatePreviewImage({
   darkMode: boolean;
 }) {
   const [isPortrait, setIsPortrait] = useState(false);
+  const [glowPalette, setGlowPalette] = useState<PreviewGlowPalette | null>(null);
+
+  useEffect(() => {
+    setGlowPalette(null);
+  }, [url]);
 
   const handleImageLoad = (event: React.SyntheticEvent<HTMLImageElement>) => {
-    const { naturalWidth, naturalHeight } = event.currentTarget;
+    const image = event.currentTarget;
+    const { naturalWidth, naturalHeight } = image;
     setIsPortrait(naturalHeight > naturalWidth * 1.08);
+
+    const nextPalette = samplePreviewGlowPalette(image);
+    setGlowPalette(nextPalette);
   };
+
+  const activePalette = glowPalette ?? createFallbackGlowPalette(darkMode);
 
   return (
     <div
@@ -114,24 +295,33 @@ function TemplatePreviewImage({
       {isPortrait ? (
         <>
           <div
-            className="absolute inset-y-0 left-0 w-[34%] scale-110 bg-cover bg-left blur-2xl opacity-80"
-            style={{ backgroundImage: `url(${url})` }}
+            className="absolute inset-y-[-12%] left-[-8%] w-[40%] scale-125 blur-3xl"
+            style={{
+              background: `radial-gradient(circle at 0% 50%, ${rgba(activePalette.left, 0.96)} 0%, ${rgba(activePalette.center, 0.58)} 48%, transparent 82%)`
+            }}
             aria-hidden="true"
           />
           <div
-            className="absolute inset-y-0 right-0 w-[34%] scale-110 bg-cover bg-right blur-2xl opacity-80"
-            style={{ backgroundImage: `url(${url})` }}
+            className="absolute inset-y-[-12%] right-[-8%] w-[40%] scale-125 blur-3xl"
+            style={{
+              background: `radial-gradient(circle at 100% 50%, ${rgba(activePalette.right, 0.96)} 0%, ${rgba(activePalette.center, 0.58)} 48%, transparent 82%)`
+            }}
             aria-hidden="true"
           />
           <div
-            className="absolute inset-y-0 left-[24%] right-[24%] bg-gradient-to-r from-transparent via-white/10 to-transparent"
+            className="absolute inset-y-0 left-[18%] right-[18%]"
+            style={{
+              background: `linear-gradient(90deg, transparent 0%, ${rgba(activePalette.center, darkMode ? 0.16 : 0.24)} 50%, transparent 100%)`
+            }}
             aria-hidden="true"
           />
         </>
       ) : (
         <div
-          className="absolute inset-0 scale-105 bg-cover bg-center blur-3xl opacity-55"
-          style={{ backgroundImage: `url(${url})` }}
+          className="absolute inset-[-8%] scale-105 blur-3xl"
+          style={{
+            background: `linear-gradient(120deg, ${rgba(activePalette.left, 0.82)} 0%, ${rgba(activePalette.center, 0.7)} 50%, ${rgba(activePalette.right, 0.82)} 100%)`
+          }}
           aria-hidden="true"
         />
       )}
