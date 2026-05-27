@@ -145,6 +145,170 @@ const LEGACY_SIZE_MAP: Record<string, string> = {
   '1920x1080': '3840x2160'
 };
 
+const REFERENCE_UPLOAD_MAX_EDGE = 3840;
+const REFERENCE_UPLOAD_MAX_TOTAL_PIXELS = 8_294_400;
+const REFERENCE_UPLOAD_MAX_FILE_SIZE_BYTES = 8 * 1024 * 1024;
+const REFERENCE_UPLOAD_QUALITY_STEPS = [0.92, 0.88, 0.84, 0.8, 0.76, 0.72];
+const REFERENCE_UPLOAD_SCALE_STEPS = [1, 0.94, 0.88, 0.82];
+
+function formatFileSize(size: number) {
+  if (size < 1024) {
+    return `${size} B`;
+  }
+
+  if (size < 1024 * 1024) {
+    return `${(size / 1024).toFixed(1)} KB`;
+  }
+
+  return `${(size / (1024 * 1024)).toFixed(2)} MB`;
+}
+
+function getReferenceUploadLimitText() {
+  return `最大边长 ${REFERENCE_UPLOAD_MAX_EDGE}px，总像素不超过 ${REFERENCE_UPLOAD_MAX_TOTAL_PIXELS.toLocaleString()}，文件大小不超过 ${formatFileSize(REFERENCE_UPLOAD_MAX_FILE_SIZE_BYTES)}`;
+}
+
+function canvasToBlob(canvas: HTMLCanvasElement, type: string, quality: number): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (!blob) {
+        reject(new Error('图片压缩失败'));
+        return;
+      }
+
+      resolve(blob);
+    }, type, quality);
+  });
+}
+
+async function getImageFileDimensions(file: File): Promise<{ width: number; height: number }> {
+  const objectUrl = URL.createObjectURL(file);
+
+  try {
+    const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const element = new Image();
+      element.onload = () => resolve(element);
+      element.onerror = () => reject(new Error('加载图片失败'));
+      element.src = objectUrl;
+    });
+
+    return { width: image.width, height: image.height };
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
+
+function getReferenceUploadViolations({
+  width,
+  height,
+  sizeBytes
+}: {
+  width: number;
+  height: number;
+  sizeBytes: number;
+}) {
+  const violations: string[] = [];
+  const longestEdge = Math.max(width, height);
+  const totalPixels = width * height;
+
+  if (longestEdge > REFERENCE_UPLOAD_MAX_EDGE) {
+    violations.push(`最大边长 ${longestEdge}px，超过 ${REFERENCE_UPLOAD_MAX_EDGE}px`);
+  }
+
+  if (totalPixels > REFERENCE_UPLOAD_MAX_TOTAL_PIXELS) {
+    violations.push(`总像素 ${totalPixels.toLocaleString()}，超过 ${REFERENCE_UPLOAD_MAX_TOTAL_PIXELS.toLocaleString()}`);
+  }
+
+  if (sizeBytes > REFERENCE_UPLOAD_MAX_FILE_SIZE_BYTES) {
+    violations.push(`文件大小 ${formatFileSize(sizeBytes)}，超过 ${formatFileSize(REFERENCE_UPLOAD_MAX_FILE_SIZE_BYTES)}`);
+  }
+
+  return violations;
+}
+
+function getConstrainedDimensions(width: number, height: number) {
+  const longestEdge = Math.max(width, height);
+  const totalPixels = width * height;
+  let scale = 1;
+
+  if (longestEdge > REFERENCE_UPLOAD_MAX_EDGE) {
+    scale = Math.min(scale, REFERENCE_UPLOAD_MAX_EDGE / longestEdge);
+  }
+
+  if (totalPixels > REFERENCE_UPLOAD_MAX_TOTAL_PIXELS) {
+    scale = Math.min(scale, Math.sqrt(REFERENCE_UPLOAD_MAX_TOTAL_PIXELS / totalPixels));
+  }
+
+  return {
+    width: Math.max(1, Math.round(width * scale)),
+    height: Math.max(1, Math.round(height * scale))
+  };
+}
+
+function getCompressedFileExtension(type: string) {
+  if (type === 'image/webp') return 'webp';
+  if (type === 'image/png') return 'png';
+  return 'jpg';
+}
+
+async function compressReferenceUploadImage(file: File): Promise<File> {
+  const imageUrl = URL.createObjectURL(file);
+
+  try {
+    const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const element = new Image();
+      element.onload = () => resolve(element);
+      element.onerror = () => reject(new Error('加载图片失败'));
+      element.src = imageUrl;
+    });
+
+    const preferredType = file.type === 'image/png' || file.type === 'image/webp' ? 'image/webp' : 'image/jpeg';
+    const constrained = getConstrainedDimensions(image.width, image.height);
+    let bestBlob: Blob | null = null;
+
+    for (const scaleStep of REFERENCE_UPLOAD_SCALE_STEPS) {
+      const targetWidth = Math.max(1, Math.round(constrained.width * scaleStep));
+      const targetHeight = Math.max(1, Math.round(constrained.height * scaleStep));
+      const canvas = document.createElement('canvas');
+      canvas.width = targetWidth;
+      canvas.height = targetHeight;
+
+      const context = canvas.getContext('2d');
+      if (!context) {
+        throw new Error('浏览器不支持图片压缩');
+      }
+
+      context.drawImage(image, 0, 0, targetWidth, targetHeight);
+
+      for (const quality of REFERENCE_UPLOAD_QUALITY_STEPS) {
+        const blob = await canvasToBlob(canvas, preferredType, quality);
+        bestBlob = blob;
+
+        if (blob.size <= REFERENCE_UPLOAD_MAX_FILE_SIZE_BYTES) {
+          const extension = getCompressedFileExtension(preferredType);
+          const fileName = file.name.replace(/\.[^.]+$/, '') || 'reference';
+          return new File([blob], `${fileName}.${extension}`, {
+            type: preferredType,
+            lastModified: Date.now()
+          });
+        }
+      }
+    }
+
+    if (!bestBlob) {
+      throw new Error('图片压缩失败');
+    }
+
+    const extension = getCompressedFileExtension(preferredType);
+    const fileName = file.name.replace(/\.[^.]+$/, '') || 'reference';
+    return new File([bestBlob], `${fileName}.${extension}`, {
+      type: preferredType,
+      lastModified: Date.now()
+    });
+  } finally {
+    URL.revokeObjectURL(imageUrl);
+  }
+}
+
 function normalizeSizeValue(rawSize?: string) {
   if (!rawSize) {
     return '2048x2048';
@@ -175,6 +339,19 @@ interface ReferenceBatchResultItem {
   error: string;
   status: 'idle' | 'waiting' | 'generating' | 'success' | 'error';
   generationStatus: string;
+}
+
+type UploadTarget = 'main' | 'custom' | 'variable';
+
+interface PendingCompressionUpload {
+  id: string;
+  file: File;
+  source: UploadTarget;
+  variableKey?: string;
+  width: number;
+  height: number;
+  sizeBytes: number;
+  reasons: string[];
 }
 
 interface GenerationRequestOptions {
@@ -286,6 +463,7 @@ export default function GeneratePage() {
   const [adminColorTheme, setAdminColorTheme] = useState<AdminColorTheme>('forest-amber');
   const [loading, setLoading] = useState(true);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [compressingPendingUploads, setCompressingPendingUploads] = useState(false);
   const [selectedPresetImage, setSelectedPresetImage] = useState<ReferenceImage | null>(null);
   const [customReferenceImages, setCustomReferenceImages] = useState<ReferenceImage[]>([]);
   const [selectedCustomReferenceIds, setSelectedCustomReferenceIds] = useState<string[]>([]);
@@ -318,6 +496,7 @@ export default function GeneratePage() {
   const [historyPanelOpen, setHistoryPanelOpen] = useState(false);
   const [deletingFailedHistories, setDeletingFailedHistories] = useState(false);
   const [deleteFailedModalOpen, setDeleteFailedModalOpen] = useState(false);
+  const [pendingCompressionUploads, setPendingCompressionUploads] = useState<PendingCompressionUpload[]>([]);
 
   // 预览图片缩放和拖拽状态
   const [zoomScale, setZoomScale] = useState(1);
@@ -534,6 +713,168 @@ export default function GeneratePage() {
     return fetchTemplateHistories(user.id, templateId, template.name);
   }, [user?.id, templateId, template, isSpecialThreeDRender]);
 
+  const uploadPreparedFiles = useCallback(async (
+    filesToUpload: File[],
+    source: UploadTarget,
+    variableKey?: string
+  ) => {
+    if (filesToUpload.length === 0) {
+      return;
+    }
+
+    const uploadPromises = filesToUpload.map(async (file) => {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData
+      });
+
+      if (!response.ok) {
+        throw new Error('上传失败');
+      }
+
+      const data = await response.json();
+      const prefix = source === 'variable' ? `var_${variableKey || 'image'}` : source;
+
+      return {
+        id: `${prefix}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        url: data.url,
+        name: file.name,
+        originalUrl: data.url,
+        annotations: [],
+        annotationTokens: []
+      } satisfies ReferenceImage;
+    });
+
+    const uploadedImages = await Promise.all(uploadPromises);
+
+    if (source === 'main') {
+      const allowMultipleUploads = template?.enableReferenceBatchMode === true;
+      setUserImages((prev) => {
+        const updatedImages = allowMultipleUploads ? [...prev, ...uploadedImages] : uploadedImages.slice(0, 1);
+        if (!selectedUserImage || !allowMultipleUploads) {
+          setSelectedUserImage(updatedImages[0] || null);
+        }
+        return updatedImages;
+      });
+      setBatchResults([]);
+      return;
+    }
+
+    if (source === 'custom') {
+      const allowMultipleCustomReferences = template?.allowMultipleCustomReferences === true;
+      setCustomReferenceImages((prev) => {
+        const updatedImages = allowMultipleCustomReferences ? [...prev, ...uploadedImages] : uploadedImages.slice(0, 1);
+        setSelectedCustomReferenceIds(updatedImages.map((image) => image.id));
+        return updatedImages;
+      });
+      setSelectedPresetImage(null);
+      return;
+    }
+
+    if (variableKey) {
+      setVariableImages((prev) => ({ ...prev, [variableKey]: uploadedImages[0] || null }));
+    }
+  }, [selectedUserImage, template?.allowMultipleCustomReferences, template?.enableReferenceBatchMode]);
+
+  const processSelectedUploads = useCallback(async (
+    selectedFiles: File[],
+    source: UploadTarget,
+    variableKey?: string
+  ) => {
+    if (selectedFiles.length === 0) {
+      return;
+    }
+
+    const inspectedFiles = await Promise.all(
+      selectedFiles.map(async (file) => {
+        const dimensions = await getImageFileDimensions(file);
+        const reasons = getReferenceUploadViolations({
+          width: dimensions.width,
+          height: dimensions.height,
+          sizeBytes: file.size
+        });
+
+        return {
+          id: `${source}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+          file,
+          source,
+          variableKey,
+          width: dimensions.width,
+          height: dimensions.height,
+          sizeBytes: file.size,
+          reasons
+        } satisfies PendingCompressionUpload;
+      })
+    );
+
+    const uploadNow = inspectedFiles.filter((item) => item.reasons.length === 0).map((item) => item.file);
+    const needCompression = inspectedFiles.filter((item) => item.reasons.length > 0);
+
+    if (uploadNow.length > 0) {
+      await uploadPreparedFiles(uploadNow, source, variableKey);
+    }
+
+    if (needCompression.length > 0) {
+      setPendingCompressionUploads((prev) => [...prev, ...needCompression]);
+    }
+  }, [uploadPreparedFiles]);
+
+  const handleCompressPendingUploads = async () => {
+    if (pendingCompressionUploads.length === 0) {
+      return;
+    }
+
+    setCompressingPendingUploads(true);
+    setUploadingImage(true);
+    setError('');
+
+    try {
+      const groupedUploads = new Map<string, { source: UploadTarget; variableKey?: string; files: File[] }>();
+
+      for (const pendingUpload of pendingCompressionUploads) {
+        const compressedFile = await compressReferenceUploadImage(pendingUpload.file);
+        const compressedDimensions = await getImageFileDimensions(compressedFile);
+        const remainingViolations = getReferenceUploadViolations({
+          width: compressedDimensions.width,
+          height: compressedDimensions.height,
+          sizeBytes: compressedFile.size
+        });
+
+        if (remainingViolations.length > 0) {
+          throw new Error(`${pendingUpload.file.name} 压缩后仍超限：${remainingViolations.join('；')}`);
+        }
+
+        const key = `${pendingUpload.source}:${pendingUpload.variableKey || ''}`;
+        const group = groupedUploads.get(key);
+
+        if (group) {
+          group.files.push(compressedFile);
+        } else {
+          groupedUploads.set(key, {
+            source: pendingUpload.source,
+            variableKey: pendingUpload.variableKey,
+            files: [compressedFile]
+          });
+        }
+      }
+
+      for (const group of groupedUploads.values()) {
+        await uploadPreparedFiles(group.files, group.source, group.variableKey);
+      }
+
+      setPendingCompressionUploads([]);
+    } catch (compressionError) {
+      console.error('压缩上传失败:', compressionError);
+      setError(`压缩上传失败，请手动缩放后重试。限制：${getReferenceUploadLimitText()}`);
+    } finally {
+      setCompressingPendingUploads(false);
+      setUploadingImage(false);
+    }
+  };
+
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
@@ -542,40 +883,7 @@ export default function GeneratePage() {
     setError('');
 
     try {
-      const uploadPromises = Array.from(files).map(async (file) => {
-        const formData = new FormData();
-        formData.append('file', file);
-
-        const response = await fetch('/api/upload', {
-          method: 'POST',
-          body: formData
-        });
-
-        if (!response.ok) {
-          throw new Error('上传失败');
-        }
-
-        const data = await response.json();
-        return {
-          id: `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-          url: data.url,
-          name: file.name,
-          originalUrl: data.url,
-          annotations: [],
-          annotationTokens: []
-        };
-      });
-
-      const newImages = await Promise.all(uploadPromises);
-      const allowMultipleUploads = template?.enableReferenceBatchMode === true;
-      setUserImages(prev => {
-        const updatedImages = allowMultipleUploads ? [...prev, ...newImages] : newImages.slice(0, 1);
-        if (!selectedUserImage || !allowMultipleUploads) {
-          setSelectedUserImage(updatedImages[0] || null);
-        }
-        return updatedImages;
-      });
-      setBatchResults([]);
+      await processSelectedUploads(Array.from(files), 'main');
     } catch (error) {
       console.error('上传失败:', error);
       setError('图片上传失败');
@@ -593,38 +901,7 @@ export default function GeneratePage() {
     setError('');
 
     try {
-      const uploadPromises = Array.from(files).map(async (file) => {
-        const formData = new FormData();
-        formData.append('file', file);
-
-        const response = await fetch('/api/upload', {
-          method: 'POST',
-          body: formData
-        });
-
-        if (!response.ok) {
-          throw new Error('上传失败');
-        }
-
-        const data = await response.json();
-        return {
-          id: `custom_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-          url: data.url,
-          name: file.name,
-          originalUrl: data.url,
-          annotations: [],
-          annotationTokens: []
-        };
-      });
-
-      const newImages = await Promise.all(uploadPromises);
-      const allowMultipleCustomReferences = template?.allowMultipleCustomReferences === true;
-      setCustomReferenceImages((prev) => {
-        const updatedImages = allowMultipleCustomReferences ? [...prev, ...newImages] : newImages.slice(0, 1);
-        setSelectedCustomReferenceIds(updatedImages.map((image) => image.id));
-        return updatedImages;
-      });
-      setSelectedPresetImage(null);
+      await processSelectedUploads(Array.from(files), 'custom');
     } catch (error) {
       console.error('上传自定义模板参考图失败:', error);
       setError('自定义模板参考图上传失败');
@@ -786,25 +1063,13 @@ export default function GeneratePage() {
 
     setUploadingImage(true);
     try {
-      const fd = new FormData();
-      fd.append('file', file);
-      const response = await fetch('/api/upload', { method: 'POST', body: fd });
-      if (!response.ok) throw new Error('上传失败');
-      const data = await response.json();
-      const newImage = {
-        id: `var_${key}_${Date.now()}`,
-        url: data.url,
-        name: file.name,
-        originalUrl: data.url,
-        annotations: [],
-        annotationTokens: []
-      };
-      setVariableImages(prev => ({ ...prev, [key]: newImage }));
+      await processSelectedUploads([file], 'variable', key);
     } catch (error) {
       console.error('上传变量图片失败:', error);
       setError('图片上传失败');
     } finally {
       setUploadingImage(false);
+      e.target.value = '';
     }
   };
 
@@ -2402,6 +2667,46 @@ export default function GeneratePage() {
                               </label>
                             </div>
                           )}
+                        </div>
+                      )}
+
+                      {pendingCompressionUploads.length > 0 && (
+                        <div className={`rounded-2xl border p-3.5 ${darkMode ? 'border-amber-900/70 bg-amber-950/20' : 'border-amber-200 bg-amber-50/80'}`}>
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <h2 className={`flex items-center gap-2 text-sm font-semibold ${darkMode ? 'text-amber-100' : 'text-amber-900'}`}>
+                                <Info className="h-4 w-4" />
+                                图片超过上传限制
+                              </h2>
+                              <p className={`mt-1 text-xs leading-5 ${darkMode ? 'text-amber-200/90' : 'text-amber-800'}`}>
+                                检测到 {pendingCompressionUploads.length} 张图片超限。你可以先手动缩放，或点击右侧按钮一键压缩后上传。限制：{getReferenceUploadLimitText()}。
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={handleCompressPendingUploads}
+                              disabled={compressingPendingUploads || uploadingImage}
+                              className={`inline-flex flex-shrink-0 items-center gap-2 rounded-xl px-3 py-2 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
+                                darkMode ? 'bg-amber-300 text-amber-950 hover:bg-amber-200' : 'bg-amber-600 text-white hover:bg-amber-500'
+                              }`}
+                            >
+                              {compressingPendingUploads ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                              {compressingPendingUploads ? '压缩中...' : '一键压缩并上传'}
+                            </button>
+                          </div>
+                          <div className="mt-3 space-y-2">
+                            {pendingCompressionUploads.map((item) => (
+                              <div
+                                key={item.id}
+                                className={`rounded-xl border px-3 py-2 text-xs ${darkMode ? 'border-amber-900/60 bg-black/10 text-amber-100' : 'border-amber-200 bg-white/80 text-amber-900'}`}
+                              >
+                                <p className="truncate font-medium">{item.file.name}</p>
+                                <p className="mt-1 leading-5">
+                                  当前尺寸 {item.width}x{item.height}，{formatFileSize(item.sizeBytes)}，原因：{item.reasons.join('；')}
+                                </p>
+                              </div>
+                            ))}
+                          </div>
                         </div>
                       )}
 
