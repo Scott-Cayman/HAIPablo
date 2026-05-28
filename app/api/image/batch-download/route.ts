@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
+import { readLocalStorageFileByUrl } from '@/lib/storage';
 
 export async function POST(request: NextRequest) {
   try {
@@ -39,14 +40,16 @@ export async function POST(request: NextRequest) {
             continue;
           }
           imageData = await response.arrayBuffer();
-        } else if (imageUrl.startsWith('/')) {
-          const filePath = path.join(process.cwd(), 'public', imageUrl);
-          if (fs.existsSync(filePath)) {
-            imageData = fs.readFileSync(filePath);
-          } else {
-            console.error(`File not found: ${filePath}`);
+        } else if (imageUrl.startsWith('/storage/') || imageUrl.includes('/storage/')) {
+          try {
+            imageData = await readLocalStorageFileByUrl(imageUrl);
+          } catch (error) {
+            console.error(`读取本地存储文件失败: ${imageUrl}`, error);
             continue;
           }
+        } else if (imageUrl.startsWith('/')) {
+          console.error(`Unsupported relative URL: ${imageUrl}`);
+          continue;
         } else {
           const base64Data = imageUrl.replace(/^data:image\/\w+;base64,/, '');
           imageData = Buffer.from(base64Data, 'base64');

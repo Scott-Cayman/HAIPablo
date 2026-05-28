@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { UserAvatar } from '@/components/UserAvatar';
+import type { ImageProviderSettingsPayload, ManagedImageProviderConfig } from '@/lib/image-provider-types';
 import { 
   ArrowLeft, 
   User, 
@@ -28,7 +29,9 @@ import {
   CheckSquare,
   Square,
   Search,
-  Sparkles
+  Sparkles,
+  Settings2,
+  Save
 } from 'lucide-react';
 
 interface UserData {
@@ -47,7 +50,30 @@ interface UserData {
   };
 }
 
+interface ProviderTestState {
+  loading: boolean;
+  status: 'idle' | 'success' | 'error';
+  message: string;
+}
+
+function createEmptyProvider(index: number): ManagedImageProviderConfig {
+  return {
+    id: `provider_${Date.now()}_${index}`,
+    label: `新供应商 ${index + 1}`,
+    kind: 'openai_compatible',
+    model: 'gpt-image-2',
+    isDefault: false,
+    supportsEdit: true,
+    enabled: true,
+    baseUrl: '',
+    apiKey: '',
+    timeoutMs: 240000,
+    maxRetries: 0,
+  };
+}
+
 export default function AdminUsersPage() {
+  const searchParams = useSearchParams();
   const [users, setUsers] = useState<UserData[]>([]);
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<any>(null);
@@ -79,7 +105,7 @@ export default function AdminUsersPage() {
   const [restoreMessage, setRestoreMessage] = useState('');
   const [restoreSuccess, setRestoreSuccess] = useState<any>(null);
 
-  const [activeTab, setActiveTab] = useState<'users' | 'departments' | 'all_records'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'departments' | 'all_records' | 'image_providers'>('users');
   const [showCreateDeptModal, setShowCreateDeptModal] = useState(false);
   const [showAllocateModal, setShowAllocateModal] = useState(false);
   const [selectedDept, setSelectedDept] = useState<any>(null);
@@ -98,6 +124,19 @@ export default function AdminUsersPage() {
 
   const [expandedDepts, setExpandedDepts] = useState<Set<string>>(new Set());
   const [selectedDepts, setSelectedDepts] = useState<Set<string>>(new Set());
+  const [providerSettings, setProviderSettings] = useState<ImageProviderSettingsPayload>({
+    defaultProviderId: null,
+    providers: [],
+  });
+  const [loadingProviderSettings, setLoadingProviderSettings] = useState(false);
+  const [savingProviderSettings, setSavingProviderSettings] = useState(false);
+  const [providerTestStates, setProviderTestStates] = useState<Record<string, ProviderTestState>>({});
+
+  const handleTabChange = (tab: 'users' | 'departments' | 'all_records' | 'image_providers') => {
+    setActiveTab(tab);
+    const targetUrl = tab === 'users' ? '/admin/users' : `/admin/users?tab=${tab}`;
+    router.replace(targetUrl);
+  };
 
   // 自定义弹窗状态
   const [dialogConfig, setDialogConfig] = useState<{
@@ -216,11 +255,170 @@ export default function AdminUsersPage() {
     }
   };
 
+  const fetchProviderSettings = async () => {
+    setLoadingProviderSettings(true);
+    try {
+      const response = await fetch('/api/admin/image-providers');
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || '获取供应商配置失败');
+      }
+
+      setProviderSettings({
+        defaultProviderId: data.defaultProviderId || data.providers?.[0]?.id || null,
+        providers: Array.isArray(data.providers) ? data.providers : [],
+      });
+    } catch (providerError: any) {
+      showAlert(providerError.message || '获取供应商配置失败');
+    } finally {
+      setLoadingProviderSettings(false);
+    }
+  };
+
   useEffect(() => {
     if (activeTab === 'all_records' && user?.role === 'admin') {
       fetchAllHistories(historyPage);
     }
   }, [activeTab, historyPage]);
+
+  useEffect(() => {
+    if (activeTab === 'image_providers' && user?.role === 'admin') {
+      fetchProviderSettings();
+    }
+  }, [activeTab, user?.role]);
+
+  useEffect(() => {
+    const tab = searchParams.get('tab');
+    if (tab === 'departments' || tab === 'all_records' || tab === 'image_providers' || tab === 'users') {
+      setActiveTab(tab);
+    } else {
+      setActiveTab('users');
+    }
+  }, [searchParams]);
+
+  const updateProviderField = <K extends keyof ManagedImageProviderConfig>(
+    providerId: string,
+    key: K,
+    value: ManagedImageProviderConfig[K]
+  ) => {
+    setProviderSettings((prev) => ({
+      ...prev,
+      providers: prev.providers.map((provider) =>
+        provider.id === providerId ? { ...provider, [key]: value } : provider
+      ),
+    }));
+  };
+
+  const handleAddProvider = () => {
+    setProviderSettings((prev) => {
+      const nextProvider = createEmptyProvider(prev.providers.length);
+      return {
+        ...prev,
+        defaultProviderId: prev.defaultProviderId || nextProvider.id,
+        providers: [...prev.providers, nextProvider],
+      };
+    });
+  };
+
+  const handleRemoveProvider = (providerId: string) => {
+    setProviderSettings((prev) => {
+      const nextProviders = prev.providers.filter((provider) => provider.id !== providerId);
+      return {
+        defaultProviderId:
+          prev.defaultProviderId === providerId ? nextProviders[0]?.id || null : prev.defaultProviderId,
+        providers: nextProviders,
+      };
+    });
+  };
+
+  const handleSetDefaultProvider = (providerId: string) => {
+    setProviderSettings((prev) => ({
+      ...prev,
+      defaultProviderId: providerId,
+      providers: prev.providers.map((provider) => ({
+        ...provider,
+        isDefault: provider.id === providerId,
+      })),
+    }));
+  };
+
+  const handleSaveProviderSettings = async () => {
+    if (providerSettings.providers.length === 0) {
+      showAlert('请至少保留一个供应商配置');
+      return;
+    }
+
+    setSavingProviderSettings(true);
+    setSuccess('');
+    setError('');
+
+    try {
+      const response = await fetch('/api/admin/image-providers', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          defaultProviderId:
+            providerSettings.defaultProviderId || providerSettings.providers.find((provider) => provider.isDefault)?.id || providerSettings.providers[0]?.id || null,
+          providers: providerSettings.providers,
+        } satisfies ImageProviderSettingsPayload),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || '保存供应商配置失败');
+      }
+
+      setProviderSettings(data);
+      setSuccess('供应商配置已保存，前端切换列表会直接读取新配置');
+    } catch (providerError: any) {
+      setError(providerError.message || '保存供应商配置失败');
+    } finally {
+      setSavingProviderSettings(false);
+    }
+  };
+
+  const handleTestProvider = async (provider: ManagedImageProviderConfig) => {
+    setProviderTestStates((prev) => ({
+      ...prev,
+      [provider.id]: {
+        loading: true,
+        status: 'idle',
+        message: '',
+      },
+    }));
+
+    try {
+      const response = await fetch('/api/admin/image-providers/test', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ provider }),
+      });
+
+      const data = await response.json();
+      const success = response.ok && data.success;
+
+      setProviderTestStates((prev) => ({
+        ...prev,
+        [provider.id]: {
+          loading: false,
+          status: success ? 'success' : 'error',
+          message: data.message || (success ? '连通成功' : '连通失败'),
+        },
+      }));
+    } catch (providerError: any) {
+      setProviderTestStates((prev) => ({
+        ...prev,
+        [provider.id]: {
+          loading: false,
+          status: 'error',
+          message: providerError?.message || '测试请求失败',
+        },
+      }));
+    }
+  };
 
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -939,7 +1137,7 @@ export default function AdminUsersPage() {
         <div className="flex items-center justify-between">
           <div className="flex gap-8">
             <button
-              onClick={() => setActiveTab('users')}
+              onClick={() => handleTabChange('users')}
               className={`pb-4 text-sm font-medium transition-colors relative ${
                 activeTab === 'users' ? 'text-violet-600' : 'text-gray-500 hover:text-gray-900'
               }`}
@@ -953,7 +1151,7 @@ export default function AdminUsersPage() {
               )}
             </button>
             <button
-              onClick={() => setActiveTab('departments')}
+              onClick={() => handleTabChange('departments')}
               className={`pb-4 text-sm font-medium transition-colors relative ${
                 activeTab === 'departments' ? 'text-violet-600' : 'text-gray-500 hover:text-gray-900'
               }`}
@@ -968,13 +1166,29 @@ export default function AdminUsersPage() {
             </button>
             {user.role === 'admin' && (
               <button
-                onClick={() => setActiveTab('all_records')}
+                onClick={() => handleTabChange('all_records')}
                 className={`pb-4 text-sm font-medium transition-colors relative ${
                   activeTab === 'all_records' ? 'text-violet-600' : 'text-gray-500 hover:text-gray-900'
                 }`}
               >
                 全量记录
                 {activeTab === 'all_records' && (
+                  <motion.div
+                    layoutId="activeTab"
+                    className="absolute bottom-0 left-0 right-0 h-0.5 bg-violet-600"
+                  />
+                )}
+              </button>
+            )}
+            {user.role === 'admin' && (
+              <button
+                onClick={() => handleTabChange('image_providers')}
+                className={`pb-4 text-sm font-medium transition-colors relative ${
+                  activeTab === 'image_providers' ? 'text-violet-600' : 'text-gray-500 hover:text-gray-900'
+                }`}
+              >
+                供应商配置
+                {activeTab === 'image_providers' && (
                   <motion.div
                     layoutId="activeTab"
                     className="absolute bottom-0 left-0 right-0 h-0.5 bg-violet-600"
@@ -1024,6 +1238,30 @@ export default function AdminUsersPage() {
                 <Shield className="w-4 h-4" />
                 分配潮能力 ({selectedDepts.size})
               </button>
+            )}
+
+            {activeTab === 'image_providers' && user.role === 'admin' && (
+              <>
+                <button
+                  onClick={handleAddProvider}
+                  className="btn-primary flex items-center gap-2 bg-white text-violet-700 border border-violet-200 hover:bg-violet-50 py-1.5 px-4 text-sm"
+                >
+                  <Plus className="w-4 h-4" />
+                  新增供应商
+                </button>
+                <button
+                  onClick={handleSaveProviderSettings}
+                  disabled={savingProviderSettings || loadingProviderSettings}
+                  className="btn-primary flex items-center gap-2 bg-gradient-to-r from-violet-500 to-purple-600 hover:from-violet-600 hover:to-purple-700 py-1.5 px-4 text-sm disabled:opacity-50"
+                >
+                  {savingProviderSettings ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Save className="w-4 h-4" />
+                  )}
+                  保存配置
+                </button>
+              </>
             )}
             
             {user.role === 'admin' && (
@@ -1215,6 +1453,217 @@ export default function AdminUsersPage() {
               </button>
             </div>
           )
+        ) : activeTab === 'image_providers' ? (
+          <div className="space-y-6">
+            <div className="bg-gradient-to-r from-violet-50 via-white to-fuchsia-50 rounded-2xl border border-violet-100 p-6">
+              <div className="flex items-start justify-between gap-6">
+                <div>
+                  <div className="inline-flex items-center gap-2 rounded-full bg-violet-100 px-3 py-1 text-xs font-semibold text-violet-700">
+                    <Settings2 className="w-3.5 h-3.5" />
+                    图像供应商控制台
+                  </div>
+                  <h3 className="mt-3 text-xl font-semibold text-gray-900">可视化管理生成供应商</h3>
+                  <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-600">
+                    这里配置的供应商会直接同步到前台的“生成供应商”下拉框。你可以配置建一帆兼容通道，也可以新增标准 OpenAI 接口风格的 `gpt-image-2` 供应商。
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-violet-100 bg-white/90 px-4 py-3 text-sm text-gray-600 shadow-sm">
+                  <p>
+                    当前默认供应商：
+                    <span className="ml-2 font-semibold text-violet-700">
+                      {providerSettings.providers.find((provider) => provider.id === providerSettings.defaultProviderId)?.label || '未设置'}
+                    </span>
+                  </p>
+                  <p className="mt-1 text-xs text-gray-500">
+                    保存后，单图页和批量页会立即读取新配置。
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {loadingProviderSettings ? (
+              <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center">
+                <Loader2 className="w-8 h-8 animate-spin text-violet-600 mx-auto mb-3" />
+                <p className="text-sm text-gray-500">正在加载供应商配置...</p>
+              </div>
+            ) : providerSettings.providers.length === 0 ? (
+              <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center">
+                <Settings2 className="w-10 h-10 text-violet-300 mx-auto mb-3" />
+                <h4 className="text-lg font-semibold text-gray-900">还没有供应商配置</h4>
+                <p className="mt-2 text-sm text-gray-500">点击右上角“新增供应商”，先添加一个可用通道。</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-6">
+                {providerSettings.providers.map((provider, index) => (
+                  <div key={provider.id} className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
+                    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 pb-4">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h4 className="text-lg font-semibold text-gray-900">{provider.label || `供应商 ${index + 1}`}</h4>
+                          {provider.id === providerSettings.defaultProviderId && (
+                            <span className="px-2 py-0.5 rounded-full bg-violet-100 text-violet-700 text-xs font-medium">
+                              默认
+                            </span>
+                          )}
+                          {!provider.enabled && (
+                            <span className="px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 text-xs font-medium">
+                              已禁用
+                            </span>
+                          )}
+                        </div>
+                        <p className="mt-1 text-xs text-gray-500">供应商 ID：{provider.id}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleTestProvider(provider)}
+                          disabled={providerTestStates[provider.id]?.loading}
+                          className="px-3 py-1.5 rounded-lg text-xs font-medium text-blue-700 border border-blue-200 hover:bg-blue-50 transition-colors disabled:opacity-50"
+                        >
+                          {providerTestStates[provider.id]?.loading ? '测试中...' : '测试连通性'}
+                        </button>
+                        <button
+                          onClick={() => handleSetDefaultProvider(provider.id)}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                            provider.id === providerSettings.defaultProviderId
+                              ? 'bg-violet-100 text-violet-700'
+                              : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'
+                          }`}
+                        >
+                          设为默认
+                        </button>
+                        <button
+                          onClick={() =>
+                            showConfirm(`确定删除供应商“${provider.label}”吗？`, () => handleRemoveProvider(provider.id), '删除供应商')
+                          }
+                          className="px-3 py-1.5 rounded-lg text-xs font-medium text-red-600 border border-red-200 hover:bg-red-50 transition-colors"
+                        >
+                          删除
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-2">
+                      <div>
+                        <label className="mb-1.5 block text-xs font-medium text-gray-600">显示名称</label>
+                        <input
+                          value={provider.label}
+                          onChange={(e) => updateProviderField(provider.id, 'label', e.target.value)}
+                          className="input-field bg-white"
+                          placeholder="例如：OpenAI 标准"
+                        />
+                      </div>
+                      <div>
+                        <label className="mb-1.5 block text-xs font-medium text-gray-600">供应商 ID</label>
+                        <input
+                          value={provider.id}
+                          onChange={(e) => updateProviderField(provider.id, 'id', e.target.value)}
+                          className="input-field bg-white"
+                          placeholder="例如：openai_std"
+                        />
+                      </div>
+                      <div>
+                        <label className="mb-1.5 block text-xs font-medium text-gray-600">接口类型</label>
+                        <select
+                          value={provider.kind}
+                          onChange={(e) => updateProviderField(provider.id, 'kind', e.target.value as ManagedImageProviderConfig['kind'])}
+                          className="input-field bg-white"
+                        >
+                          <option value="openai_compatible">标准 OpenAI</option>
+                          <option value="legacy_jyf">建一帆兼容</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="mb-1.5 block text-xs font-medium text-gray-600">模型名</label>
+                        <input
+                          value={provider.model}
+                          onChange={(e) => updateProviderField(provider.id, 'model', e.target.value)}
+                          className="input-field bg-white"
+                          placeholder="gpt-image-2"
+                        />
+                      </div>
+                      <div className="lg:col-span-2">
+                        <label className="mb-1.5 block text-xs font-medium text-gray-600">Base URL</label>
+                        <input
+                          value={provider.baseUrl}
+                          onChange={(e) => updateProviderField(provider.id, 'baseUrl', e.target.value)}
+                          className="input-field bg-white"
+                          placeholder="https://api.openai.com"
+                        />
+                      </div>
+                      <div className="lg:col-span-2">
+                        <label className="mb-1.5 block text-xs font-medium text-gray-600">API Key</label>
+                        <input
+                          type="password"
+                          value={provider.apiKey}
+                          onChange={(e) => updateProviderField(provider.id, 'apiKey', e.target.value)}
+                          className="input-field bg-white"
+                          placeholder="sk-..."
+                        />
+                      </div>
+                      <div>
+                        <label className="mb-1.5 block text-xs font-medium text-gray-600">超时毫秒</label>
+                        <input
+                          type="number"
+                          min={1000}
+                          value={provider.timeoutMs}
+                          onChange={(e) => updateProviderField(provider.id, 'timeoutMs', Number(e.target.value))}
+                          className="input-field bg-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="mb-1.5 block text-xs font-medium text-gray-600">失败重试次数</label>
+                        <input
+                          type="number"
+                          min={0}
+                          value={provider.maxRetries}
+                          onChange={(e) => updateProviderField(provider.id, 'maxRetries', Number(e.target.value))}
+                          className="input-field bg-white"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <label className="flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700">
+                        <span>启用此供应商</span>
+                        <input
+                          type="checkbox"
+                          checked={provider.enabled}
+                          onChange={(e) => updateProviderField(provider.id, 'enabled', e.target.checked)}
+                          className="h-4 w-4 rounded border-gray-300 text-violet-600 focus:ring-violet-500"
+                        />
+                      </label>
+                      <label className="flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700">
+                        <span>支持编辑接口</span>
+                        <input
+                          type="checkbox"
+                          checked={provider.supportsEdit}
+                          onChange={(e) => updateProviderField(provider.id, 'supportsEdit', e.target.checked)}
+                          className="h-4 w-4 rounded border-gray-300 text-violet-600 focus:ring-violet-500"
+                        />
+                      </label>
+                    </div>
+
+                    {providerTestStates[provider.id]?.message && (
+                      <div
+                        className={`mt-4 flex items-start gap-2 rounded-xl border px-4 py-3 text-sm ${
+                          providerTestStates[provider.id]?.status === 'success'
+                            ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                            : 'border-amber-200 bg-amber-50 text-amber-700'
+                        }`}
+                      >
+                        {providerTestStates[provider.id]?.status === 'success' ? (
+                          <CheckCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                        ) : (
+                          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                        )}
+                        <p>{providerTestStates[provider.id]?.message}</p>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         ) : (
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
             <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-white/50 backdrop-blur-sm sticky top-0 z-10">

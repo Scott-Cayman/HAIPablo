@@ -1,9 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ImageApiClient } from '@/lib/image-api-client';
+import { getImageProviderFailoverChain } from '@/lib/image-provider-registry';
 import { prisma } from '@/lib/prisma';
+import {
+  getContentTypeFromFilename,
+  readLocalStorageFileByUrl,
+  uploadBuffer,
+} from '@/lib/storage';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import os from 'node:os';
 
 const INVALID_IMAGE_INPUT_PREFIX = 'INVALID_IMAGE_INPUT:';
 const SUPPORTED_EDIT_IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.webp']);
@@ -82,10 +89,39 @@ function getErrorResponseStatus(error: unknown): number {
   return 500;
 }
 
+function shouldFailoverToNextProvider(error: unknown): boolean {
+  const rawMessage = error instanceof Error ? error.message : String(error || '');
+  const normalizedMessage = rawMessage.toLowerCase();
+  const matchedStatus = rawMessage.match(/\b(\d{3})\b/)?.[1];
+
+  if (rawMessage.startsWith(INVALID_IMAGE_INPUT_PREFIX)) {
+    return false;
+  }
+
+  if (
+    rawMessage.includes('没有可用的图片进行编辑') ||
+    normalizedMessage.includes('invalid image') ||
+    normalizedMessage.includes('image upload failed') ||
+    normalizedMessage.includes('格式不受支持')
+  ) {
+    return false;
+  }
+
+  if (
+    normalizedMessage.includes('当前未开启编辑接口') ||
+    normalizedMessage.includes('超时') ||
+    normalizedMessage.includes('fetch failed')
+  ) {
+    return true;
+  }
+
+  return ['408', '429', '500', '502', '503', '504', '522', '524'].includes(matchedStatus || '');
+}
+
 async function persistGeneratedImage(
   result: any,
-  outputPath: string
-): Promise<{ revisedPrompt: string | null }> {
+  storageKey: string
+): Promise<{ revisedPrompt: string | null; imageUrl: string }> {
   const firstItem = result?.data?.[0];
   if (!firstItem) {
     throw new Error('API未返回图片数据');
@@ -98,8 +134,15 @@ async function persistGeneratedImage(
     }
 
     const imageBuffer = Buffer.from(b64String, 'base64');
-    await fs.writeFile(outputPath, new Uint8Array(imageBuffer));
-    return { revisedPrompt: firstItem.revised_prompt || null };
+    const storedFile = await uploadBuffer({
+      key: storageKey,
+      buffer: imageBuffer,
+      contentType: getContentTypeFromFilename(storageKey),
+    });
+    return {
+      revisedPrompt: firstItem.revised_prompt || null,
+      imageUrl: storedFile.url,
+    };
   }
 
   if (firstItem.url) {
@@ -109,8 +152,15 @@ async function persistGeneratedImage(
     }
 
     const imageArrayBuffer = await upstreamResponse.arrayBuffer();
-    await fs.writeFile(outputPath, new Uint8Array(imageArrayBuffer));
-    return { revisedPrompt: firstItem.revised_prompt || null };
+    const storedFile = await uploadBuffer({
+      key: storageKey,
+      buffer: Buffer.from(imageArrayBuffer),
+      contentType: upstreamResponse.headers.get('content-type') || getContentTypeFromFilename(storageKey),
+    });
+    return {
+      revisedPrompt: firstItem.revised_prompt || null,
+      imageUrl: storedFile.url,
+    };
   }
 
   console.error('上游图片接口返回了未兼容的数据结构:', JSON.stringify(result).slice(0, 2000));
@@ -122,8 +172,10 @@ export async function POST(request: NextRequest) {
   let userId: string | undefined;
   let templateId: string | undefined;
   let templateName: string | undefined;
+  let providerId: string | undefined;
   let variables: any;
   let historyId: string | undefined;
+  let attemptedProviderIds: string[] = [];
   
   try {
     const body = await request.json();
@@ -139,12 +191,14 @@ export async function POST(request: NextRequest) {
       userId: bodyUserId,
       templateId: bodyTemplateId,
       templateName: bodyTemplateName,
+      providerId: requestedProviderId,
       config // 新增：UI 状态配置
     } = body;
     
     userId = bodyUserId;
     templateId = bodyTemplateId;
     templateName = bodyTemplateName;
+    providerId = requestedProviderId;
     variables = bodyVariables;
 
     if (!userId) {
@@ -153,6 +207,16 @@ export async function POST(request: NextRequest) {
 
     if (!promptTemplate) {
       return NextResponse.json({ error: '缺少提示词模板' }, { status: 400 });
+    }
+
+    let providerChain;
+    try {
+      providerChain = await getImageProviderFailoverChain(providerId);
+      providerId = providerChain[0].id;
+    } catch (providerError: any) {
+      const message = providerError?.message || '供应商配置不可用';
+      const status = providerId ? 400 : 500;
+      return NextResponse.json({ error: '图片供应商不可用', message }, { status });
     }
 
     const hasReferenceImages = referenceImages && Array.isArray(referenceImages) && referenceImages.length > 0;
@@ -220,148 +284,226 @@ export async function POST(request: NextRequest) {
       throw txError;
     }
 
-    const imageApiClient = new ImageApiClient();
-
     console.log('=== 图片生成请求 ===');
     console.log('userId:', userId);
     console.log('historyId:', historyId);
     console.log('mode:', mode);
-
-    const outputDir = path.join(process.cwd(), 'public', 'storage', 'outputs');
-    await fs.mkdir(outputDir, { recursive: true });
+    console.log('providerChain:', providerChain.map((provider) => provider.id).join(' -> '));
 
     // 使用更唯一的命名方式避免并发冲突
     const uniqueId = crypto.randomUUID().slice(0, 8);
     const timestamp = Date.now().toString();
     const filename = `generated_${timestamp}_${uniqueId}.png`;
-    const outputPath = path.join(outputDir, filename);
+    const outputStorageKey = `outputs/${filename}`;
+    const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'haipablo-image-'));
 
     let result;
+    let finalProvider = providerChain[0];
     const tempPaths: string[] = [];
 
-    console.log('hasReferenceImages:', hasReferenceImages);
-    console.log('hasUserImages:', hasUserImages);
-    console.log('referenceImageCount:', referenceImageCount);
-    console.log('userImageCount:', userImageCount);
-    console.log('variableImageCount:', variableImageCount);
-    console.log('mainImageCount:', mainImageCount);
-    console.log('totalImages:', totalImages);
-    console.log('will use edit mode:', shouldUseEditMode);
+    try {
+      console.log('hasReferenceImages:', hasReferenceImages);
+      console.log('hasUserImages:', hasUserImages);
+      console.log('referenceImageCount:', referenceImageCount);
+      console.log('userImageCount:', userImageCount);
+      console.log('variableImageCount:', variableImageCount);
+      console.log('mainImageCount:', mainImageCount);
+      console.log('totalImages:', totalImages);
+      console.log('will use edit mode:', shouldUseEditMode);
 
-    if (shouldUseEditMode) {
-      console.log('=== 使用编辑模式 ===');
-      const allImages: string[] = [];
-      
-      if (hasReferenceImages) {
-        console.log('添加预设参考图:', referenceImageCount, '张');
-        allImages.push(...referenceImages);
-      }
-      
-      console.log('添加用户图片:', userImageCount, '张');
-      allImages.push(...images);
-      
-      for (let i = 0; i < allImages.length; i++) {
-        const imgData = allImages[i];
+      if (shouldUseEditMode) {
+        console.log('=== 使用编辑模式 ===');
+        const allImages: string[] = [];
         
-        if (imgData.startsWith('data:')) {
-          console.log(`处理base64图片 ${i}`);
-          const mimeTypeMatch = imgData.match(/^data:([^;]+);base64,/i);
-          const extension = ensureSupportedEditImageFormat(
-            getMimeTypeExtension(mimeTypeMatch?.[1] || ''),
-            `第 ${i + 1} 张图片`
-          );
-          const base64Data = imgData.split(',')[1];
-          const imageBuffer = Buffer.from(base64Data, 'base64');
-          const tempPath = path.join(outputDir, 'temp_' + timestamp + '_' + uniqueId + '_' + i + extension);
-          await fs.writeFile(tempPath, new Uint8Array(imageBuffer));
-          tempPaths.push(tempPath);
-        } else if (imgData.startsWith('/storage/')) {
-          console.log(`处理存储图片 ${i}: ${imgData}`);
-          const extension = ensureSupportedEditImageFormat(
-            path.extname(imgData),
-            `第 ${i + 1} 张图片`
-          );
-          const filePath = path.join(process.cwd(), 'public', imgData);
-          try {
-            const imageBuffer = await fs.readFile(filePath);
-            const tempPath = path.join(outputDir, 'temp_' + timestamp + '_' + uniqueId + '_' + i + extension);
+        if (hasReferenceImages) {
+          console.log('添加预设参考图:', referenceImageCount, '张');
+          allImages.push(...referenceImages);
+        }
+        
+        console.log('添加用户图片:', userImageCount, '张');
+        allImages.push(...images);
+        
+        for (let i = 0; i < allImages.length; i++) {
+          const imgData = allImages[i];
+          
+          if (imgData.startsWith('data:')) {
+            console.log(`处理base64图片 ${i}`);
+            const mimeTypeMatch = imgData.match(/^data:([^;]+);base64,/i);
+            const extension = ensureSupportedEditImageFormat(
+              getMimeTypeExtension(mimeTypeMatch?.[1] || ''),
+              `第 ${i + 1} 张图片`
+            );
+            const base64Data = imgData.split(',')[1];
+            const imageBuffer = Buffer.from(base64Data, 'base64');
+            const tempPath = path.join(tempDir, 'temp_' + timestamp + '_' + uniqueId + '_' + i + extension);
             await fs.writeFile(tempPath, new Uint8Array(imageBuffer));
             tempPaths.push(tempPath);
-            console.log(`图片 ${i} 已复制到临时文件`);
-          } catch (err: any) {
-            console.error(`读取图片失败 ${imgData}:`, err.message);
+          } else if (imgData.startsWith('/storage/') || imgData.includes('/storage/')) {
+            console.log(`处理本地存储图片 ${i}: ${imgData}`);
+            const extension = ensureSupportedEditImageFormat(
+              path.extname(imgData),
+              `第 ${i + 1} 张图片`
+            );
+            try {
+              const imageBuffer = await readLocalStorageFileByUrl(imgData);
+              const tempPath = path.join(tempDir, 'temp_' + timestamp + '_' + uniqueId + '_' + i + extension);
+              await fs.writeFile(tempPath, new Uint8Array(imageBuffer));
+              tempPaths.push(tempPath);
+              console.log(`图片 ${i} 已复制到临时文件`);
+            } catch (err: any) {
+              console.error(`读取图片失败 ${imgData}:`, err.message);
+            }
+          } else if (/^https?:\/\//i.test(imgData)) {
+            console.log(`处理远程图片 ${i}: ${imgData}`);
+            let extension = path.extname(imgData);
+            if (!extension) {
+              try {
+                extension = path.extname(new URL(imgData).pathname);
+              } catch {
+                extension = '';
+              }
+            }
+            extension = ensureSupportedEditImageFormat(extension, `第 ${i + 1} 张图片`);
+            try {
+              const response = await fetch(imgData);
+              if (!response.ok) {
+                throw new Error(`下载远程图片失败: ${response.status}`);
+              }
+              const imageBuffer = Buffer.from(await response.arrayBuffer());
+              const tempPath = path.join(tempDir, 'temp_' + timestamp + '_' + uniqueId + '_' + i + extension);
+              await fs.writeFile(tempPath, new Uint8Array(imageBuffer));
+              tempPaths.push(tempPath);
+              console.log(`远程图片 ${i} 已复制到临时文件`);
+            } catch (err: any) {
+              console.error(`下载远程图片失败 ${imgData}:`, err.message);
+            }
           }
         }
-      }
 
-      if (tempPaths.length === 0) {
-        throw new Error('没有可用的图片进行编辑');
-      }
+        if (tempPaths.length === 0) {
+          throw new Error('没有可用的图片进行编辑');
+        }
 
-      console.log('准备调用编辑API，图片数:', tempPaths.length);
-      const editStart = Date.now();
-      try {
-        result = await imageApiClient.edit({
+        console.log('准备调用编辑API，图片数:', tempPaths.length);
+        try {
+          let lastProviderError: unknown;
+          for (let index = 0; index < providerChain.length; index++) {
+            const currentProvider = providerChain[index];
+            attemptedProviderIds.push(currentProvider.id);
+            const editStart = Date.now();
+
+            try {
+              const imageApiClient = new ImageApiClient(currentProvider);
+              result = await imageApiClient.edit({
+                prompt: finalPrompt,
+                size: size || 'auto',
+                quality: quality || 'medium',
+                response_format: 'b64_json',
+                imagePaths: tempPaths
+              });
+              finalProvider = currentProvider;
+              console.log('编辑API调用完成，供应商:', currentProvider.id, '耗时ms:', Date.now() - editStart);
+              break;
+            } catch (providerError: any) {
+              lastProviderError = providerError;
+              console.error(`供应商 ${currentProvider.id} 编辑失败:`, providerError);
+              const shouldFailover = shouldFailoverToNextProvider(providerError) && index < providerChain.length - 1;
+              if (!shouldFailover) {
+                throw providerError;
+              }
+              console.warn(`供应商 ${currentProvider.id} 编辑失败，自动切换到备用通道`);
+            }
+          }
+
+          if (!result) {
+            throw lastProviderError instanceof Error ? lastProviderError : new Error('图片编辑失败');
+          }
+        } finally {
+          for (const tempPath of tempPaths) {
+            try {
+              await fs.unlink(tempPath);
+            } catch (e) {
+              console.warn('删除临时文件失败:', e);
+            }
+          }
+        }
+      } else {
+        console.log('=== 使用生成模式 ===');
+        const requestParams: any = {
           prompt: finalPrompt,
           size: size || 'auto',
           quality: quality || 'medium',
-          response_format: 'b64_json',
-          imagePaths: tempPaths
-        });
-        console.log('编辑API调用完成，耗时ms:', Date.now() - editStart);
-      } finally {
-        for (const tempPath of tempPaths) {
+          response_format: 'b64_json'
+        };
+
+        let lastProviderError: unknown;
+        for (let index = 0; index < providerChain.length; index++) {
+          const currentProvider = providerChain[index];
+          attemptedProviderIds.push(currentProvider.id);
+          const generateStart = Date.now();
+
           try {
-            await fs.unlink(tempPath);
-          } catch (e) {
-            console.warn('删除临时文件失败:', e);
+            const imageApiClient = new ImageApiClient(currentProvider);
+            result = await imageApiClient.generate(requestParams);
+            finalProvider = currentProvider;
+            console.log('生成API调用完成，供应商:', currentProvider.id, '耗时ms:', Date.now() - generateStart);
+            break;
+          } catch (providerError: any) {
+            lastProviderError = providerError;
+            console.error(`供应商 ${currentProvider.id} 生成失败:`, providerError);
+            const shouldFailover = shouldFailoverToNextProvider(providerError) && index < providerChain.length - 1;
+            if (!shouldFailover) {
+              throw providerError;
+            }
+            console.warn(`供应商 ${currentProvider.id} 生成失败，自动切换到备用通道`);
           }
         }
-      }
-    } else {
-      console.log('=== 使用生成模式 ===');
-      const requestParams: any = {
-        prompt: finalPrompt,
-        size: size || 'auto',
-        quality: quality || 'medium',
-        response_format: 'b64_json'
-      };
 
-      const generateStart = Date.now();
-      result = await imageApiClient.generate(requestParams);
-      console.log('生成API调用完成，耗时ms:', Date.now() - generateStart);
-    }
-
-    if (result?.data?.[0]) {
-      const { revisedPrompt } = await persistGeneratedImage(result, outputPath);
-      const imageUrl = '/storage/outputs/' + filename;
-      
-      if (historyId) {
-        try {
-          await prisma.generationHistory.update({
-            where: { id: historyId },
-            data: {
-              prompt: revisedPrompt || finalPrompt,
-              outputImageUrl: imageUrl,
-              thumbnailUrl: imageUrl,
-              status: 'success'
-            }
-          });
-        } catch (historyError) {
-          console.error('更新历史记录失败:', historyError);
+        if (!result) {
+          throw lastProviderError instanceof Error ? lastProviderError : new Error('图片生成失败');
         }
       }
-      
-      return NextResponse.json({
-        success: true,
-        imageUrl: imageUrl,
-        revisedPrompt: revisedPrompt || finalPrompt,
-        model: 'gpt-image-2',
-        size: size || 'auto',
-        quality: quality || 'medium'
-      });
-    } else {
+
+      if (result?.data?.[0]) {
+        const { revisedPrompt, imageUrl } = await persistGeneratedImage(result, outputStorageKey);
+        
+        if (historyId) {
+          try {
+            await prisma.generationHistory.update({
+              where: { id: historyId },
+              data: {
+                prompt: revisedPrompt || finalPrompt,
+                outputImageUrl: imageUrl,
+                thumbnailUrl: imageUrl,
+                status: 'success'
+              }
+            });
+          } catch (historyError) {
+            console.error('更新历史记录失败:', historyError);
+          }
+        }
+        
+        return NextResponse.json({
+          success: true,
+          imageUrl,
+          revisedPrompt: revisedPrompt || finalPrompt,
+          model: finalProvider.model,
+          providerId: finalProvider.id,
+          providerLabel: finalProvider.label,
+          fallbackUsed: attemptedProviderIds.length > 1 && attemptedProviderIds[0] !== finalProvider.id,
+          attemptedProviderIds,
+          size: size || 'auto',
+          quality: quality || 'medium'
+        });
+      }
+
       throw new Error('API返回数据格式错误');
+    } finally {
+      try {
+        await fs.rm(tempDir, { recursive: true, force: true });
+      } catch (cleanupError) {
+        console.warn('清理临时目录失败:', cleanupError);
+      }
     }
   } catch (error: any) {
     console.error('图片生成失败:', error);
@@ -397,7 +539,9 @@ export async function POST(request: NextRequest) {
               errorName: error.name,
               rawMessage: error.message,
               stack: error.stack,
-              historyId
+              historyId,
+              providerId,
+              attemptedProviderIds
             } : undefined
           },
           { status: getErrorResponseStatus(error) }

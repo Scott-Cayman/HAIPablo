@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { UserAvatar } from '@/components/UserAvatar';
 import { AnnotationEditorModal } from '@/components/AnnotationEditorModal';
 import { AdminThemeModal } from '@/components/AdminThemeModal';
+import type { ImageProviderSummary } from '@/lib/image-provider-types';
 import { 
   ArrowLeft, 
   Upload,
@@ -133,6 +134,11 @@ interface SpecifiedColor {
   color: string;
   order: number;
   label?: string;
+}
+
+interface ImageProviderResponse {
+  providers: ImageProviderSummary[];
+  defaultProviderId: string | null;
 }
 
 const SMART_COLOR_PROMPT = '自动适配合理的颜色';
@@ -457,6 +463,8 @@ export default function GeneratePage() {
 
   const [template, setTemplate] = useState<Template | null>(null);
   const [user, setUser] = useState<any>(null);
+  const [imageProviders, setImageProviders] = useState<ImageProviderSummary[]>([]);
+  const [selectedProviderId, setSelectedProviderId] = useState('');
   const [darkMode, setDarkMode] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showAdminThemeModal, setShowAdminThemeModal] = useState(false);
@@ -510,6 +518,24 @@ export default function GeneratePage() {
   const isAdmin = user?.role === 'admin';
   const isSubAdmin = user?.role === 'sub_admin';
 
+  const fetchImageProviders = useCallback(async () => {
+    try {
+      const res = await fetch('/api/image/providers', { cache: 'no-store' });
+      if (!res.ok) return;
+
+      const data: ImageProviderResponse = await res.json();
+      setImageProviders(Array.isArray(data.providers) ? data.providers : []);
+      setSelectedProviderId((prev) => {
+        if (prev && data.providers?.some((provider) => provider.id === prev)) {
+          return prev;
+        }
+        return data.defaultProviderId || data.providers?.[0]?.id || '';
+      });
+    } catch (providerError) {
+      console.error('获取图片供应商失败:', providerError);
+    }
+  }, []);
+
   useEffect(() => {
     const savedDarkMode = localStorage.getItem('darkMode');
     const savedAdminTheme = getStoredAdminColorTheme();
@@ -534,6 +560,7 @@ export default function GeneratePage() {
     };
 
     fetchUser();
+    fetchImageProviders();
     
     if (templateId) {
       fetchTemplate();
@@ -550,7 +577,26 @@ export default function GeneratePage() {
 
     document.addEventListener('click', handleClickOutside);
     return () => document.removeEventListener('click', handleClickOutside);
-  }, [templateId, historyId]);
+  }, [templateId, historyId, fetchImageProviders]);
+
+  useEffect(() => {
+    const handleWindowFocus = () => {
+      fetchImageProviders();
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        fetchImageProviders();
+      }
+    };
+
+    window.addEventListener('focus', handleWindowFocus);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      window.removeEventListener('focus', handleWindowFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [fetchImageProviders]);
 
   useEffect(() => {
     if (!user?.id || !templateId || !template || isSpecialThreeDRender) {
@@ -1429,6 +1475,7 @@ export default function GeneratePage() {
     const currentReferenceBatchMode = options?.forceBatchMode ?? referenceBatchMode;
     const requestData = {
       ...generationData.requestData,
+        providerId: selectedProviderId || undefined,
       referenceBatchMode: currentReferenceBatchMode,
       batchContext: options?.batchContext,
       config: {
@@ -1924,7 +1971,7 @@ export default function GeneratePage() {
         currentTheme={adminColorTheme}
         onClose={() => setShowAdminThemeModal(false)}
         onThemeChange={handleAdminColorThemeChange}
-        onOpenAdminUsers={() => router.push('/admin/users')}
+        onOpenAdminUsers={() => router.push('/admin/users?tab=image_providers')}
       />
 
       <AnimatePresence>
@@ -2259,10 +2306,7 @@ export default function GeneratePage() {
 
                         {canManage && (
                           <button
-                            onClick={() => {
-                              setShowUserMenu(false);
-                              setShowAdminThemeModal(true);
-                            }}
+                            onClick={() => router.push('/admin/users?tab=image_providers')}
                             className={`w-full px-4 py-2.5 text-left rounded-lg transition-colors flex items-center gap-3 mt-1 ${
                               darkMode
                                 ? 'text-stone-300 hover:bg-white/[0.06] hover:text-white'
@@ -2717,6 +2761,29 @@ export default function GeneratePage() {
                             生成参数
                           </h2>
                           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                            {imageProviders.length > 0 && (
+                              <div className="sm:col-span-2">
+                                <label className={`mb-1.5 block text-xs font-medium ${darkMode ? 'text-stone-400' : 'text-gray-600'}`}>生成供应商</label>
+                                <div className={`relative overflow-hidden rounded-2xl border shadow-[0_10px_28px_-18px_rgba(15,23,42,0.38)] transition-all ${darkMode ? 'border-[#334034]/80 bg-[#1b211c]/90' : 'border-white/80 bg-white/95'}`}>
+                                  <div className={`pointer-events-none absolute inset-x-0 top-0 h-px ${darkMode ? 'bg-gradient-to-r from-transparent via-white/20 to-transparent' : 'bg-gradient-to-r from-transparent via-slate-200 to-transparent'}`} />
+                                  <select
+                                    value={selectedProviderId}
+                                    onChange={(e) => setSelectedProviderId(e.target.value)}
+                                    onFocus={() => fetchImageProviders()}
+                                    className={`w-full appearance-none bg-transparent px-4 py-3 pr-11 text-sm font-medium outline-none ${darkMode ? 'text-white' : 'text-gray-900'}`}
+                                  >
+                                    {imageProviders.map((provider) => (
+                                      <option key={provider.id} value={provider.id}>
+                                        {provider.label}
+                                      </option>
+                                    ))}
+                                  </select>
+                                  <ChevronDown className={`pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 ${darkMode ? 'text-stone-500' : 'text-gray-400'}`} />
+                                </div>
+                                <p className={`mt-1.5 text-[11px] leading-5 ${darkMode ? 'text-stone-500' : 'text-gray-500'}`}>支持在前端切换供应商，具体地址、密钥与接口兼容由后端配置统一处理。</p>
+                              </div>
+                            )}
+
                             <div>
                               <label className={`mb-1.5 block text-xs font-medium ${darkMode ? 'text-stone-400' : 'text-gray-600'}`}>输出尺寸</label>
                               <div className={`relative overflow-hidden rounded-2xl border shadow-[0_10px_28px_-18px_rgba(15,23,42,0.38)] transition-all ${darkMode ? 'border-[#334034]/80 bg-[#1b211c]/90' : 'border-white/80 bg-white/95'}`}>

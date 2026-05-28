@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { ImageProviderConfig } from '@/lib/image-provider-registry';
 
 export type ImageQuality = 'low' | 'medium' | 'high' | 'auto';
 
@@ -29,19 +30,9 @@ export interface ImageGenerationResponse {
 }
 
 export class ImageApiClient {
-  private baseUrl: string;
-  private apiKey: string;
-  private timeoutMs: number;
-  private maxRetries: number;
-
-  constructor() {
-    this.baseUrl = process.env.GPT_IMAGE_API_BASE_URL || 'https://api.jyf.ai';
-    this.apiKey = process.env.GPT_IMAGE_API_KEY || '';
-    this.timeoutMs = Number(process.env.IMAGE_API_TIMEOUT_MS || 240000);
-    this.maxRetries = Number(process.env.IMAGE_API_MAX_RETRIES || 0);
-
-    if (!this.apiKey) {
-      throw new Error('缺少 GPT_IMAGE_API_KEY 环境变量');
+  constructor(private provider: ImageProviderConfig) {
+    if (!this.provider.apiKey) {
+      throw new Error(`图片供应商 ${this.provider.id} 缺少 API Key`);
     }
   }
 
@@ -75,7 +66,7 @@ export class ImageApiClient {
 
   private async createEditForm(input: EditImageInput): Promise<FormData> {
     const form = new FormData();
-    form.append('model', 'gpt-image-2');
+    form.append('model', this.provider.model);
     form.append('prompt', input.prompt);
     form.append('size', input.size || 'auto');
     form.append('quality', input.quality || 'medium');
@@ -93,9 +84,9 @@ export class ImageApiClient {
     return form;
   }
 
-  async generate(input: GenerateImageInput): Promise<ImageGenerationResponse> {
-    const requestBody: any = {
-      model: 'gpt-image-2',
+  private createGenerateRequestBody(input: GenerateImageInput): Record<string, any> {
+    const requestBody: Record<string, any> = {
+      model: this.provider.model,
       prompt: input.prompt,
       size: input.size || 'auto',
       quality: input.quality || 'medium',
@@ -106,28 +97,40 @@ export class ImageApiClient {
       requestBody.image = input.image;
     }
 
+    return requestBody;
+  }
+
+  private async performJsonRequest(
+    pathName: string,
+    buildInit: () => Promise<RequestInit>,
+    actionLabel: string,
+    onCompatibilityError?: (status: number, message: string) => Promise<ImageGenerationResponse | null>
+  ): Promise<ImageGenerationResponse> {
     let lastError: Error | null = null;
 
-    for (let attempt = 0; attempt <= this.maxRetries; attempt++) {
+    for (let attempt = 0; attempt <= this.provider.maxRetries; attempt++) {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), this.timeoutMs);
+      const timeoutId = setTimeout(() => controller.abort(), this.provider.timeoutMs);
 
       try {
-        const res = await fetch(`${this.baseUrl}/v1/images/generations`, {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${this.apiKey}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(requestBody),
-          signal: controller.signal
+        const requestInit = await buildInit();
+        const res = await fetch(`${this.provider.baseUrl}${pathName}`, {
+          ...requestInit,
+          signal: controller.signal,
         });
 
         if (!res.ok) {
           const text = await res.text();
-          const error = new Error(`图片生成失败: ${res.status} ${text}`);
+          if (onCompatibilityError) {
+            const compatibilityResponse = await onCompatibilityError(res.status, text);
+            if (compatibilityResponse) {
+              return compatibilityResponse;
+            }
+          }
 
-          if (attempt < this.maxRetries && this.isRetryableStatus(res.status)) {
+          const error = new Error(`${actionLabel}: ${res.status} ${text}`);
+
+          if (attempt < this.provider.maxRetries && this.isRetryableStatus(res.status)) {
             lastError = error;
             await this.delay(1000 * (attempt + 1));
             continue;
@@ -139,12 +142,14 @@ export class ImageApiClient {
         return res.json();
       } catch (error: any) {
         if (error?.name === 'AbortError') {
-          lastError = new Error(`图片生成超时，${this.timeoutMs / 1000} 秒内未收到响应`);
+          lastError = new Error(
+            `${actionLabel}超时，${this.provider.timeoutMs / 1000} 秒内未收到响应`
+          );
         } else {
           lastError = error instanceof Error ? error : new Error(String(error));
         }
 
-        if (attempt < this.maxRetries) {
+        if (attempt < this.provider.maxRetries) {
           await this.delay(1000 * (attempt + 1));
           continue;
         }
@@ -153,66 +158,61 @@ export class ImageApiClient {
       }
     }
 
-    throw lastError || new Error('图片生成失败');
+    throw lastError || new Error(actionLabel);
+  }
+
+  async generate(input: GenerateImageInput): Promise<ImageGenerationResponse> {
+    const requestBody = this.createGenerateRequestBody(input);
+
+    return this.performJsonRequest(
+      '/v1/images/generations',
+      async () => ({
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${this.provider.apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+      }),
+      '图片生成失败'
+    );
   }
 
   async edit(input: EditImageInput): Promise<ImageGenerationResponse> {
-    let lastError: Error | null = null;
-
-    for (let attempt = 0; attempt <= this.maxRetries; attempt++) {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), this.timeoutMs);
-
-      try {
-        const form = await this.createEditForm(input);
-        const res = await fetch(`${this.baseUrl}/v1/images/edits`, {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${this.apiKey}`
-          },
-          body: form,
-          signal: controller.signal
-        });
-
-        if (!res.ok) {
-          const text = await res.text();
-          if (res.status === 400 && this.isEditToolChoiceCompatibilityError(text)) {
-            console.warn('图片编辑接口与当前上游实现不兼容，降级为生成接口重试');
-            return this.generate({
-              prompt: input.prompt,
-              size: input.size,
-              quality: input.quality,
-              response_format: input.response_format
-            });
-          }
-          const error = new Error(`图片编辑失败: ${res.status} ${text}`);
-
-          if (attempt < this.maxRetries && this.isRetryableStatus(res.status)) {
-            lastError = error;
-            await this.delay(1000 * (attempt + 1));
-            continue;
-          }
-
-          throw error;
-        }
-
-        return res.json();
-      } catch (error: any) {
-        if (error?.name === 'AbortError') {
-          lastError = new Error(`图片编辑超时，${this.timeoutMs / 1000} 秒内未收到响应`);
-        } else {
-          lastError = error instanceof Error ? error : new Error(String(error));
-        }
-
-        if (attempt < this.maxRetries) {
-          await this.delay(1000 * (attempt + 1));
-          continue;
-        }
-      } finally {
-        clearTimeout(timeoutId);
-      }
+    if (!this.provider.supportsEdit) {
+      throw new Error(`供应商 ${this.provider.label} 当前未开启编辑接口`);
     }
 
-    throw lastError || new Error('图片编辑失败');
+    return this.performJsonRequest(
+      '/v1/images/edits',
+      async () => {
+        const form = await this.createEditForm(input);
+        return {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${this.provider.apiKey}`,
+          },
+          body: form,
+        };
+      },
+      '图片编辑失败',
+      async (status, message) => {
+        if (
+          this.provider.kind === 'legacy_jyf' &&
+          status === 400 &&
+          this.isEditToolChoiceCompatibilityError(message)
+        ) {
+          console.warn('图片编辑接口与当前上游实现不兼容，降级为生成接口重试');
+          return this.generate({
+            prompt: input.prompt,
+            size: input.size,
+            quality: input.quality,
+            response_format: input.response_format,
+          });
+        }
+
+        return null;
+      }
+    );
   }
 }

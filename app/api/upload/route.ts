@@ -1,6 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
-import fs from 'node:fs/promises';
 import path from 'node:path';
+import { uploadBuffer } from '@/lib/storage';
+
+function getExtensionFromMimeType(mimeType: string): string {
+  switch (mimeType.toLowerCase()) {
+    case 'image/png':
+      return '.png';
+    case 'image/jpeg':
+      return '.jpg';
+    case 'image/webp':
+      return '.webp';
+    case 'image/gif':
+      return '.gif';
+    default:
+      return '';
+  }
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -17,20 +32,17 @@ export async function POST(request: NextRequest) {
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
 
-    const uploadDir = path.join(process.cwd(), 'public', 'storage', 'uploads');
-    await fs.mkdir(uploadDir, { recursive: true });
-
-    const ext = path.extname(file.name);
+    const ext = path.extname(file.name) || getExtensionFromMimeType(file.type);
     const filename = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}${ext}`;
-    const filepath = path.join(uploadDir, filename);
-
-    await fs.writeFile(filepath, buffer);
-
-    const url = `/storage/uploads/${filename}`;
+    const storedFile = await uploadBuffer({
+      key: `uploads/${filename}`,
+      buffer,
+      contentType: file.type || undefined,
+    });
 
     return NextResponse.json({
       success: true,
-      url,
+      url: storedFile.url,
       filename,
       size: file.size,
       type: file.type

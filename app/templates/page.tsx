@@ -805,7 +805,7 @@ export default function TemplatesPage() {
         currentTheme={adminColorTheme}
         onClose={() => setShowAdminThemeModal(false)}
         onThemeChange={handleAdminColorThemeChange}
-        onOpenAdminUsers={() => router.push('/admin/users')}
+        onOpenAdminUsers={() => router.push('/admin/users?tab=image_providers')}
       />
       <header className="z-50 px-4 pt-4 transition-colors duration-500 lg:shrink-0 sm:px-6 lg:px-8">
         <div
@@ -944,10 +944,7 @@ export default function TemplatesPage() {
 
                         {canManage && (
                           <button
-                            onClick={() => {
-                              setShowUserMenu(false);
-                              setShowAdminThemeModal(true);
-                            }}
+                            onClick={() => router.push('/admin/users?tab=image_providers')}
                             className={`w-full px-4 py-2.5 text-left rounded-lg transition-colors flex items-center gap-3 mt-1 ${
                               darkMode
                                 ? 'text-stone-300 hover:bg-white/[0.06] hover:text-white'

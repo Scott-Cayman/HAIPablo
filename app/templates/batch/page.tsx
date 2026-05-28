@@ -1,9 +1,10 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { UserAvatar } from '@/components/UserAvatar';
+import type { ImageProviderSummary } from '@/lib/image-provider-types';
 import {
   ArrowLeft,
   Upload,
@@ -82,6 +83,11 @@ interface TemplateCardState {
   generationStatus: string;
 }
 
+interface ImageProviderResponse {
+  providers: ImageProviderSummary[];
+  defaultProviderId: string | null;
+}
+
 const HEX_COLOR_REGEX = /^#[0-9A-Fa-f]{6}$/;
 
 function extractSpecifiedColorNames(text: string) {
@@ -133,6 +139,8 @@ export default function BatchGeneratePage() {
   const templateIds = templateIdsParam ? JSON.parse(decodeURIComponent(templateIdsParam)) : [];
 
   const [user, setUser] = useState<any>(null);
+  const [imageProviders, setImageProviders] = useState<ImageProviderSummary[]>([]);
+  const [selectedProviderId, setSelectedProviderId] = useState('');
   const [darkMode, setDarkMode] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -149,6 +157,24 @@ export default function BatchGeneratePage() {
   const [isDragging, setIsDragging] = useState(false);
   const [showInsufficientCredits, setShowInsufficientCredits] = useState(false);
   const hasFetched = useRef(false);
+
+  const fetchImageProviders = useCallback(async () => {
+    try {
+      const res = await fetch('/api/image/providers', { cache: 'no-store' });
+      if (!res.ok) return;
+
+      const data: ImageProviderResponse = await res.json();
+      setImageProviders(Array.isArray(data.providers) ? data.providers : []);
+      setSelectedProviderId((prev) => {
+        if (prev && data.providers?.some((provider) => provider.id === prev)) {
+          return prev;
+        }
+        return data.defaultProviderId || data.providers?.[0]?.id || '';
+      });
+    } catch (error) {
+      console.error('获取图片供应商失败:', error);
+    }
+  }, []);
 
   useEffect(() => {
     const savedDarkMode = localStorage.getItem('darkMode');
@@ -171,6 +197,7 @@ export default function BatchGeneratePage() {
     };
 
     fetchUser();
+    fetchImageProviders();
 
     if (templateIds.length > 0 && !hasFetched.current) {
       hasFetched.current = true;
@@ -186,7 +213,26 @@ export default function BatchGeneratePage() {
 
     document.addEventListener('click', handleClickOutside);
     return () => document.removeEventListener('click', handleClickOutside);
-  }, []);
+  }, [fetchImageProviders]);
+
+  useEffect(() => {
+    const handleWindowFocus = () => {
+      fetchImageProviders();
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        fetchImageProviders();
+      }
+    };
+
+    window.addEventListener('focus', handleWindowFocus);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      window.removeEventListener('focus', handleWindowFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [fetchImageProviders]);
 
   useEffect(() => {
     if (!hasFetched.current && templateIds.length > 0) {
@@ -414,6 +460,7 @@ export default function BatchGeneratePage() {
       variables: card.formData,
       size,
       quality,
+      providerId: selectedProviderId || undefined,
       referenceImages: card.template.referenceImages?.map((img) => img.url) || [],
       images: kvImage ? [kvImage.url] : [],
       userPrompt: card.enableUserPrompt ? card.userPrompt : null,
@@ -1129,6 +1176,30 @@ export default function BatchGeneratePage() {
             </div>
 
             <div className="space-y-4">
+              {imageProviders.length > 0 && (
+                <div className="haipablo-glass-subtle rounded-[24px] border p-4">
+                  <label className="mb-2 block text-sm font-semibold text-slate-700">生成供应商</label>
+                  <div className="relative">
+                    <select
+                      value={selectedProviderId}
+                      onChange={(e) => setSelectedProviderId(e.target.value)}
+                      onFocus={() => fetchImageProviders()}
+                      className="w-full appearance-none rounded-2xl border border-white/70 bg-white px-4 py-3 pr-11 text-sm font-medium text-slate-900 outline-none transition-all focus:border-violet-300 focus:ring-4 focus:ring-violet-100 dark:border-white/10 dark:bg-slate-950/60 dark:text-white"
+                    >
+                      {imageProviders.map((provider) => (
+                        <option key={provider.id} value={provider.id}>
+                          {provider.label}
+                        </option>
+                      ))}
+                    </select>
+                    <Sparkles className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  </div>
+                  <p className="mt-2 text-xs leading-5 text-slate-500">
+                    前端只负责切换供应商，具体地址、密钥和兼容逻辑由后端按供应商配置处理。
+                  </p>
+                </div>
+              )}
+
               <div className="haipablo-glass-subtle rounded-[24px] border p-4">
                 <label className="mb-2 block text-sm font-semibold text-slate-700">输出尺寸</label>
                 <div className="relative">
