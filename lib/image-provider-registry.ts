@@ -9,6 +9,7 @@ import {
 export interface ImageProviderConfig extends ManagedImageProviderConfig {}
 
 const IMAGE_PROVIDER_SETTINGS_KEY = 'image_provider_settings';
+export const DEFAULT_IMAGE_PROVIDER_TIMEOUT_MS = 150000;
 
 const TRUE_VALUES = new Set(['1', 'true', 'yes', 'on']);
 
@@ -31,12 +32,21 @@ function parseNumber(value: string | undefined, fallback: number): number {
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
 }
 
+export function clampImageProviderTimeoutMs(timeoutMs: number | string | undefined, fallback = DEFAULT_IMAGE_PROVIDER_TIMEOUT_MS): number {
+  const maxSafeTimeoutMs = Math.max(1000, parseNumber(process.env.IMAGE_API_MAX_SAFE_TIMEOUT_MS, DEFAULT_IMAGE_PROVIDER_TIMEOUT_MS));
+  const normalizedTimeoutMs = typeof timeoutMs === 'number'
+    ? timeoutMs
+    : parseNumber(timeoutMs, fallback);
+
+  return Math.min(Math.max(normalizedTimeoutMs, 1000), maxSafeTimeoutMs);
+}
+
 function parseProviderKind(value: string | undefined): ImageProviderKind {
   return value === 'legacy_jyf' ? 'legacy_jyf' : 'openai_compatible';
 }
 
 function getGlobalTimeoutMs(): number {
-  return parseNumber(process.env.IMAGE_API_TIMEOUT_MS, 240000);
+  return clampImageProviderTimeoutMs(process.env.IMAGE_API_TIMEOUT_MS, DEFAULT_IMAGE_PROVIDER_TIMEOUT_MS);
 }
 
 function getGlobalMaxRetries(): number {
@@ -78,7 +88,7 @@ function buildProviderFromEnv(id: string, isDefault: boolean): ImageProviderConf
     enabled,
     baseUrl: baseUrl.trim().replace(/\/+$/, ''),
     apiKey: apiKey.trim(),
-    timeoutMs: parseNumber(process.env[`IMAGE_PROVIDER_${envKey}_TIMEOUT_MS`], getGlobalTimeoutMs()),
+    timeoutMs: clampImageProviderTimeoutMs(process.env[`IMAGE_PROVIDER_${envKey}_TIMEOUT_MS`], getGlobalTimeoutMs()),
     maxRetries: parseNumber(process.env[`IMAGE_PROVIDER_${envKey}_MAX_RETRIES`], getGlobalMaxRetries()),
   };
 }
@@ -149,7 +159,7 @@ function normalizeManagedProvider(provider: ManagedImageProviderConfig, isDefaul
     enabled: Boolean(provider.enabled),
     baseUrl: provider.baseUrl?.trim().replace(/\/+$/, '') || '',
     apiKey: provider.apiKey?.trim() || '',
-    timeoutMs: parseNumber(String(provider.timeoutMs ?? ''), getGlobalTimeoutMs()),
+    timeoutMs: clampImageProviderTimeoutMs(String(provider.timeoutMs ?? ''), getGlobalTimeoutMs()),
     maxRetries: parseNumber(String(provider.maxRetries ?? ''), getGlobalMaxRetries()),
   };
 }

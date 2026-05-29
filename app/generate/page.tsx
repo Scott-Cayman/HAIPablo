@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { UserAvatar } from '@/components/UserAvatar';
+import { UserMenuDropdown } from '@/components/UserMenuDropdown';
 import { AnnotationEditorModal } from '@/components/AnnotationEditorModal';
 import { AdminThemeModal } from '@/components/AdminThemeModal';
 import type { ImageProviderSummary } from '@/lib/image-provider-types';
@@ -2224,132 +2224,26 @@ export default function GeneratePage() {
             </button>
 
             {user ? (
-              <div className="relative user-menu-container">
-                <button
-                  onClick={() => setShowUserMenu(!showUserMenu)}
-                  className="flex items-center gap-3 hover:opacity-80 transition-opacity"
-                >
-                  <UserAvatar user={user} size="lg" darkMode={darkMode} />
-                  <div className="hidden lg:flex min-h-11 items-center text-left">
-                    <p className={`text-sm font-medium transition-colors duration-500 ${darkMode ? 'text-white' : 'text-gray-900'}`}>{user.name || user.username}</p>
-                  </div>
-                </button>
-
-                <AnimatePresence>
-                  {showUserMenu && (
-                    <motion.div
-                      initial={{ opacity: 0, y: -10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -10 }}
-                      className={`haipablo-modal-panel absolute right-0 top-full mt-2 w-56 rounded-xl shadow-lg border overflow-hidden z-50 transition-colors duration-500 ${
-                        darkMode 
-                          ? 'bg-[#1b211c]/95 border-[#f5ecd9]/10' 
-                          : 'bg-white border-white/60'
-                      }`}
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <div className={`p-4 border-b transition-colors duration-500 ${
-                        darkMode 
-                          ? 'bg-[#f5ecd9]/[0.035] border-[#f5ecd9]/10' 
-                          : 'bg-white/45 border-white/60'
-                      }`}>
-                        <div className="flex items-center gap-3">
-                          <UserAvatar user={user} size="lg" darkMode={darkMode} />
-                          <div className="flex min-h-10 items-center">
-                            <p className={`font-semibold transition-colors duration-500 ${darkMode ? 'text-white' : 'text-gray-900'}`}>{user.name || user.username}</p>
-                          </div>
-                        </div>
-                        <div className="mt-3 flex items-center gap-2">
-                          <span className={`px-2 py-1 text-xs font-medium rounded-full flex items-center gap-1 w-fit ${
-                            darkMode 
-                              ? 'bg-[#f4ede0] text-[#2b241d] border border-[#f4ede0]/25' 
-                              : 'bg-gray-950 text-white border border-gray-900'
-                          }`}>
-                            <Sparkles className="w-3 h-3" />
-                            潮能力: {user.credits ?? 0}
-                          </span>
-                          {isAdmin && (
-                            <span className={`px-2 py-1 text-xs font-medium rounded-full flex items-center gap-1 w-fit ${
-                              darkMode 
-                                ? 'bg-amber-950/45 text-amber-300' 
-                                : 'bg-amber-100 text-amber-700'
-                            }`}>
-                              <Shield className="w-3 h-3" />
-                              管理员
-                            </span>
-                          )}
-                          {isSubAdmin && (
-                            <span className={`px-2 py-1 text-xs font-medium rounded-full flex items-center gap-1 w-fit ${
-                              darkMode 
-                                ? 'bg-teal-950/45 text-teal-300' 
-                                : 'bg-blue-100 text-blue-700'
-                            }`}>
-                              <Shield className="w-3 h-3" />
-                              子管理员
-                            </span>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="p-2">
-                        <button
-                          onClick={() => router.push('/history')}
-                          className={`w-full px-4 py-2.5 text-left rounded-lg transition-colors flex items-center gap-3 ${
-                            darkMode 
-                              ? 'text-stone-300 hover:bg-white/[0.06] hover:text-white' 
-                              : 'text-gray-700 hover:bg-white/80 hover:text-gray-900'
-                          }`}
-                        >
-                          <History className="w-4 h-4" />
-                          我的历史
-                        </button>
-
-                        {canManage && (
-                          <button
-                            onClick={() => router.push('/admin/users?tab=image_providers')}
-                            className={`w-full px-4 py-2.5 text-left rounded-lg transition-colors flex items-center gap-3 mt-1 ${
-                              darkMode
-                                ? 'text-stone-300 hover:bg-white/[0.06] hover:text-white'
-                                : 'text-gray-700 hover:bg-white/80 hover:text-gray-900'
-                            }`}
-                          >
-                            <Settings2 className="w-4 h-4" />
-                            后台管理
-                          </button>
-                        )}
-
-                        {canManage && (
-                          <button
-                            onClick={() => router.push('/admin/users')}
-                            className={`w-full px-4 py-2.5 text-left rounded-lg transition-colors flex items-center gap-3 ${
-                              darkMode 
-                                ? 'text-amber-300 hover:bg-amber-950/30' 
-                                : 'text-amber-700 hover:bg-amber-50/80'
-                            }`}
-                          >
-                            <Shield className="w-4 h-4" />
-                            {isAdmin ? '用户管理' : '人员列表'}
-                          </button>
-                        )}
-
-                        <div className={`my-2 border-t transition-colors duration-500 ${darkMode ? 'border-white/10' : 'border-white/55'}`} />
-
-                        <button
-                          onClick={handleLogout}
-                          className={`w-full px-4 py-2.5 text-left rounded-lg transition-colors flex items-center gap-3 ${
-                            darkMode 
-                              ? 'text-red-400 hover:bg-red-950/30' 
-                              : 'text-red-600 hover:bg-red-50/80'
-                          }`}
-                        >
-                          <LogOut className="w-4 h-4" />
-                          退出登录
-                        </button>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
+              <UserMenuDropdown
+                user={user}
+                darkMode={darkMode}
+                isOpen={showUserMenu}
+                onToggle={() => setShowUserMenu((prev) => !prev)}
+                onClose={() => setShowUserMenu(false)}
+                onHistory={() => router.push('/history')}
+                onAdminPanel={() => router.push('/admin/users?tab=image_providers')}
+                onThemeSettings={() => setShowAdminThemeModal(true)}
+                onAdminUsers={() => router.push('/admin/users')}
+                onLogout={handleLogout}
+                canManage={canManage}
+                isAdmin={isAdmin}
+                isSubAdmin={isSubAdmin}
+                manageLabel={isAdmin ? '用户与部门管理' : '人员列表'}
+                avatarSize="lg"
+                showTriggerName={true}
+                triggerClassName="flex items-center gap-3 hover:opacity-80 transition-opacity"
+                triggerTextClassName="hidden lg:flex min-h-11 items-center"
+              />
             ) : (
               <button
                 onClick={() => router.push('/auth')}

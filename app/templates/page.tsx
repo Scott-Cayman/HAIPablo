@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
-import { UserAvatar } from '@/components/UserAvatar';
+import { UserMenuDropdown } from '@/components/UserMenuDropdown';
 import { AdminThemeModal } from '@/components/AdminThemeModal';
 import {
   applyAdminColorTheme,
@@ -478,6 +478,11 @@ export default function TemplatesPage() {
     }
   };
 
+  const handleCancelBatchMode = () => {
+    setBatchMode(false);
+    setSelectedTemplates([]);
+  };
+
   const handleToggleTemplate = (templateId: string) => {
     setSelectedTemplates(prev => 
       prev.includes(templateId) 
@@ -864,130 +869,24 @@ export default function TemplatesPage() {
               )}
             </button>
             {user && (
-              <div className="relative user-menu-container">
-                <button
-                  onClick={() => setShowUserMenu(!showUserMenu)}
-                  className="flex items-center hover:opacity-80 transition-opacity"
-                >
-                  <UserAvatar user={user} size="lg" darkMode={darkMode} />
-                </button>
-
-                <AnimatePresence>
-                  {showUserMenu && (
-                    <motion.div
-                      initial={{ opacity: 0, y: -10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -10 }}
-                      className={`haipablo-modal-panel absolute right-0 top-full mt-2 w-56 rounded-xl shadow-lg border overflow-hidden z-50 transition-colors duration-500 ${
-                        darkMode 
-                          ? 'bg-[#1b211c]/95 border-[#f5ecd9]/10' 
-                          : 'bg-white border-white/60'
-                      }`}
-                      onClick={() => setShowUserMenu(false)}
-                    >
-                      <div className={`p-4 border-b transition-colors duration-500 ${
-                        darkMode 
-                          ? 'bg-[#f5ecd9]/[0.035] border-[#f5ecd9]/10' 
-                          : 'bg-white/45 border-white/60'
-                      }`}>
-                        <div className="flex items-center gap-3">
-                          <UserAvatar user={user} size="lg" darkMode={darkMode} />
-                          <div>
-                            <p className={`font-semibold transition-colors duration-500 ${darkMode ? 'text-white' : 'text-gray-900'}`}>{user.name || user.username}</p>
-                            <p className={`text-xs transition-colors duration-500 ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>{user.email || user.username}</p>
-                          </div>
-                        </div>
-                        <div className="mt-3 flex items-center gap-2">
-                          <span className={`px-2 py-1 text-xs font-medium rounded-full flex items-center gap-1 w-fit ${
-                            darkMode 
-                              ? 'bg-amber-950/40 text-amber-200 border border-amber-800/60' 
-                              : 'bg-violet-50 text-violet-700 border border-violet-100'
-                          }`}>
-                            <Sparkles className="w-3 h-3" />
-                            潮能力: {user.credits ?? 0}
-                          </span>
-                          {isAdmin && (
-                            <span className={`px-2 py-1 text-xs font-medium rounded-full flex items-center gap-1 w-fit ${
-                              darkMode 
-                                ? 'bg-amber-950/45 text-amber-300' 
-                                : 'bg-amber-100 text-amber-700'
-                            }`}>
-                              <Shield className="w-3 h-3" />
-                              管理员
-                            </span>
-                          )}
-                          {isSubAdmin && (
-                            <span className={`px-2 py-1 text-xs font-medium rounded-full flex items-center gap-1 w-fit ${
-                              darkMode 
-                                ? 'bg-teal-950/45 text-teal-300' 
-                                : 'bg-blue-100 text-blue-700'
-                            }`}>
-                              <Shield className="w-3 h-3" />
-                              子管理员
-                            </span>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="p-2">
-                        <button
-                          onClick={() => router.push('/history')}
-                          className={`w-full px-4 py-2.5 text-left rounded-lg transition-colors flex items-center gap-3 ${
-                            darkMode 
-                              ? 'text-stone-300 hover:bg-white/[0.06] hover:text-white' 
-                              : 'text-gray-700 hover:bg-white/80 hover:text-gray-900'
-                          }`}
-                        >
-                          <History className="w-4 h-4" />
-                          我的历史
-                        </button>
-
-                        {canManage && (
-                          <button
-                            onClick={() => router.push('/admin/users?tab=image_providers')}
-                            className={`w-full px-4 py-2.5 text-left rounded-lg transition-colors flex items-center gap-3 mt-1 ${
-                              darkMode
-                                ? 'text-stone-300 hover:bg-white/[0.06] hover:text-white'
-                                : 'text-gray-700 hover:bg-white/80 hover:text-gray-900'
-                            }`}
-                          >
-                            <Settings2 className="w-4 h-4" />
-                            后台管理
-                          </button>
-                        )}
-
-                        {canManage && (
-                          <button
-                            onClick={() => router.push('/admin/users')}
-                            className={`w-full px-4 py-2.5 text-left rounded-lg transition-colors flex items-center gap-3 mt-1 ${
-                              darkMode 
-                                ? 'text-amber-300 hover:bg-amber-950/30' 
-                                : 'text-amber-700 hover:bg-amber-50/80'
-                            }`}
-                          >
-                            <Users className="w-4 h-4" />
-                            {isAdmin ? '用户与部门管理' : '人员列表'}
-                          </button>
-                        )}
-
-                        <div className={`my-2 border-t transition-colors duration-500 ${darkMode ? 'border-white/10' : 'border-white/55'}`} />
-
-                        <button
-                          onClick={handleLogout}
-                          className={`w-full px-4 py-2.5 text-left rounded-lg transition-colors flex items-center gap-3 ${
-                            darkMode 
-                              ? 'text-red-400 hover:bg-red-950/30' 
-                              : 'text-red-600 hover:bg-red-50/80'
-                          }`}
-                        >
-                          <LogOut className="w-4 h-4" />
-                          退出登录
-                        </button>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
+              <UserMenuDropdown
+                user={user}
+                darkMode={darkMode}
+                isOpen={showUserMenu}
+                onToggle={() => setShowUserMenu((prev) => !prev)}
+                onClose={() => setShowUserMenu(false)}
+                onHistory={() => router.push('/history')}
+                onAdminPanel={() => router.push('/admin/users?tab=image_providers')}
+                onThemeSettings={() => setShowAdminThemeModal(true)}
+                onAdminUsers={() => router.push('/admin/users')}
+                onLogout={handleLogout}
+                canManage={canManage}
+                isAdmin={isAdmin}
+                isSubAdmin={isSubAdmin}
+                manageLabel={isAdmin ? '用户与部门管理' : '人员列表'}
+                avatarSize="lg"
+                showTriggerName={false}
+              />
             )}
           </div>
         </div>
@@ -1160,20 +1059,39 @@ export default function TemplatesPage() {
                     </p>
                   </div>
                   <div className="flex gap-2">
+                    {batchMode && (
+                      <button
+                        onClick={handleCancelBatchMode}
+                        className={`h-10 w-10 rounded-full border transition-colors flex items-center justify-center ${
+                          darkMode
+                            ? 'bg-[#1d231e] text-stone-300 border-[#f5ecd9]/10 hover:bg-[#252c26] hover:text-white'
+                            : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-100 hover:text-gray-900'
+                        }`}
+                        title="取消批量"
+                        aria-label="取消批量"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    )}
                     <button 
-                      onClick={handleToggleBatchMode}
+                      onClick={batchMode ? handleStartBatchGenerate : handleToggleBatchMode}
+                      disabled={batchMode && selectedTemplates.length === 0}
                       className={`px-4 py-2 rounded-lg transition-colors flex items-center gap-2 border ${
-                        batchMode 
-                          ? darkMode
-                            ? 'bg-[#f4ede0] text-[#2b241d] border-[#f4ede0]/25 hover:bg-[#fbf6ed]'
-                            : 'bg-gray-950 text-white border-gray-900 hover:bg-gray-800'
+                        batchMode
+                          ? selectedTemplates.length > 0
+                            ? darkMode
+                              ? 'bg-[#f4ede0] text-[#2b241d] border-[#f4ede0]/25 hover:bg-[#fbf6ed]'
+                              : 'bg-gray-950 text-white border-gray-900 hover:bg-gray-800'
+                            : darkMode
+                              ? 'bg-[#1d231e] text-stone-500 border-[#f5ecd9]/10 cursor-not-allowed'
+                              : 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
                           : darkMode
                             ? 'bg-[#1d231e] text-[#f7f2ea] border-[#f5ecd9]/10 hover:bg-[#252c26]'
                             : 'bg-white text-gray-900 border-gray-300 hover:bg-gray-100'
                       }`}
                     >
                       <LayersIcon className="w-4 h-4" />
-                      {batchMode ? '取消批量' : '批量生成'}
+                      {batchMode ? (selectedTemplates.length > 0 ? '开始生成' : '请选择模板') : '批量生成'}
                     </button>
                     {canManage && (
                       <button 
@@ -1370,30 +1288,6 @@ export default function TemplatesPage() {
                       ))}
                     </div>
 
-                    {batchMode && selectedTemplates.length > 0 && (
-                      <motion.div
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className={`haipablo-glass-subtle mt-6 p-4 rounded-2xl border transition-colors duration-500 ${
-                          darkMode 
-                            ? 'bg-[linear-gradient(90deg,rgba(5,46,22,0.35),rgba(6,78,59,0.18))] border-emerald-700/35' 
-                            : 'bg-gradient-to-r from-green-50/80 to-emerald-50/80 border-white/70'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between">
-                          <p className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                            已选择 <span className={`font-bold ${darkMode ? 'text-green-400' : 'text-green-600'}`}>{selectedTemplates.length}</span> 个模板
-                          </p>
-                          <button
-                            onClick={handleStartBatchGenerate}
-                            className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2 font-medium"
-                          >
-                            <LayersIcon className="w-5 h-5" />
-                            开始批量生成
-                          </button>
-                        </div>
-                      </motion.div>
-                    )}
                   </div>
                 ) : (
                   <div className="text-center py-16">

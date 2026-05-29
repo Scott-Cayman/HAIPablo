@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import LightPillar from './LightPillar';
-import { UserAvatar } from '@/components/UserAvatar';
+import { UserMenuDropdown } from '@/components/UserMenuDropdown';
 import { AuthModal } from '@/components/AuthModal';
 import { 
   Sparkles, 
@@ -292,89 +292,26 @@ export default function HomePage() {
                   </button>
                 )}
                 
-                <div className="relative user-menu-container">
-                  <button
-                    onClick={() => setShowUserMenu(!showUserMenu)}
-                    className="flex items-center gap-3 hover:opacity-80 transition-opacity pl-3 border-l border-white/[0.08]"
-                  >
-                    <div className="hidden md:flex items-center text-right min-h-10">
-                      <p className={`text-sm font-medium transition-colors duration-500 ${darkMode ? 'text-white' : 'text-gray-900'}`}>{user.name || user.username}</p>
-                    </div>
-                    <UserAvatar user={user} size="md" darkMode={darkMode} />
-                    <ChevronRight className={`w-4 h-4 transition-transform duration-300 ${showUserMenu ? 'rotate-90' : ''} ${darkMode ? 'text-gray-500' : 'text-gray-400'}`} />
-                  </button>
-
-                  <AnimatePresence>
-                    {showUserMenu && (
-                      <motion.div
-                        initial={{ opacity: 0, y: -10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -10 }}
-                        className={`absolute right-0 top-full mt-2 w-56 rounded-xl shadow-lg border overflow-hidden z-50 transition-colors duration-500 ${
-                          darkMode 
-                            ? 'bg-gray-900 border-gray-800' 
-                            : 'bg-white border-gray-100'
-                        }`}
-                        onClick={() => setShowUserMenu(false)}
-                      >
-                        <div className={`p-4 border-b transition-colors duration-500 ${
-                          darkMode 
-                            ? 'bg-gray-800/50 border-gray-700' 
-                            : 'bg-gray-50 border-gray-100'
-                        }`}>
-                          <div className="flex items-center gap-3">
-                            <UserAvatar user={user} size="lg" darkMode={darkMode} />
-                              <div className="flex min-h-10 items-center">
-                                <p className={`font-semibold transition-colors duration-500 ${darkMode ? 'text-white' : 'text-gray-900'}`}>{user.name || user.username}</p>
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className="p-2">
-                            <button
-                              onClick={() => router.push('/history')}
-                              className={`w-full px-4 py-2.5 text-left rounded-lg transition-colors flex items-center gap-3 ${
-                                darkMode 
-                                  ? 'text-gray-300 hover:bg-gray-800 hover:text-white' 
-                                  : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
-                              }`}
-                            >
-                              <History className="w-4 h-4" />
-                              我的历史
-                            </button>
-
-                            {(user.role === 'admin' || user.role === 'sub_admin') && (
-                              <button
-                                onClick={() => router.push('/admin/users')}
-                                className={`w-full px-4 py-2.5 text-left rounded-lg transition-colors flex items-center gap-3 ${
-                                  darkMode 
-                                    ? 'text-white hover:bg-gray-800' 
-                                    : 'text-amber-700 hover:bg-amber-50'
-                                }`}
-                              >
-                                <Users className="w-4 h-4" />
-                                {user.role === 'admin' ? '用户与部门管理' : '人员列表'}
-                              </button>
-                            )}
-
-                            <div className={`my-2 border-t transition-colors duration-500 ${darkMode ? 'border-gray-800' : 'border-gray-100'}`} />
-
-                            <button
-                              onClick={handleLogout}
-                              className={`w-full px-4 py-2.5 text-left rounded-lg transition-colors flex items-center gap-3 ${
-                                darkMode 
-                                  ? 'text-red-400 hover:bg-red-950/30' 
-                                  : 'text-red-600 hover:bg-red-50'
-                              }`}
-                            >
-                              <LogOut className="w-4 h-4" />
-                              退出登录
-                            </button>
-                          </div>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  </div>
+                <UserMenuDropdown
+                  user={user}
+                  darkMode={darkMode}
+                  isOpen={showUserMenu}
+                  onToggle={() => setShowUserMenu((prev) => !prev)}
+                  onClose={() => setShowUserMenu(false)}
+                  onHistory={handleHistory}
+                  onAdminUsers={() => router.push('/admin/users')}
+                  onLogout={handleLogout}
+                  canManage={user.role === 'admin' || user.role === 'sub_admin'}
+                  isAdmin={user.role === 'admin'}
+                  isSubAdmin={user.role === 'sub_admin'}
+                  manageLabel={user.role === 'admin' ? '用户与部门管理' : '人员列表'}
+                  avatarSize="md"
+                  showTriggerName={true}
+                  showChevron={true}
+                  triggerNamePosition="before"
+                  triggerClassName="flex items-center gap-3 pl-3 transition-opacity hover:opacity-80 border-l border-white/[0.08]"
+                  triggerTextClassName="hidden md:flex items-center text-right min-h-10"
+                />
               </>
             ) : (
               <button

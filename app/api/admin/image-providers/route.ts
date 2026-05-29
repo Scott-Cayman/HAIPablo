@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/auth';
 import {
+  clampImageProviderTimeoutMs,
+  DEFAULT_IMAGE_PROVIDER_TIMEOUT_MS,
   listManagedImageProviders,
   saveManagedImageProviders,
 } from '@/lib/image-provider-registry';
@@ -20,7 +22,7 @@ function sanitizeProvider(provider: ManagedImageProviderConfig): ManagedImagePro
     model: provider.model.trim() || 'gpt-image-2',
     baseUrl: provider.baseUrl.trim(),
     apiKey: provider.apiKey.trim(),
-    timeoutMs: Number(provider.timeoutMs) || 240000,
+    timeoutMs: clampImageProviderTimeoutMs(provider.timeoutMs, DEFAULT_IMAGE_PROVIDER_TIMEOUT_MS),
     maxRetries: Number(provider.maxRetries) || 0,
   };
 }

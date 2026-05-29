@@ -1,11 +1,9 @@
 'use client';
 
-import { User } from 'lucide-react';
-
 interface UserAvatarProps {
   user?: {
     username?: string;
-    role?: string;
+    role?: string | null;
     name?: string | null;
   } | null;
   size?: 'sm' | 'md' | 'lg' | 'xl';

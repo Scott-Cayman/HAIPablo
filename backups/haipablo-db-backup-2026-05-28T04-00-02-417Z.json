@@ -1,6 +1,6 @@
 {
   "meta": {
-    "createdAt": "2026-05-28T16:00:02.452Z",
+    "createdAt": "2026-05-28T04:00:02.483Z",
     "provider": "postgresql",
     "host": "113.59.125.17",
     "port": "5458",
@@ -9,11 +9,11 @@
     "currentUser": "postgres",
     "retentionDays": 7,
     "tableCounts": {
-      "ActionTemplate": 21,
+      "ActionTemplate": 20,
       "Asset": 0,
       "Department": 178,
       "FeatureGroup": 6,
-      "GenerationHistory": 136,
+      "GenerationHistory": 133,
       "GenerationJob": 0,
       "GenerationJobItem": 0,
       "Project": 0,
@@ -659,36 +659,6 @@
         "sortOrder": 0,
         "createdAt": "2026-05-18T18:25:42.741Z",
         "updatedAt": "2026-05-27T01:14:18.146Z",
-        "allowMultipleCustomReferences": false,
-        "enableCustomReferenceUpload": false
-      },
-      {
-        "id": "cmppc7v160001pxegxlp8lvxe",
-        "featureGroupId": "cmplz76680009ubjneyry1oxo",
-        "name": "照片手绘标注",
-        "key": "照片手绘标注",
-        "description": "",
-        "mode": "edit",
-        "promptTemplate": "请观察我上传的照片，识别画面中的主要元素，并为每个有代表性的物件或区域加上**有意义的手绘风注解**。\n\n适用场景包括：\n活动现场、会展展台、会议论坛、品牌快闪、开幕仪式、签到区、洽谈区、茶歇区、观众互动区、舞台区、物料陈列、嘉宾合影、执行花絮等。\n\n---\n\n### 一、需要识别并标注的内容\n\n请优先识别照片中的以下元素：\n\n**空间类**\n展台、舞台、签到区、洽谈区、休息区、入口门头、背景板、灯光、动线、布置氛围。\n\n**活动物料类**\n易拉宝、桌卡、胸牌、手卡、手提袋、礼品、宣传册、展板、指引牌、品牌Logo、打卡装置。\n\n**人物互动类**\n嘉宾、观众、工作人员、讲解员、主持人、合影、交流、签到、咨询、体验互动。\n\n**餐饮茶歇类**\n咖啡、饮料、甜品、茶歇、水果、小吃、伴手礼。\n\n**整体氛围类**\n现场秩序、品牌感、热闹程度、松弛感、专业感、精致感、人气感。\n\n---\n\n### 二、手绘标注风格\n\n请使用类似**白色手绘笔画**的细线进行标注。\n\n要求：\n\n1. 线条像随手画出来的，一笔画风格。\n2. 线条可以略带不均匀感，不要太机械。\n3. 沿着主要物件外围加上简单描边轮廓。\n4. 用箭头、虚线、小圆圈或手绘框做出视线引导。\n5. 标注不要遮挡主体人物、品牌Logo和关键信息。\n6. 保留画面空白，不要把照片标满。\n\n---\n\n### 三、文字风格\n\n文字使用**手写风字体**，带一点日系可爱感和轻松日记感。\n\n文字要求：\n\n1. 句子简短，像自言自语的小碎念。\n2. 语气自然、有情绪、有现场感。\n3. 不要太正式，不要像宣传口号。\n4. 每条注解控制在 4–10 个字左右。\n5. 可以带轻微情绪词，例如：好喜欢、刚刚好、好热闹、蛮精致、这里很有感觉。\n\n---\n\n### 四、不同元素的注解规则\n\n**展台 / 空间类**\n重点写氛围、设计感、动线感。\n例如：\n“这里好出片”\n“空间蛮舒服”\n“品牌感拉满”\n“动线刚刚好”\n“有点高级诶”\n\n**舞台 / 背景板类**\n重点写仪式感、视觉重点、传播感。\n例如：\n“主视觉很稳”\n“舞台有气场”\n“这里很有仪式感”\n“拍照刚刚好”\n\n**签到区 / 接待区**\n重点写秩序感、第一印象、体验感。\n例如：\n“第一眼很舒服”\n“签到也有氛围”\n“入口感不错”\n“细节在线”\n\n**人群 / 互动区**\n重点写热闹、人气、交流感。\n例如：\n“人气还不错”\n“大家聊得很投入”\n“现场有点热”\n“互动感出来了”\n\n**物料 / 礼品 / 宣传品**\n重点写精致、可拿走、品牌记忆点。\n例如：\n“小物料也用心”\n“这个细节加分”\n“拿在手里挺精致”\n“品牌记忆点+1”\n\n**茶歇 / 饮料 / 食物**\n重点写口感、温度、心情。\n例如：\n“微甜刚刚好”\n“补能小快乐”\n“茶歇治愈一下”\n“这一口很放松”\n\n**灯光 / 装饰 / 陈列**\n重点写氛围感、层次感、精致感。\n例如：\n“灯光很加分”\n“氛围被点亮了”\n“这里有小巧思”\n“细节蛮会的”\n\n**整体画面**\n最后加一句总结型注解，放在不遮挡主体的位置。\n例如：\n“今天现场有点好看~”\n“这一场，蛮有感觉的”\n“忙但有点开心~”\n“活动人的小幸福”\n“现场感终于出来了”\n\n---\n\n### 五、装饰元素\n\n可以适度加入以下手绘小元素：\n\n热气、小星星、爱心、闪光、笑脸、小表情、虚线、手绘圈圈、手绘箭头。\n\n要求：\n\n1. 装饰要轻，不要过度。\n2. 不要影响画面专业感。\n3. 保持照片原本的真实质感。\n4. 让画面像“活动人的现场观察笔记”。\n\n---\n\n### 六、最终生成要求\n\n请在原图基础上进行手绘风注解，不改变照片主体内容，不改变人物表情，不替换现场布置，不虚构不存在的重要物件。\n\n整体效果应像一张：\n\n**活动现场手绘观察笔记 / 会展现场氛围标注图 / 品牌活动花絮图**\n\n画面要自然、轻松、有温度，同时保留活动照片的专业感和现场感。\nvar_1\n",
-        "negativePrompt": "",
-        "defaultSize": "2048x2048",
-        "defaultQuality": "medium",
-        "responseFormat": "b64_json",
-        "inputSlotsJson": "[]",
-        "variablesJson": "[{\"id\":\"var_1779963270289\",\"key\":\"var_1\",\"label\":\"附加要求\",\"type\":\"text\",\"placeholder\":\"请输入...\",\"required\":true}]",
-        "referenceImagesJson": "[]",
-        "coverImageJson": "{\"id\":\"cover_1779963265433\",\"url\":\"https://himiceai.oss-cn-guangzhou.aliyuncs.com/uploads/1779963265605_ndwbwfjvg.webp\",\"name\":\"11ff1136-74ce-4ba4-8f3a-c0ed17b776f8.webp\"}",
-        "coverMetadataJson": "{\"title\":\"\",\"description\":\"\"}",
-        "allowUserPrompt": true,
-        "userPromptPriorityDefault": false,
-        "enableSpecifiedColors": false,
-        "specifiedColorsJson": "[]",
-        "showMainVisual": true,
-        "enableReferenceBatchMode": true,
-        "enabled": true,
-        "sortOrder": 0,
-        "createdAt": "2026-05-28T02:15:45.114Z",
-        "updatedAt": "2026-05-28T02:15:45.114Z",
         "allowMultipleCustomReferences": false,
         "enableCustomReferenceUpload": false
       }
@@ -2166,6 +2136,17 @@
         "updatedAt": "2026-05-19T01:46:58.931Z"
       },
       {
+        "id": "cmplz76680009ubjneyry1oxo",
+        "name": "风格复刻",
+        "key": "style_clone",
+        "description": "",
+        "icon": "Sparkles",
+        "sortOrder": 0,
+        "enabled": true,
+        "createdAt": "2026-05-25T17:47:59.360Z",
+        "updatedAt": "2026-05-25T17:47:59.360Z"
+      },
+      {
         "id": "cmpmghnp20000qgjir0yv3n63",
         "name": "智能图示",
         "key": "smart_diagram",
@@ -2175,17 +2156,6 @@
         "enabled": true,
         "createdAt": "2026-05-26T01:52:02.103Z",
         "updatedAt": "2026-05-26T01:52:02.103Z"
-      },
-      {
-        "id": "cmplz76680009ubjneyry1oxo",
-        "name": "创意小工具",
-        "key": "style_clone",
-        "description": "",
-        "icon": "Sparkles",
-        "sortOrder": 0,
-        "enabled": true,
-        "createdAt": "2026-05-25T17:47:59.360Z",
-        "updatedAt": "2026-05-28T02:13:11.678Z"
       }
     ],
     "GenerationHistory": [
@@ -4050,48 +4020,6 @@
         "status": "success",
         "creditsUsed": 1,
         "createdAt": "2026-05-27T00:55:32.653Z"
-      },
-      {
-        "id": "cmppcil8y0004pxegs7a48whm",
-        "userId": "cmoux0zkt000094s23ki9f4gc",
-        "templateId": "cmppc7v160001pxegxlp8lvxe",
-        "templateName": "照片手绘标注",
-        "prompt": "请观察我上传的照片，识别画面中的主要元素，并为每个有代表性的物件或区域加上**有意义的手绘风注解**。\n\n适用场景包括：\n活动现场、会展展台、会议论坛、品牌快闪、开幕仪式、签到区、洽谈区、茶歇区、观众互动区、舞台区、物料陈列、嘉宾合影、执行花絮等。\n\n---\n\n### 一、需要识别并标注的内容\n\n请优先识别照片中的以下元素：\n\n**空间类**\n展台、舞台、签到区、洽谈区、休息区、入口门头、背景板、灯光、动线、布置氛围。\n\n**活动物料类**\n易拉宝、桌卡、胸牌、手卡、手提袋、礼品、宣传册、展板、指引牌、品牌Logo、打卡装置。\n\n**人物互动类**\n嘉宾、观众、工作人员、讲解员、主持人、合影、交流、签到、咨询、体验互动。\n\n**餐饮茶歇类**\n咖啡、饮料、甜品、茶歇、水果、小吃、伴手礼。\n\n**整体氛围类**\n现场秩序、品牌感、热闹程度、松弛感、专业感、精致感、人气感。\n\n---\n\n### 二、手绘标注风格\n\n请使用类似**白色手绘笔画**的细线进行标注。\n\n要求：\n\n1. 线条像随手画出来的，一笔画风格。\n2. 线条可以略带不均匀感，不要太机械。\n3. 沿着主要物件外围加上简单描边轮廓。\n4. 用箭头、虚线、小圆圈或手绘框做出视线引导。\n5. 标注不要遮挡主体人物、品牌Logo和关键信息。\n6. 保留画面空白，不要把照片标满。\n\n---\n\n### 三、文字风格\n\n文字使用**手写风字体**，带一点日系可爱感和轻松日记感。\n\n文字要求：\n\n1. 句子简短，像自言自语的小碎念。\n2. 语气自然、有情绪、有现场感。\n3. 不要太正式，不要像宣传口号。\n4. 每条注解控制在 4–10 个字左右。\n5. 可以带轻微情绪词，例如：好喜欢、刚刚好、好热闹、蛮精致、这里很有感觉。\n\n---\n\n### 四、不同元素的注解规则\n\n**展台 / 空间类**\n重点写氛围、设计感、动线感。\n例如：\n“这里好出片”\n“空间蛮舒服”\n“品牌感拉满”\n“动线刚刚好”\n“有点高级诶”\n\n**舞台 / 背景板类**\n重点写仪式感、视觉重点、传播感。\n例如：\n“主视觉很稳”\n“舞台有气场”\n“这里很有仪式感”\n“拍照刚刚好”\n\n**签到区 / 接待区**\n重点写秩序感、第一印象、体验感。\n例如：\n“第一眼很舒服”\n“签到也有氛围”\n“入口感不错”\n“细节在线”\n\n**人群 / 互动区**\n重点写热闹、人气、交流感。\n例如：\n“人气还不错”\n“大家聊得很投入”\n“现场有点热”\n“互动感出来了”\n\n**物料 / 礼品 / 宣传品**\n重点写精致、可拿走、品牌记忆点。\n例如：\n“小物料也用心”\n“这个细节加分”\n“拿在手里挺精致”\n“品牌记忆点+1”\n\n**茶歇 / 饮料 / 食物**\n重点写口感、温度、心情。\n例如：\n“微甜刚刚好”\n“补能小快乐”\n“茶歇治愈一下”\n“这一口很放松”\n\n**灯光 / 装饰 / 陈列**\n重点写氛围感、层次感、精致感。\n例如：\n“灯光很加分”\n“氛围被点亮了”\n“这里有小巧思”\n“细节蛮会的”\n\n**整体画面**\n最后加一句总结型注解，放在不遮挡主体的位置。\n例如：\n“今天现场有点好看~”\n“这一场，蛮有感觉的”\n“忙但有点开心~”\n“活动人的小幸福”\n“现场感终于出来了”\n\n---\n\n### 五、装饰元素\n\n可以适度加入以下手绘小元素：\n\n热气、小星星、爱心、闪光、笑脸、小表情、虚线、手绘圈圈、手绘箭头。\n\n要求：\n\n1. 装饰要轻，不要过度。\n2. 不要影响画面专业感。\n3. 保持照片原本的真实质感。\n4. 让画面像“活动人的现场观察笔记”。\n\n---\n\n### 六、最终生成要求\n\n请在原图基础上进行手绘风注解，不改变照片主体内容，不改变人物表情，不替换现场布置，不虚构不存在的重要物件。\n\n整体效果应像一张：\n\n**活动现场手绘观察笔记 / 会展现场氛围标注图 / 品牌活动花絮图**\n\n画面要自然、轻松、有温度，同时保留活动照片的专业感和现场感。\n彩色标注\n",
-        "variables": "{\"var_1\":\"彩色标注\"}",
-        "configJson": "{\"formData\":{\"var_1\":\"彩色标注\"},\"variableImages\":{},\"userImages\":[{\"id\":\"main_1779963497499_eiye47ccb\",\"url\":\"https://himiceai.oss-cn-guangzhou.aliyuncs.com/uploads/1779963497531_1yzh6fv37.png\",\"name\":\"PixPin_2026-05-28_18-18-00.png\",\"originalUrl\":\"https://himiceai.oss-cn-guangzhou.aliyuncs.com/uploads/1779963497531_1yzh6fv37.png\",\"annotations\":[],\"annotationTokens\":[]}],\"customReferenceImages\":[],\"selectedCustomReferenceIds\":[],\"selectedPresetImage\":null,\"selectedUserImage\":{\"id\":\"main_1779963497499_eiye47ccb\",\"url\":\"https://himiceai.oss-cn-guangzhou.aliyuncs.com/uploads/1779963497531_1yzh6fv37.png\",\"name\":\"PixPin_2026-05-28_18-18-00.png\",\"originalUrl\":\"https://himiceai.oss-cn-guangzhou.aliyuncs.com/uploads/1779963497531_1yzh6fv37.png\",\"annotations\":[],\"annotationTokens\":[]},\"userPrompt\":\"\",\"enableUserPrompt\":false,\"userPromptPriority\":false,\"useSmartColoring\":false,\"size\":\"auto\",\"quality\":\"medium\",\"referenceBatchMode\":false,\"batchReferenceImages\":[{\"id\":\"main_1779963497499_eiye47ccb\",\"url\":\"https://himiceai.oss-cn-guangzhou.aliyuncs.com/uploads/1779963497531_1yzh6fv37.png\",\"name\":\"PixPin_2026-05-28_18-18-00.png\",\"originalUrl\":\"https://himiceai.oss-cn-guangzhou.aliyuncs.com/uploads/1779963497531_1yzh6fv37.png\",\"annotations\":[],\"annotationTokens\":[]}]}",
-        "outputImageUrl": null,
-        "thumbnailUrl": null,
-        "status": "failed",
-        "creditsUsed": 1,
-        "createdAt": "2026-05-28T02:24:05.645Z"
-      },
-      {
-        "id": "cmppcnvw70007pxegmr27u8dp",
-        "userId": "cmoux0zkt000094s23ki9f4gc",
-        "templateId": "cmppc7v160001pxegxlp8lvxe",
-        "templateName": "照片手绘标注",
-        "prompt": "请观察我上传的照片，识别画面中的主要元素，并为每个有代表性的物件或区域加上**有意义的手绘风注解**。\n\n适用场景包括：\n活动现场、会展展台、会议论坛、品牌快闪、开幕仪式、签到区、洽谈区、茶歇区、观众互动区、舞台区、物料陈列、嘉宾合影、执行花絮等。\n\n---\n\n### 一、需要识别并标注的内容\n\n请优先识别照片中的以下元素：\n\n**空间类**\n展台、舞台、签到区、洽谈区、休息区、入口门头、背景板、灯光、动线、布置氛围。\n\n**活动物料类**\n易拉宝、桌卡、胸牌、手卡、手提袋、礼品、宣传册、展板、指引牌、品牌Logo、打卡装置。\n\n**人物互动类**\n嘉宾、观众、工作人员、讲解员、主持人、合影、交流、签到、咨询、体验互动。\n\n**餐饮茶歇类**\n咖啡、饮料、甜品、茶歇、水果、小吃、伴手礼。\n\n**整体氛围类**\n现场秩序、品牌感、热闹程度、松弛感、专业感、精致感、人气感。\n\n---\n\n### 二、手绘标注风格\n\n请使用类似**白色手绘笔画**的细线进行标注。\n\n要求：\n\n1. 线条像随手画出来的，一笔画风格。\n2. 线条可以略带不均匀感，不要太机械。\n3. 沿着主要物件外围加上简单描边轮廓。\n4. 用箭头、虚线、小圆圈或手绘框做出视线引导。\n5. 标注不要遮挡主体人物、品牌Logo和关键信息。\n6. 保留画面空白，不要把照片标满。\n\n---\n\n### 三、文字风格\n\n文字使用**手写风字体**，带一点日系可爱感和轻松日记感。\n\n文字要求：\n\n1. 句子简短，像自言自语的小碎念。\n2. 语气自然、有情绪、有现场感。\n3. 不要太正式，不要像宣传口号。\n4. 每条注解控制在 4–10 个字左右。\n5. 可以带轻微情绪词，例如：好喜欢、刚刚好、好热闹、蛮精致、这里很有感觉。\n\n---\n\n### 四、不同元素的注解规则\n\n**展台 / 空间类**\n重点写氛围、设计感、动线感。\n例如：\n“这里好出片”\n“空间蛮舒服”\n“品牌感拉满”\n“动线刚刚好”\n“有点高级诶”\n\n**舞台 / 背景板类**\n重点写仪式感、视觉重点、传播感。\n例如：\n“主视觉很稳”\n“舞台有气场”\n“这里很有仪式感”\n“拍照刚刚好”\n\n**签到区 / 接待区**\n重点写秩序感、第一印象、体验感。\n例如：\n“第一眼很舒服”\n“签到也有氛围”\n“入口感不错”\n“细节在线”\n\n**人群 / 互动区**\n重点写热闹、人气、交流感。\n例如：\n“人气还不错”\n“大家聊得很投入”\n“现场有点热”\n“互动感出来了”\n\n**物料 / 礼品 / 宣传品**\n重点写精致、可拿走、品牌记忆点。\n例如：\n“小物料也用心”\n“这个细节加分”\n“拿在手里挺精致”\n“品牌记忆点+1”\n\n**茶歇 / 饮料 / 食物**\n重点写口感、温度、心情。\n例如：\n“微甜刚刚好”\n“补能小快乐”\n“茶歇治愈一下”\n“这一口很放松”\n\n**灯光 / 装饰 / 陈列**\n重点写氛围感、层次感、精致感。\n例如：\n“灯光很加分”\n“氛围被点亮了”\n“这里有小巧思”\n“细节蛮会的”\n\n**整体画面**\n最后加一句总结型注解，放在不遮挡主体的位置。\n例如：\n“今天现场有点好看~”\n“这一场，蛮有感觉的”\n“忙但有点开心~”\n“活动人的小幸福”\n“现场感终于出来了”\n\n---\n\n### 五、装饰元素\n\n可以适度加入以下手绘小元素：\n\n热气、小星星、爱心、闪光、笑脸、小表情、虚线、手绘圈圈、手绘箭头。\n\n要求：\n\n1. 装饰要轻，不要过度。\n2. 不要影响画面专业感。\n3. 保持照片原本的真实质感。\n4. 让画面像“活动人的现场观察笔记”。\n\n---\n\n### 六、最终生成要求\n\n请在原图基础上进行手绘风注解，不改变照片主体内容，不改变人物表情，不替换现场布置，不虚构不存在的重要物件。\n\n整体效果应像一张：\n\n**活动现场手绘观察笔记 / 会展现场氛围标注图 / 品牌活动花絮图**\n\n画面要自然、轻松、有温度，同时保留活动照片的专业感和现场感。\n彩色标注\n",
-        "variables": "{\"var_1\":\"彩色标注\"}",
-        "configJson": "{\"formData\":{\"var_1\":\"彩色标注\"},\"variableImages\":{},\"userImages\":[{\"id\":\"main_1779963497499_eiye47ccb\",\"url\":\"https://himiceai.oss-cn-guangzhou.aliyuncs.com/uploads/1779963497531_1yzh6fv37.png\",\"name\":\"PixPin_2026-05-28_18-18-00.png\",\"originalUrl\":\"https://himiceai.oss-cn-guangzhou.aliyuncs.com/uploads/1779963497531_1yzh6fv37.png\",\"annotations\":[],\"annotationTokens\":[]}],\"customReferenceImages\":[],\"selectedCustomReferenceIds\":[],\"selectedPresetImage\":null,\"selectedUserImage\":{\"id\":\"main_1779963497499_eiye47ccb\",\"url\":\"https://himiceai.oss-cn-guangzhou.aliyuncs.com/uploads/1779963497531_1yzh6fv37.png\",\"name\":\"PixPin_2026-05-28_18-18-00.png\",\"originalUrl\":\"https://himiceai.oss-cn-guangzhou.aliyuncs.com/uploads/1779963497531_1yzh6fv37.png\",\"annotations\":[],\"annotationTokens\":[]},\"userPrompt\":\"\",\"enableUserPrompt\":false,\"userPromptPriority\":false,\"useSmartColoring\":false,\"size\":\"auto\",\"quality\":\"medium\",\"referenceBatchMode\":false,\"batchReferenceImages\":[{\"id\":\"main_1779963497499_eiye47ccb\",\"url\":\"https://himiceai.oss-cn-guangzhou.aliyuncs.com/uploads/1779963497531_1yzh6fv37.png\",\"name\":\"PixPin_2026-05-28_18-18-00.png\",\"originalUrl\":\"https://himiceai.oss-cn-guangzhou.aliyuncs.com/uploads/1779963497531_1yzh6fv37.png\",\"annotations\":[],\"annotationTokens\":[]}]}",
-        "outputImageUrl": "https://himiceai.oss-cn-guangzhou.aliyuncs.com/outputs/generated_1779964092736_1e7a4c36.png",
-        "thumbnailUrl": "https://himiceai.oss-cn-guangzhou.aliyuncs.com/outputs/generated_1779964092736_1e7a4c36.png",
-        "status": "success",
-        "creditsUsed": 1,
-        "createdAt": "2026-05-28T02:28:12.722Z"
-      },
-      {
-        "id": "cmppgugqh000apxeg01z7yxqt",
-        "userId": "cmow8u8xj00c514lchaqpqcam",
-        "templateId": "cmouwo3b60002qrzesricfkhz",
-        "templateName": "签到处背板",
-        "prompt": "这是一个将主视觉KV迁移到效果图上的任务\n将参考图2的画面放到参考图2的果图红色色块中，参考图2中的主题一行放在画面的上半部分，参考图1红色色块中的原有文字位置和大小保持不变字的颜色变成#bee5fe，维持参考图1的原始比例，文字标识保持清晰\n",
-        "variables": "{}",
-        "configJson": "{\"formData\":{},\"variableImages\":{},\"userImages\":[{\"id\":\"main_1779971095754_sb8dxwjhf\",\"url\":\"https://himiceai.oss-cn-guangzhou.aliyuncs.com/uploads/1779971095097_f6edmz5c7.png\",\"name\":\"AI_1779971028012.png\",\"originalUrl\":\"https://himiceai.oss-cn-guangzhou.aliyuncs.com/uploads/1779971095097_f6edmz5c7.png\",\"annotations\":[],\"annotationTokens\":[]}],\"customReferenceImages\":[],\"selectedCustomReferenceIds\":[],\"selectedPresetImage\":{\"id\":\"img_1779692736407_m0f5g8593\",\"url\":\"/storage/uploads/1779692736495_qby4rk9r1.png\",\"name\":\"写实+5x3签到处效果-侧面.png\"},\"selectedUserImage\":{\"id\":\"main_1779971095754_sb8dxwjhf\",\"url\":\"https://himiceai.oss-cn-guangzhou.aliyuncs.com/uploads/1779971095097_f6edmz5c7.png\",\"name\":\"AI_1779971028012.png\",\"originalUrl\":\"https://himiceai.oss-cn-guangzhou.aliyuncs.com/uploads/1779971095097_f6edmz5c7.png\",\"annotations\":[],\"annotationTokens\":[]},\"userPrompt\":\"\",\"enableUserPrompt\":true,\"userPromptPriority\":false,\"useSmartColoring\":false,\"size\":\"auto\",\"quality\":\"high\",\"referenceBatchMode\":false,\"batchReferenceImages\":[{\"id\":\"main_1779971095754_sb8dxwjhf\",\"url\":\"https://himiceai.oss-cn-guangzhou.aliyuncs.com/uploads/1779971095097_f6edmz5c7.png\",\"name\":\"AI_1779971028012.png\",\"originalUrl\":\"https://himiceai.oss-cn-guangzhou.aliyuncs.com/uploads/1779971095097_f6edmz5c7.png\",\"annotations\":[],\"annotationTokens\":[]}]}",
-        "outputImageUrl": "https://himiceai.oss-cn-guangzhou.aliyuncs.com/outputs/generated_1779971118140_b24fe517.png",
-        "thumbnailUrl": "https://himiceai.oss-cn-guangzhou.aliyuncs.com/outputs/generated_1779971118140_b24fe517.png",
-        "status": "success",
-        "creditsUsed": 1,
-        "createdAt": "2026-05-28T04:25:18.134Z"
       }
     ],
     "GenerationJob": [],
@@ -4101,9 +4029,9 @@
       {
         "id": "cmpouhkb60006iyzxxac5a4cu",
         "key": "image_provider_settings",
-        "value": "{\"defaultProviderId\":\"default\",\"providers\":[{\"id\":\"default\",\"label\":\"渠道A\",\"kind\":\"legacy_jyf\",\"model\":\"gpt-image-2\",\"isDefault\":true,\"supportsEdit\":true,\"enabled\":false,\"baseUrl\":\"https://api.jyf.ai\",\"apiKey\":\"sk-2sVYbB9rHGDtUGmXUKU7PbK5XD7NAcnh47LRTvD47iUCYofc\",\"timeoutMs\":240000,\"maxRetries\":0},{\"id\":\"openai_std\",\"label\":\"渠道B\",\"kind\":\"openai_compatible\",\"model\":\"gpt-image-2\",\"isDefault\":false,\"supportsEdit\":true,\"enabled\":true,\"baseUrl\":\"https://api.laozhang.ai\",\"apiKey\":\"sk-CSyNFNIpCZ1bJ138413d7613157a43B1B93d8f7a121cA18c\",\"timeoutMs\":240000,\"maxRetries\":0}]}",
+        "value": "{\"defaultProviderId\":\"default\",\"providers\":[{\"id\":\"default\",\"label\":\"渠道A\",\"kind\":\"legacy_jyf\",\"model\":\"gpt-image-2\",\"isDefault\":true,\"supportsEdit\":true,\"enabled\":true,\"baseUrl\":\"https://api.jyf.ai\",\"apiKey\":\"sk-2sVYbB9rHGDtUGmXUKU7PbK5XD7NAcnh47LRTvD47iUCYofc\",\"timeoutMs\":240000,\"maxRetries\":0},{\"id\":\"openai_std\",\"label\":\"渠道B\",\"kind\":\"openai_compatible\",\"model\":\"gpt-image-2\",\"isDefault\":false,\"supportsEdit\":true,\"enabled\":true,\"baseUrl\":\"https://api.laozhang.ai\",\"apiKey\":\"sk-CSyNFNIpCZ1bJ138413d7613157a43B1B93d8f7a121cA18c\",\"timeoutMs\":240000,\"maxRetries\":0}]}",
         "createdAt": "2026-05-27T17:59:24.690Z",
-        "updatedAt": "2026-05-28T00:21:33.258Z"
+        "updatedAt": "2026-05-27T18:17:15.254Z"
       }
     ],
     "User": [
@@ -4115,13 +4043,13 @@
         "name": "管理员",
         "avatar": null,
         "role": "admin",
-        "credits": 8804,
+        "credits": 8805,
         "departmentId": null,
         "dingtalkUnionId": null,
         "dingtalkOpenId": null,
         "lastLoginAt": "2026-05-27T00:12:17.791Z",
         "createdAt": "2026-05-06T19:17:24.893Z",
-        "updatedAt": "2026-05-28T02:28:12.722Z"
+        "updatedAt": "2026-05-27T18:17:39.770Z"
       },
       {
         "id": "cmow8u3e5009v14lckqzit57f",
@@ -13708,6 +13636,22 @@
         "updatedAt": "2026-05-27T00:09:50.469Z"
       },
       {
+        "id": "cmow8u8xj00c514lchaqpqcam",
+        "username": "17234292017325296",
+        "password": "MTIzNDU2Nzg=",
+        "email": "zhangxinyi@himice.com",
+        "name": "张欣怡",
+        "avatar": "https://static-legacy.dingtalk.com/media/lQDPM4VzFKJ6LR3NAyrNAvywqp-Z4OghNdgJZfroDXc0AA_764_810.jpg",
+        "role": "user",
+        "credits": 115,
+        "departmentId": "cmovcfqry000lq59hmhx3gfpu",
+        "dingtalkUnionId": "NYiilSwiiLn8qRSXfKVQKiSpwiEiE",
+        "dingtalkOpenId": "17234292017325296",
+        "lastLoginAt": null,
+        "createdAt": "2026-05-07T17:35:51.991Z",
+        "updatedAt": "2026-05-27T00:09:50.469Z"
+      },
+      {
         "id": "cmovc1qsk0001q59hfrkx1c9i",
         "username": "wangzhihao@himice.com",
         "password": "MTIzNDU2Nzg=",
@@ -13722,22 +13666,6 @@
         "lastLoginAt": "2026-05-26T23:48:27.488Z",
         "createdAt": "2026-05-07T02:17:54.404Z",
         "updatedAt": "2026-05-27T00:09:50.469Z"
-      },
-      {
-        "id": "cmow8u8xj00c514lchaqpqcam",
-        "username": "17234292017325296",
-        "password": "MTIzNDU2Nzg=",
-        "email": "zhangxinyi@himice.com",
-        "name": "张欣怡",
-        "avatar": "https://static-legacy.dingtalk.com/media/lQDPM4VzFKJ6LR3NAyrNAvywqp-Z4OghNdgJZfroDXc0AA_764_810.jpg",
-        "role": "user",
-        "credits": 114,
-        "departmentId": "cmovcfpoq000bq59huuqbs0g4",
-        "dingtalkUnionId": "NYiilSwiiLn8qRSXfKVQKiSpwiEiE",
-        "dingtalkOpenId": "17234292017325296",
-        "lastLoginAt": "2026-05-28T04:22:47.240Z",
-        "createdAt": "2026-05-07T17:35:51.991Z",
-        "updatedAt": "2026-05-28T04:25:18.134Z"
       }
     ],
     "VerificationCode": [],

@@ -1,10 +1,13 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { Suspense, useState, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { UserAvatar } from '@/components/UserAvatar';
+import { UserMenuDropdown } from '@/components/UserMenuDropdown';
 import type { ImageProviderSettingsPayload, ManagedImageProviderConfig } from '@/lib/image-provider-types';
+import type { MaintenanceModeSettings } from '@/lib/maintenance-mode-types';
+import { DEFAULT_MAINTENANCE_MODE_SETTINGS } from '@/lib/maintenance-mode-types';
 import { 
   ArrowLeft, 
   User, 
@@ -67,12 +70,12 @@ function createEmptyProvider(index: number): ManagedImageProviderConfig {
     enabled: true,
     baseUrl: '',
     apiKey: '',
-    timeoutMs: 240000,
+    timeoutMs: 150000,
     maxRetries: 0,
   };
 }
 
-export default function AdminUsersPage() {
+function AdminUsersPageContent() {
   const searchParams = useSearchParams();
   const [users, setUsers] = useState<UserData[]>([]);
   const [loading, setLoading] = useState(true);
@@ -105,7 +108,7 @@ export default function AdminUsersPage() {
   const [restoreMessage, setRestoreMessage] = useState('');
   const [restoreSuccess, setRestoreSuccess] = useState<any>(null);
 
-  const [activeTab, setActiveTab] = useState<'users' | 'departments' | 'all_records' | 'image_providers'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'departments' | 'all_records' | 'image_providers' | 'maintenance'>('users');
   const [showCreateDeptModal, setShowCreateDeptModal] = useState(false);
   const [showAllocateModal, setShowAllocateModal] = useState(false);
   const [selectedDept, setSelectedDept] = useState<any>(null);
@@ -131,8 +134,11 @@ export default function AdminUsersPage() {
   const [loadingProviderSettings, setLoadingProviderSettings] = useState(false);
   const [savingProviderSettings, setSavingProviderSettings] = useState(false);
   const [providerTestStates, setProviderTestStates] = useState<Record<string, ProviderTestState>>({});
+  const [maintenanceSettings, setMaintenanceSettings] = useState<MaintenanceModeSettings>(DEFAULT_MAINTENANCE_MODE_SETTINGS);
+  const [loadingMaintenanceSettings, setLoadingMaintenanceSettings] = useState(false);
+  const [savingMaintenanceSettings, setSavingMaintenanceSettings] = useState(false);
 
-  const handleTabChange = (tab: 'users' | 'departments' | 'all_records' | 'image_providers') => {
+  const handleTabChange = (tab: 'users' | 'departments' | 'all_records' | 'image_providers' | 'maintenance') => {
     setActiveTab(tab);
     const targetUrl = tab === 'users' ? '/admin/users' : `/admin/users?tab=${tab}`;
     router.replace(targetUrl);
@@ -275,6 +281,26 @@ export default function AdminUsersPage() {
     }
   };
 
+  const fetchMaintenanceSettings = async () => {
+    setLoadingMaintenanceSettings(true);
+    try {
+      const response = await fetch('/api/admin/maintenance');
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || '获取维护模式配置失败');
+      }
+
+      setMaintenanceSettings({
+        ...DEFAULT_MAINTENANCE_MODE_SETTINGS,
+        ...data,
+      });
+    } catch (maintenanceError: any) {
+      showAlert(maintenanceError.message || '获取维护模式配置失败');
+    } finally {
+      setLoadingMaintenanceSettings(false);
+    }
+  };
+
   useEffect(() => {
     if (activeTab === 'all_records' && user?.role === 'admin') {
       fetchAllHistories(historyPage);
@@ -288,8 +314,14 @@ export default function AdminUsersPage() {
   }, [activeTab, user?.role]);
 
   useEffect(() => {
+    if (activeTab === 'maintenance' && user?.role === 'admin') {
+      fetchMaintenanceSettings();
+    }
+  }, [activeTab, user?.role]);
+
+  useEffect(() => {
     const tab = searchParams.get('tab');
-    if (tab === 'departments' || tab === 'all_records' || tab === 'image_providers' || tab === 'users') {
+    if (tab === 'departments' || tab === 'all_records' || tab === 'image_providers' || tab === 'maintenance' || tab === 'users') {
       setActiveTab(tab);
     } else {
       setActiveTab('users');
@@ -417,6 +449,37 @@ export default function AdminUsersPage() {
           message: providerError?.message || '测试请求失败',
         },
       }));
+    }
+  };
+
+  const handleSaveMaintenanceSettings = async () => {
+    setSavingMaintenanceSettings(true);
+    setSuccess('');
+    setError('');
+
+    try {
+      const response = await fetch('/api/admin/maintenance', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(maintenanceSettings),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || '保存维护模式配置失败');
+      }
+
+      setMaintenanceSettings({
+        ...DEFAULT_MAINTENANCE_MODE_SETTINGS,
+        ...data,
+      });
+      setSuccess(data.enabled ? '维护模式已开启，普通访问者现在会看到维护页' : '维护模式已关闭，站点已恢复访问');
+    } catch (maintenanceError: any) {
+      setError(maintenanceError.message || '保存维护模式配置失败');
+    } finally {
+      setSavingMaintenanceSettings(false);
     }
   };
 
@@ -1036,7 +1099,7 @@ export default function AdminUsersPage() {
                   <Plus className="w-5 h-5" />
                   <span className="hidden sm:inline">创建用户</span>
                 </button>
-              ) : (
+              ) : activeTab === 'departments' ? (
                 <button
                   onClick={() => setShowCreateDeptModal(true)}
                   className="btn-primary flex items-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
@@ -1044,90 +1107,66 @@ export default function AdminUsersPage() {
                   <Plus className="w-5 h-5" />
                   <span className="hidden sm:inline">新建组</span>
                 </button>
-              )
+              ) : null
+            )}
+
+            {activeTab === 'maintenance' && user.role === 'admin' && (
+              <button
+                onClick={handleSaveMaintenanceSettings}
+                disabled={savingMaintenanceSettings || loadingMaintenanceSettings}
+                className="btn-primary flex items-center gap-2 bg-gradient-to-r from-fuchsia-500 to-violet-600 hover:from-fuchsia-600 hover:to-violet-700 py-1.5 px-4 text-sm disabled:opacity-50"
+              >
+                {savingMaintenanceSettings ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Save className="w-4 h-4" />
+                )}
+                保存维护设置
+              </button>
+            )}
+
+            {activeTab === 'image_providers' && user.role === 'admin' && (
+              <>
+                <button
+                  onClick={handleAddProvider}
+                  className="btn-primary flex items-center gap-2 bg-white text-violet-700 border border-violet-200 hover:bg-violet-50 py-1.5 px-4 text-sm"
+                >
+                  <Plus className="w-4 h-4" />
+                  新增供应商
+                </button>
+                <button
+                  onClick={handleSaveProviderSettings}
+                  disabled={savingProviderSettings || loadingProviderSettings}
+                  className="btn-primary flex items-center gap-2 bg-gradient-to-r from-violet-500 to-purple-600 hover:from-violet-600 hover:to-purple-700 py-1.5 px-4 text-sm disabled:opacity-50"
+                >
+                  {savingProviderSettings ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Save className="w-4 h-4" />
+                  )}
+                  保存配置
+                </button>
+              </>
             )}
 
             {user && (
-              <div className="relative user-menu-container">
-                <button
-                  onClick={() => setShowUserMenu(!showUserMenu)}
-                  className="flex items-center gap-3 hover:opacity-80 transition-opacity"
-                >
-                  <UserAvatar user={user} size="lg" />
-                  <div className="hidden lg:block text-left">
-                    <p className="text-sm font-medium text-gray-900">{user.name || user.username}</p>
-                    <p className="text-xs text-gray-500">{user.email || user.username}</p>
-                  </div>
-                </button>
-
-                <AnimatePresence>
-                  {showUserMenu && (
-                    <motion.div
-                      initial={{ opacity: 0, y: -10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -10 }}
-                      className="absolute right-0 top-full mt-2 w-56 bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden z-50"
-                      onClick={() => setShowUserMenu(false)}
-                    >
-                      <div className="p-4 bg-gradient-to-r from-amber-50 to-orange-50 border-b border-gray-100">
-                        <div className="flex items-center gap-3">
-                          <UserAvatar user={user} size="lg" className="bg-white" />
-                          <div>
-                                <p className="font-semibold text-gray-900">{user.name || user.username}</p>
-                                <p className="text-xs text-gray-500">{user.email || user.username}</p>
-                              </div>
-                        </div>
-                        <div className="mt-3 flex items-center gap-2">
-                          <span className="px-2 py-1 bg-violet-100 text-violet-700 text-xs font-medium rounded-full flex items-center gap-1 w-fit">
-                            <Sparkles className="w-3 h-3" />
-                            潮能力: {user.credits ?? 0}
-                          </span>
-                          {user.role === 'admin' && (
-                            <span className="px-2 py-1 bg-amber-100 text-amber-700 text-xs font-medium rounded-full flex items-center gap-1 w-fit">
-                              <Shield className="w-3 h-3" />
-                              管理员
-                            </span>
-                          )}
-                          {user.role === 'sub_admin' && (
-                            <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded-full flex items-center gap-1 w-fit">
-                              <Shield className="w-3 h-3" />
-                              子管理员
-                            </span>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="p-2">
-                        <button
-                          onClick={() => router.push('/history')}
-                          className="w-full px-4 py-2.5 text-left text-gray-700 hover:bg-violet-50 hover:text-violet-600 rounded-lg transition-colors flex items-center gap-3"
-                        >
-                          <History className="w-4 h-4" />
-                          我的历史
-                        </button>
-
-                        <button
-                          onClick={() => router.push('/admin/users')}
-                          className="w-full px-4 py-2.5 text-left text-amber-700 bg-amber-50 rounded-lg flex items-center gap-3 mt-1"
-                        >
-                          <Users className="w-4 h-4" />
-                          {user.role === 'admin' ? '用户与部门管理' : '人员列表'}
-                        </button>
-
-                        <div className="my-2 border-t border-gray-100" />
-
-                        <button
-                          onClick={handleLogout}
-                          className="w-full px-4 py-2.5 text-left text-red-600 hover:bg-red-50 rounded-lg transition-colors flex items-center gap-3"
-                        >
-                          <LogOut className="w-4 h-4" />
-                          退出登录
-                        </button>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
+              <UserMenuDropdown
+                user={user}
+                isOpen={showUserMenu}
+                onToggle={() => setShowUserMenu((prev) => !prev)}
+                onClose={() => setShowUserMenu(false)}
+                onHistory={() => router.push('/history')}
+                onAdminUsers={() => router.push('/admin/users')}
+                onLogout={handleLogout}
+                activeItem="admin-users"
+                canManage={user.role === 'admin' || user.role === 'sub_admin'}
+                isAdmin={user.role === 'admin'}
+                isSubAdmin={user.role === 'sub_admin'}
+                manageLabel={user.role === 'admin' ? '用户与部门管理' : '人员列表'}
+                avatarSize="lg"
+                showTriggerName={true}
+                showTriggerEmail={true}
+              />
             )}
           </div>
         </div>
@@ -1173,6 +1212,22 @@ export default function AdminUsersPage() {
               >
                 全量记录
                 {activeTab === 'all_records' && (
+                  <motion.div
+                    layoutId="activeTab"
+                    className="absolute bottom-0 left-0 right-0 h-0.5 bg-violet-600"
+                  />
+                )}
+              </button>
+            )}
+            {user.role === 'admin' && (
+              <button
+                onClick={() => handleTabChange('maintenance')}
+                className={`pb-4 text-sm font-medium transition-colors relative ${
+                  activeTab === 'maintenance' ? 'text-violet-600' : 'text-gray-500 hover:text-gray-900'
+                }`}
+              >
+                维护模式
+                {activeTab === 'maintenance' && (
                   <motion.div
                     layoutId="activeTab"
                     className="absolute bottom-0 left-0 right-0 h-0.5 bg-violet-600"
@@ -1240,30 +1295,6 @@ export default function AdminUsersPage() {
               </button>
             )}
 
-            {activeTab === 'image_providers' && user.role === 'admin' && (
-              <>
-                <button
-                  onClick={handleAddProvider}
-                  className="btn-primary flex items-center gap-2 bg-white text-violet-700 border border-violet-200 hover:bg-violet-50 py-1.5 px-4 text-sm"
-                >
-                  <Plus className="w-4 h-4" />
-                  新增供应商
-                </button>
-                <button
-                  onClick={handleSaveProviderSettings}
-                  disabled={savingProviderSettings || loadingProviderSettings}
-                  className="btn-primary flex items-center gap-2 bg-gradient-to-r from-violet-500 to-purple-600 hover:from-violet-600 hover:to-purple-700 py-1.5 px-4 text-sm disabled:opacity-50"
-                >
-                  {savingProviderSettings ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <Save className="w-4 h-4" />
-                  )}
-                  保存配置
-                </button>
-              </>
-            )}
-            
             {user.role === 'admin' && (
               <button
                 onClick={handleSyncDingTalk}
@@ -1453,6 +1484,130 @@ export default function AdminUsersPage() {
               </button>
             </div>
           )
+        ) : activeTab === 'maintenance' ? (
+          <div className="space-y-6">
+            <div className="rounded-2xl border border-fuchsia-100 bg-[linear-gradient(135deg,rgba(250,232,255,0.9),rgba(255,255,255,1),rgba(237,233,254,0.92))] p-6">
+              <div className="flex flex-wrap items-start justify-between gap-6">
+                <div>
+                  <div className="inline-flex items-center gap-2 rounded-full bg-fuchsia-100 px-3 py-1 text-xs font-semibold text-fuchsia-700">
+                    <AlertTriangle className="h-3.5 w-3.5" />
+                    全站维护模式
+                  </div>
+                  <h3 className="mt-3 text-xl font-semibold text-gray-900">前端一键切换维护页</h3>
+                  <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-600">
+                    开启后，普通访问者会直接看到统一维护页；管理员可继续访问站点和后台，便于你在维护期间继续调整配置或排查问题。
+                  </p>
+                </div>
+                <div className={`rounded-2xl border px-4 py-3 text-sm shadow-sm ${
+                  maintenanceSettings.enabled
+                    ? 'border-amber-200 bg-amber-50 text-amber-700'
+                    : 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                }`}>
+                  <p className="font-semibold">{maintenanceSettings.enabled ? '当前已开启维护模式' : '当前为正常访问状态'}</p>
+                  <p className="mt-1 text-xs opacity-80">
+                    {maintenanceSettings.updatedByName
+                      ? `最近操作人：${maintenanceSettings.updatedByName}`
+                      : '尚未记录维护操作'}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {loadingMaintenanceSettings ? (
+              <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center">
+                <Loader2 className="w-8 h-8 animate-spin text-violet-600 mx-auto mb-3" />
+                <p className="text-sm text-gray-500">正在加载维护模式配置...</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.05fr_0.95fr]">
+                <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
+                  <div className="flex items-center justify-between gap-4 border-b border-gray-100 pb-4">
+                    <div>
+                      <h4 className="text-lg font-semibold text-gray-900">维护页文案</h4>
+                      <p className="mt-1 text-sm text-gray-500">这里修改的标题与说明会实时用于全站维护页展示。</p>
+                    </div>
+                    <label className="flex items-center gap-3 rounded-full border border-fuchsia-200 bg-fuchsia-50 px-4 py-2 text-sm font-medium text-fuchsia-700">
+                      <span>{maintenanceSettings.enabled ? '已开启' : '已关闭'}</span>
+                      <input
+                        type="checkbox"
+                        checked={maintenanceSettings.enabled}
+                        onChange={(e) => setMaintenanceSettings((prev) => ({ ...prev, enabled: e.target.checked }))}
+                        className="h-4 w-4 rounded border-fuchsia-300 text-fuchsia-600 focus:ring-fuchsia-500"
+                      />
+                    </label>
+                  </div>
+
+                  <div className="mt-5 space-y-4">
+                    <div>
+                      <label className="mb-1.5 block text-xs font-medium text-gray-600">维护标题</label>
+                      <input
+                        value={maintenanceSettings.title}
+                        onChange={(e) => setMaintenanceSettings((prev) => ({ ...prev, title: e.target.value }))}
+                        className="input-field bg-white"
+                        placeholder="例如：系统维护中"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1.5 block text-xs font-medium text-gray-600">维护说明</label>
+                      <textarea
+                        value={maintenanceSettings.message}
+                        onChange={(e) => setMaintenanceSettings((prev) => ({ ...prev, message: e.target.value }))}
+                        className="input-field min-h-[160px] resize-y bg-white"
+                        placeholder="例如：我们正在进行系统升级与稳定性维护，请稍后再试。"
+                      />
+                    </div>
+                    <label className="flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700">
+                      <div>
+                        <div className="font-medium text-gray-900">允许管理员绕过维护页</div>
+                        <div className="mt-1 text-xs text-gray-500">开启后，管理员登录态下仍可进入前台与后台页面。</div>
+                      </div>
+                      <input
+                        type="checkbox"
+                        checked={maintenanceSettings.allowAdminBypass}
+                        onChange={(e) => setMaintenanceSettings((prev) => ({ ...prev, allowAdminBypass: e.target.checked }))}
+                        className="h-4 w-4 rounded border-gray-300 text-violet-600 focus:ring-violet-500"
+                      />
+                    </label>
+                  </div>
+                </div>
+
+                <div className="bg-gray-950 rounded-2xl border border-gray-900 p-6 shadow-[0_24px_80px_rgba(15,23,42,0.3)]">
+                  <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold tracking-[0.18em] text-fuchsia-100">
+                    PREVIEW
+                  </div>
+                  <div className="mt-6 rounded-[1.75rem] border border-white/10 bg-[radial-gradient(circle_at_top,rgba(99,102,241,0.3),transparent_40%),linear-gradient(180deg,rgba(15,23,42,0.92),rgba(2,6,23,1))] p-6 text-white">
+                    <div className="flex items-center gap-3">
+                      <img src="/img/white.png" alt="HAIPablo" className="h-10 object-contain" />
+                      <div className="h-px flex-1 bg-gradient-to-r from-white/20 to-transparent" />
+                    </div>
+                    <div className="mt-8 inline-flex items-center gap-2 rounded-full border border-fuchsia-400/30 bg-fuchsia-400/10 px-3 py-1 text-[11px] font-semibold tracking-[0.24em] text-fuchsia-100">
+                      SYSTEM MAINTENANCE
+                    </div>
+                    <h4 className="mt-6 text-3xl font-semibold leading-tight text-white">
+                      {maintenanceSettings.title || DEFAULT_MAINTENANCE_MODE_SETTINGS.title}
+                    </h4>
+                    <p className="mt-4 text-sm leading-7 text-slate-200">
+                      {maintenanceSettings.message || DEFAULT_MAINTENANCE_MODE_SETTINGS.message}
+                    </p>
+                    <div className="mt-8 grid gap-3 sm:grid-cols-2">
+                      <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3">
+                        <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400">显示状态</div>
+                        <div className="mt-1 text-sm font-semibold text-emerald-300">
+                          {maintenanceSettings.enabled ? '维护进行中' : '站点正常开放'}
+                        </div>
+                      </div>
+                      <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3">
+                        <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400">管理员访问</div>
+                        <div className="mt-1 text-sm font-semibold text-slate-100">
+                          {maintenanceSettings.allowAdminBypass ? '允许绕过' : '同样受限'}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
         ) : activeTab === 'image_providers' ? (
           <div className="space-y-6">
             <div className="bg-gradient-to-r from-violet-50 via-white to-fuchsia-50 rounded-2xl border border-violet-100 p-6">
@@ -2519,5 +2674,13 @@ export default function AdminUsersPage() {
         )}
       </AnimatePresence>
     </div>
+  );
+}
+
+export default function AdminUsersPage() {
+  return (
+    <Suspense fallback={null}>
+      <AdminUsersPageContent />
+    </Suspense>
   );
 }

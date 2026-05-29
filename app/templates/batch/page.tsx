@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { UserAvatar } from '@/components/UserAvatar';
+import { AdminThemeModal } from '@/components/AdminThemeModal';
+import { UserMenuDropdown } from '@/components/UserMenuDropdown';
 import type { ImageProviderSummary } from '@/lib/image-provider-types';
 import {
   ArrowLeft,
@@ -29,6 +30,12 @@ import {
   LogOut
 } from 'lucide-react';
 import { SIZE_OPTIONS, QUALITY_OPTIONS } from '@/lib/types';
+import {
+  applyAdminColorTheme,
+  getStoredAdminColorTheme,
+  persistAdminColorTheme,
+  type AdminColorTheme
+} from '@/lib/admin-color-theme';
 
 interface ReferenceImage {
   id: string;
@@ -73,6 +80,7 @@ interface Template {
 interface TemplateCardState {
   template: Template;
   formData: Record<string, string>;
+  selectedPresetImage: ReferenceImage | null;
   enableUserPrompt: boolean;
   userPromptPriority: boolean;
   userPrompt: string;
@@ -143,6 +151,8 @@ export default function BatchGeneratePage() {
   const [selectedProviderId, setSelectedProviderId] = useState('');
   const [darkMode, setDarkMode] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [showAdminThemeModal, setShowAdminThemeModal] = useState(false);
+  const [adminColorTheme, setAdminColorTheme] = useState<AdminColorTheme>('forest-amber');
   const [loading, setLoading] = useState(true);
   const [kvImage, setKvImage] = useState<{ id: string; url: string; name: string } | null>(null);
   const [uploadingKv, setUploadingKv] = useState(false);
@@ -157,6 +167,9 @@ export default function BatchGeneratePage() {
   const [isDragging, setIsDragging] = useState(false);
   const [showInsufficientCredits, setShowInsufficientCredits] = useState(false);
   const hasFetched = useRef(false);
+  const canManage = user?.role === 'admin' || user?.role === 'sub_admin';
+  const isAdmin = user?.role === 'admin';
+  const isSubAdmin = user?.role === 'sub_admin';
 
   const fetchImageProviders = useCallback(async () => {
     try {
@@ -178,6 +191,9 @@ export default function BatchGeneratePage() {
 
   useEffect(() => {
     const savedDarkMode = localStorage.getItem('darkMode');
+    const savedAdminTheme = getStoredAdminColorTheme();
+    setAdminColorTheme(savedAdminTheme);
+    applyAdminColorTheme(savedAdminTheme);
     if (savedDarkMode === 'true') {
       setDarkMode(true);
       document.documentElement.classList.add('dark');
@@ -255,6 +271,7 @@ export default function BatchGeneratePage() {
             acc[variable.key] = '';
             return acc;
           }, {}) || {},
+        selectedPresetImage: null,
         enableUserPrompt: template.allowUserPrompt !== false,
         userPromptPriority: template.userPromptPriorityDefault || false,
         userPrompt: '',
@@ -277,6 +294,12 @@ export default function BatchGeneratePage() {
     setDarkMode(!darkMode);
     localStorage.setItem('darkMode', (!darkMode).toString());
     document.documentElement.classList.toggle('dark');
+  };
+
+  const handleAdminColorThemeChange = (theme: AdminColorTheme) => {
+    setAdminColorTheme(theme);
+    persistAdminColorTheme(theme);
+    applyAdminColorTheme(theme);
   };
 
   const handleLogout = async () => {
@@ -423,6 +446,28 @@ export default function BatchGeneratePage() {
     );
   };
 
+  const handlePresetImageToggle = (cardIndex: number, image: ReferenceImage) => {
+    setCards((prev) =>
+      prev.map((card, index) => {
+        if (index !== cardIndex) return card;
+
+        return {
+          ...card,
+          selectedPresetImage: card.selectedPresetImage?.id === image.id ? null : image
+        };
+      })
+    );
+  };
+
+  const getActiveReferenceImages = (card: TemplateCardState) => {
+    if (!card.selectedPresetImage) {
+      return card.template.referenceImages || [];
+    }
+
+    const matchedImage = card.template.referenceImages?.find((image) => image.id === card.selectedPresetImage?.id);
+    return matchedImage ? [matchedImage] : card.template.referenceImages || [];
+  };
+
   const getRenderedPrompt = (card: TemplateCardState) => {
     if (!card.template.promptTemplate) return '';
 
@@ -461,12 +506,13 @@ export default function BatchGeneratePage() {
       size,
       quality,
       providerId: selectedProviderId || undefined,
-      referenceImages: card.template.referenceImages?.map((img) => img.url) || [],
+      referenceImages: getActiveReferenceImages(card).map((img) => img.url),
       images: kvImage ? [kvImage.url] : [],
       userPrompt: card.enableUserPrompt ? card.userPrompt : null,
       userPromptPriority: card.userPromptPriority,
       config: {
         formData: card.formData,
+        selectedPresetImage: card.selectedPresetImage,
         userPrompt: card.userPrompt,
         enableUserPrompt: card.enableUserPrompt,
         userPromptPriority: card.userPromptPriority,
@@ -749,12 +795,32 @@ export default function BatchGeneratePage() {
   };
 
   const generatedCount = cards.filter((card) => card.result).length;
+  const panelTitleClass = darkMode ? 'text-[var(--foreground)]' : 'text-slate-900';
+  const panelBodyClass = darkMode ? 'text-[var(--muted-foreground)]' : 'text-slate-500';
+  const panelLabelClass = darkMode ? 'text-[#ddd6c8]' : 'text-slate-700';
+  const panelCaptionClass = darkMode ? 'text-[#8d968a]' : 'text-slate-400';
+  const insetPanelClass = darkMode
+    ? 'border-white/10 bg-[linear-gradient(180deg,rgba(27,33,28,0.82),rgba(18,23,19,0.72))]'
+    : 'border-slate-100 bg-slate-50/80';
+  const elevatedPanelClass = darkMode
+    ? 'border-white/10 bg-[linear-gradient(180deg,rgba(28,35,29,0.94),rgba(20,26,21,0.86))] shadow-[inset_0_1px_0_rgba(255,244,214,0.04)]'
+    : 'border-slate-100 bg-white/80 shadow-sm';
+  const accentPanelClass = darkMode
+    ? 'border-violet-500/20 bg-violet-500/10'
+    : 'border-violet-100 bg-violet-50/70';
+  const successPanelClass = darkMode
+    ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-200'
+    : 'border-emerald-100 bg-emerald-50 text-emerald-700';
+  const inputSurfaceClass = darkMode
+    ? 'border-white/10 bg-[#151b17] text-[var(--foreground)] placeholder:text-[#8d968a] disabled:bg-[#1b211d]'
+    : 'border-slate-200 bg-white text-slate-800 placeholder:text-slate-400 disabled:bg-slate-50';
+  const featureIconBadgeClass = darkMode
+    ? 'bg-[linear-gradient(135deg,rgba(124,58,237,0.34),rgba(168,85,247,0.18))] text-violet-100 ring-1 ring-violet-300/15 shadow-[0_18px_38px_-24px_rgba(76,29,149,0.58),inset_0_1px_0_rgba(255,255,255,0.08)]'
+    : 'bg-gradient-to-br from-violet-600 to-fuchsia-500 text-white shadow-lg shadow-violet-200';
 
   const renderVariableField = (card: TemplateCardState, cardIndex: number, variable: TemplateVariable) => {
     const commonClassName =
-      `w-full rounded-2xl border px-4 py-3 text-sm outline-none transition-all placeholder:text-slate-400 focus:border-violet-300 focus:ring-4 focus:ring-violet-100 ${
-        darkMode ? 'border-gray-700 bg-gray-800 text-white' : 'border-slate-200 bg-white text-slate-800'
-      }`;
+      `w-full rounded-2xl border px-4 py-3 text-sm outline-none transition-all focus:border-violet-300 focus:ring-4 focus:ring-violet-100 ${inputSurfaceClass}`;
 
     if (variable.type === 'textarea') {
       return (
@@ -793,7 +859,9 @@ export default function BatchGeneratePage() {
       return (
         <div className="flex items-center gap-3">
           <div
-            className="relative h-11 w-11 overflow-hidden rounded-2xl border border-slate-200 shadow-inner"
+            className={`relative h-11 w-11 overflow-hidden rounded-2xl border shadow-inner ${
+              darkMode ? 'border-white/10' : 'border-slate-200'
+            }`}
             style={{ backgroundColor: currentColor }}
           >
             <input
@@ -846,6 +914,14 @@ export default function BatchGeneratePage() {
 
   return (
     <div className={`haipablo-static-shell min-h-screen transition-colors duration-500 ${darkMode ? 'bg-gray-950 text-white' : 'text-slate-900'}`}>
+      <AdminThemeModal
+        darkMode={darkMode}
+        isOpen={showAdminThemeModal}
+        currentTheme={adminColorTheme}
+        onClose={() => setShowAdminThemeModal(false)}
+        onThemeChange={handleAdminColorThemeChange}
+        onOpenAdminUsers={() => router.push('/admin/users?tab=image_providers')}
+      />
       <AnimatePresence>
         {previewImage && (
           <motion.div
@@ -917,8 +993,8 @@ export default function BatchGeneratePage() {
               <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-red-100">
                 <XCircle className="h-8 w-8 text-red-500" />
               </div>
-              <h2 className="mb-2 text-xl font-bold text-slate-900">潮能力不足</h2>
-              <p className="mb-6 text-sm leading-6 text-slate-500">
+              <h2 className={`mb-2 text-xl font-bold ${panelTitleClass}`}>潮能力不足</h2>
+              <p className={`mb-6 text-sm leading-6 ${panelBodyClass}`}>
                 当前批量生成需要 <span className="font-bold text-violet-600">{cards.length}</span> 点潮能力，
                 您当前仅剩 <span className="font-bold text-red-500">{user?.credits ?? 0}</span> 点。
               </p>
@@ -998,73 +1074,26 @@ export default function BatchGeneratePage() {
               )}
             </button>
             {user && (
-              <div className="relative user-menu-container">
-                <button
-                  onClick={() => setShowUserMenu(!showUserMenu)}
-                  className="flex items-center gap-3 hover:opacity-80 transition-opacity"
-                >
-                  <UserAvatar user={user} size="lg" darkMode={darkMode} />
-                  <div className="hidden lg:block text-left">
-                    <p className={`text-sm font-medium transition-colors duration-500 ${darkMode ? 'text-white' : 'text-gray-900'}`}>{user.name || user.username}</p>
-                    <p className="text-xs transition-colors duration-500 text-gray-500">{user.email || user.username}</p>
-                  </div>
-                </button>
-
-                <AnimatePresence>
-                  {showUserMenu && (
-                    <motion.div
-                      initial={{ opacity: 0, y: -10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -10 }}
-                      className={`haipablo-modal-panel absolute right-0 top-full mt-2 w-56 rounded-xl shadow-lg border overflow-hidden z-50 transition-colors duration-500 ${darkMode ? 'bg-gray-900 border-white/10' : 'bg-white border-white/60'}`}
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <div className={`p-4 border-b transition-colors duration-500 ${darkMode ? 'bg-white/[0.04] border-white/10' : 'bg-white/45 border-white/60'}`}>
-                        <div className="flex items-center gap-3">
-                          <UserAvatar user={user} size="lg" darkMode={darkMode} />
-                          <div>
-                            <p className={`font-semibold transition-colors duration-500 ${darkMode ? 'text-white' : 'text-gray-900'}`}>{user.name || user.username}</p>
-                            <p className="text-xs transition-colors duration-500 text-gray-500">{user.email || user.username}</p>
-                          </div>
-                        </div>
-                        <div className="mt-3 flex items-center gap-2">
-                          <span className={`px-2 py-1 text-xs font-medium rounded-full flex items-center gap-1 w-fit ${darkMode ? 'bg-violet-900/50 text-violet-200 border border-violet-800' : 'bg-violet-50 text-violet-700 border border-violet-100'}`}>
-                            <Sparkles className="w-3 h-3" />
-                            潮能力: {user.credits ?? 0}
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="p-2">
-                        <button
-                          onClick={() => router.push('/history')}
-                          className={`w-full px-4 py-2.5 text-left rounded-lg transition-colors flex items-center gap-3 ${darkMode ? 'text-gray-300 hover:bg-white/[0.06] hover:text-white' : 'text-gray-700 hover:bg-white/80 hover:text-gray-900'}`}
-                        >
-                          <History className="w-4 h-4" />
-                          我的历史
-                        </button>
-                        {(user.role === 'admin' || user.role === 'sub_admin') && (
-                          <button
-                            onClick={() => router.push('/admin/users')}
-                            className={`w-full px-4 py-2.5 text-left rounded-lg transition-colors flex items-center gap-3 ${darkMode ? 'text-amber-400 hover:bg-amber-950/30' : 'text-amber-700 hover:bg-amber-50/80'}`}
-                          >
-                            <Shield className="w-4 h-4" />
-                            {user.role === 'admin' ? '用户管理' : '人员列表'}
-                          </button>
-                        )}
-                        <div className={`my-2 border-t transition-colors duration-500 ${darkMode ? 'border-white/10' : 'border-white/55'}`} />
-                        <button
-                          onClick={handleLogout}
-                          className={`w-full px-4 py-2.5 text-left rounded-lg transition-colors flex items-center gap-3 ${darkMode ? 'text-red-400 hover:bg-red-950/30' : 'text-red-600 hover:bg-red-50/80'}`}
-                        >
-                          <LogOut className="w-4 h-4" />
-                          退出登录
-                        </button>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
+              <UserMenuDropdown
+                user={user}
+                darkMode={darkMode}
+                isOpen={showUserMenu}
+                onToggle={() => setShowUserMenu((prev) => !prev)}
+                onClose={() => setShowUserMenu(false)}
+                onHistory={() => router.push('/history')}
+                onThemeSettings={() => setShowAdminThemeModal(true)}
+                onAdminUsers={() => router.push('/admin/users')}
+                onLogout={handleLogout}
+                canManage={canManage}
+                isAdmin={isAdmin}
+                isSubAdmin={isSubAdmin}
+                manageLabel={isAdmin ? '用户与部门管理' : '人员列表'}
+                avatarSize="lg"
+                showTriggerName={true}
+                showTriggerEmail={true}
+                triggerClassName="flex items-center gap-3 hover:opacity-80 transition-opacity"
+                triggerTextClassName="hidden lg:block"
+              />
             )}
           </div>
         </div>
@@ -1081,38 +1110,38 @@ export default function BatchGeneratePage() {
 
             <div className="mb-5 flex items-start justify-between gap-4">
               <div className="flex items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-600 to-fuchsia-500 text-white shadow-lg shadow-violet-200">
+                <div className={`flex h-12 w-12 items-center justify-center rounded-2xl ${featureIconBadgeClass}`}>
                   <Upload className="h-5 w-5" />
                 </div>
                 <div>
                   <p className="text-xs font-medium uppercase tracking-[0.24em] text-violet-400">Step 01</p>
-                  <h2 className="text-xl font-bold text-slate-900">上传主视觉</h2>
+                  <h2 className={`text-xl font-bold ${panelTitleClass}`}>上传主视觉</h2>
                 </div>
               </div>
-              <div className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-600">
+              <div className={`rounded-full border px-3 py-1 text-xs font-medium ${successPanelClass}`}>
                 {kvImage ? '素材已就绪' : '等待上传'}
               </div>
             </div>
 
             <div className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr] 2xl:grid-cols-[0.82fr_1.18fr]">
               <div className="space-y-4">
-                <p className="text-sm leading-7 text-slate-500">
+                <p className={`text-sm leading-7 ${panelBodyClass}`}>
                   上传一张统一主视觉图，作为所有模板的共同参考素材。推荐使用完整成图或主体清晰的产品图。
                 </p>
 
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div className="haipablo-glass-subtle rounded-2xl border px-4 py-3">
-                    <p className="text-[11px] uppercase tracking-[0.2em] text-slate-400">模板数</p>
-                    <p className="mt-1 text-lg font-semibold text-slate-900">{cards.length}</p>
+                    <p className={`text-[11px] uppercase tracking-[0.2em] ${panelCaptionClass}`}>模板数</p>
+                    <p className={`mt-1 text-lg font-semibold ${panelTitleClass}`}>{cards.length}</p>
                   </div>
                   <div className="haipablo-glass-subtle rounded-2xl border px-4 py-3">
-                    <p className="text-[11px] uppercase tracking-[0.2em] text-slate-400">潮能力</p>
-                    <p className="mt-1 text-lg font-semibold text-slate-900">{user?.credits ?? 0}</p>
+                    <p className={`text-[11px] uppercase tracking-[0.2em] ${panelCaptionClass}`}>潮能力</p>
+                    <p className={`mt-1 text-lg font-semibold ${panelTitleClass}`}>{user?.credits ?? 0}</p>
                   </div>
                 </div>
 
                 {kvImage && (
-                  <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                  <div className={`rounded-2xl border px-4 py-3 text-sm ${successPanelClass}`}>
                     已上传素材：{kvImage.name}
                   </div>
                 )}
@@ -1129,7 +1158,9 @@ export default function BatchGeneratePage() {
                     <div className="absolute inset-0 flex items-center justify-center bg-slate-950/35 opacity-0 transition-opacity group-hover:opacity-100">
                       <button
                         onClick={handleRemoveKvImage}
-                        className="rounded-2xl bg-white px-4 py-2 text-sm font-semibold text-slate-900 shadow-lg transition-transform hover:scale-[1.02]"
+                        className={`rounded-2xl px-4 py-2 text-sm font-semibold shadow-lg transition-transform hover:scale-[1.02] ${
+                          darkMode ? 'bg-[#151b17] text-[var(--foreground)]' : 'bg-white text-slate-900'
+                        }`}
                       >
                         重新上传
                       </button>
@@ -1146,17 +1177,21 @@ export default function BatchGeneratePage() {
                       disabled={uploadingKv}
                     />
                     <label htmlFor="kv-upload" className="block cursor-pointer text-center">
-                      <div className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-[24px] bg-white shadow-[0_16px_40px_-28px_rgba(109,40,217,0.55)]">
+                      <div
+                        className={`mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-[24px] shadow-[0_16px_40px_-28px_rgba(109,40,217,0.55)] ${
+                          darkMode ? 'bg-[#151b17] ring-1 ring-white/10' : 'bg-white'
+                        }`}
+                      >
                         {uploadingKv ? (
                           <Loader2 className="h-9 w-9 animate-spin text-violet-600" />
                         ) : (
                           <Upload className="h-9 w-9 text-violet-400" />
                         )}
                       </div>
-                      <p className="text-lg font-semibold text-slate-900">
+                      <p className={`text-lg font-semibold ${panelTitleClass}`}>
                         {uploadingKv ? '正在上传素材...' : '点击上传主视觉图片'}
                       </p>
-                      <p className="mt-2 text-sm text-slate-400">支持 PNG / JPG / WEBP，建议使用高清素材</p>
+                      <p className={`mt-2 text-sm ${panelCaptionClass}`}>支持 PNG / JPG / WEBP，建议使用高清素材</p>
                     </label>
                   </div>
                 )}
@@ -1166,19 +1201,19 @@ export default function BatchGeneratePage() {
 
           <div className="haipablo-glass-panel rounded-[32px] border p-6 shadow-[0_24px_80px_-36px_rgba(109,40,217,0.25)]">
             <div className="mb-5 flex items-center gap-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-600 to-fuchsia-500 text-white shadow-lg shadow-violet-200">
+              <div className={`flex h-12 w-12 items-center justify-center rounded-2xl ${featureIconBadgeClass}`}>
                 <SlidersHorizontal className="h-5 w-5" />
               </div>
               <div>
                 <p className="text-xs font-medium uppercase tracking-[0.24em] text-violet-400">Step 02</p>
-                <h2 className="text-xl font-bold text-slate-900">统一配置</h2>
+                <h2 className={`text-xl font-bold ${panelTitleClass}`}>统一配置</h2>
               </div>
             </div>
 
             <div className="space-y-4">
               {imageProviders.length > 0 && (
                 <div className="haipablo-glass-subtle rounded-[24px] border p-4">
-                  <label className="mb-2 block text-sm font-semibold text-slate-700">生成供应商</label>
+                  <label className={`mb-2 block text-sm font-semibold ${panelLabelClass}`}>生成供应商</label>
                   <div className="relative">
                     <select
                       value={selectedProviderId}
@@ -1194,14 +1229,14 @@ export default function BatchGeneratePage() {
                     </select>
                     <Sparkles className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                   </div>
-                  <p className="mt-2 text-xs leading-5 text-slate-500">
+                  <p className={`mt-2 text-xs leading-5 ${panelBodyClass}`}>
                     前端只负责切换供应商，具体地址、密钥和兼容逻辑由后端按供应商配置处理。
                   </p>
                 </div>
               )}
 
               <div className="haipablo-glass-subtle rounded-[24px] border p-4">
-                <label className="mb-2 block text-sm font-semibold text-slate-700">输出尺寸</label>
+                <label className={`mb-2 block text-sm font-semibold ${panelLabelClass}`}>输出尺寸</label>
                 <div className="relative">
                   <select
                     value={size}
@@ -1219,7 +1254,7 @@ export default function BatchGeneratePage() {
               </div>
 
               <div className="haipablo-glass-subtle rounded-[24px] border p-4">
-                <label className="mb-2 block text-sm font-semibold text-slate-700">生成质量</label>
+                <label className={`mb-2 block text-sm font-semibold ${panelLabelClass}`}>生成质量</label>
                 <div className="relative">
                   <select
                     value={quality}
@@ -1236,8 +1271,8 @@ export default function BatchGeneratePage() {
                 </div>
               </div>
 
-              <div className="haipablo-glass-subtle rounded-[24px] border border-violet-100 p-4">
-                <div className="flex items-start gap-3 text-sm text-violet-800">
+              <div className={`haipablo-glass-subtle rounded-[24px] border p-4 ${darkMode ? 'border-violet-500/20' : 'border-violet-100'}`}>
+                <div className={`flex items-start gap-3 text-sm ${darkMode ? 'text-violet-100' : 'text-violet-800'}`}>
                   <Info className="mt-0.5 h-4 w-4 shrink-0" />
                   <p>批量模式会将当前尺寸与质量配置应用到所有模板卡片，并保留各自的提示词与指定色设置。</p>
                 </div>
@@ -1273,33 +1308,39 @@ export default function BatchGeneratePage() {
               transition={{ delay: cardIndex * 0.06 }}
               className="haipablo-glass-panel overflow-hidden rounded-[32px] border shadow-[0_28px_90px_-38px_rgba(109,40,217,0.28)]"
             >
-              <div className="relative border-b border-violet-100/70 bg-[linear-gradient(180deg,rgba(247,244,255,0.92),rgba(245,244,250,0.88))] px-6 py-5">
+              <div
+                className={`relative border-b px-6 py-5 ${
+                  darkMode
+                    ? 'border-white/10 bg-[linear-gradient(180deg,rgba(65,36,104,0.35),rgba(24,31,26,0.96))]'
+                    : 'border-violet-100/70 bg-[linear-gradient(180deg,rgba(247,244,255,0.92),rgba(245,244,250,0.88))]'
+                }`}
+              >
                 <div className="absolute right-6 top-5 grid grid-cols-4 gap-1 opacity-50">
                   {Array.from({ length: 12 }).map((_, index) => (
-                    <span key={index} className="h-1 w-1 rounded-full bg-violet-200" />
+                    <span key={index} className={`h-1 w-1 rounded-full ${darkMode ? 'bg-violet-300/70' : 'bg-violet-200'}`} />
                   ))}
                 </div>
 
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex items-center gap-3">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-600 to-fuchsia-500 text-white shadow-lg shadow-violet-200">
+                    <div className={`flex h-12 w-12 items-center justify-center rounded-2xl ${featureIconBadgeClass}`}>
                       <Layers className="h-5 w-5" />
                     </div>
                     <div>
-                      <h3 className="text-2xl font-bold text-slate-900">{card.template.name}</h3>
-                      <p className="mt-1 text-sm text-slate-500">{card.template.description || '当前模板已准备好，可直接生成。'}</p>
+                      <h3 className={`text-2xl font-bold ${panelTitleClass}`}>{card.template.name}</h3>
+                      <p className={`mt-1 text-sm ${panelBodyClass}`}>{card.template.description || '当前模板已准备好，可直接生成。'}</p>
                     </div>
                   </div>
 
                   <div className="flex flex-col items-end gap-2">
                     {card.result && (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+                      <span className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold ${darkMode ? 'bg-emerald-500/10 text-emerald-200' : 'bg-emerald-50 text-emerald-700'}`}>
                         <CheckCircle className="h-3.5 w-3.5" />
                         已生成
                       </span>
                     )}
                     {card.generating && (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-violet-50 px-3 py-1 text-xs font-semibold text-violet-700">
+                      <span className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold ${darkMode ? 'bg-violet-500/10 text-violet-200' : 'bg-violet-50 text-violet-700'}`}>
                         <Loader2 className="h-3.5 w-3.5 animate-spin" />
                         生成中
                       </span>
@@ -1309,12 +1350,12 @@ export default function BatchGeneratePage() {
               </div>
 
               <div className="grid lg:grid-cols-[minmax(0,1fr)_340px] 2xl:grid-cols-[minmax(0,1fr)_380px]">
-                <div className="border-b border-slate-100 px-6 py-6 lg:border-b-0 lg:border-r">
+                <div className={`border-b px-6 py-6 lg:border-b-0 lg:border-r ${darkMode ? 'border-white/10' : 'border-slate-100'}`}>
                   <div className="grid gap-6">
                     <div>
                       <div className="mb-4 flex items-center gap-2">
                         <span className="h-5 w-1 rounded-full bg-violet-500" />
-                        <span className="text-lg font-bold text-slate-900">配置选项</span>
+                        <span className={`text-lg font-bold ${panelTitleClass}`}>配置选项</span>
                       </div>
 
                       <div className="space-y-3">
@@ -1322,18 +1363,88 @@ export default function BatchGeneratePage() {
                           card.template.variables.map((variable) => (
                             <div
                               key={variable.key}
-                              className="rounded-[22px] border border-slate-100 bg-slate-50/80 p-4"
+                              className={`rounded-[22px] border p-4 ${insetPanelClass}`}
                             >
-                              <label className="mb-2 block text-sm font-semibold text-slate-700">
+                              <label className={`mb-2 block text-sm font-semibold ${panelLabelClass}`}>
                                 {variable.label}
                                 {variable.required && <span className="ml-1 text-red-500">*</span>}
                               </label>
                               {renderVariableField(card, cardIndex, variable)}
                             </div>
                           ))
+                        ) : card.template.referenceImages?.length > 0 ? (
+                          <div className={`rounded-[22px] border p-4 ${elevatedPanelClass}`}>
+                            <div className="mb-3 flex items-start justify-between gap-3">
+                              <div>
+                                <p className={`text-sm font-semibold ${panelTitleClass}`}>模板选择</p>
+                                <p className={`mt-1 text-xs leading-5 ${panelCaptionClass}`}>
+                                  默认使用当前模板的全部预设图；点击下方缩略图后，仅使用选中的那张模板图。
+                                </p>
+                              </div>
+                              <span
+                                className={`rounded-full px-2 py-1 text-[10px] font-semibold ${
+                                  card.selectedPresetImage
+                                    ? 'bg-violet-600 text-white'
+                                    : darkMode
+                                      ? 'bg-white/10 text-[var(--muted-foreground)]'
+                                      : 'bg-slate-100 text-slate-500'
+                                }`}
+                              >
+                                {card.selectedPresetImage ? '已选择 1 张' : `默认 ${card.template.referenceImages.length} 张`}
+                              </span>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-2.5">
+                              {card.template.referenceImages.map((image, imageIndex) => {
+                                const isSelected = card.selectedPresetImage?.id === image.id;
+
+                                return (
+                                  <div
+                                    key={image.id}
+                                    onClick={() => handlePresetImageToggle(cardIndex, image)}
+                                    className={`group relative cursor-pointer overflow-hidden rounded-xl transition-all ${
+                                      isSelected
+                                        ? `ring-2 ring-violet-500 ring-offset-2 ${darkMode ? 'ring-offset-[#171c18]' : ''}`
+                                        : darkMode
+                                          ? 'hover:ring-2 hover:ring-white/20'
+                                          : 'hover:ring-2 hover:ring-gray-300'
+                                    }`}
+                                  >
+                                    <img
+                                      src={image.url}
+                                      alt={`参考图 ${imageIndex + 1}`}
+                                      className="h-[68px] w-full object-contain"
+                                      style={{ objectPosition: 'center center' }}
+                                    />
+                                    <div
+                                      className={`absolute left-1 top-1 rounded px-1.5 py-0.5 text-[10px] font-medium ${
+                                        isSelected ? 'bg-violet-600 text-white' : 'bg-gray-800 text-white'
+                                      }`}
+                                    >
+                                      {isSelected ? '已选中' : `图${imageIndex + 1}`}
+                                    </div>
+                                    <div className="absolute inset-0 flex items-center justify-center bg-black/45 opacity-0 transition-opacity group-hover:opacity-100">
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setPreviewImage(image.url);
+                                        }}
+                                        className={`rounded-full p-2 shadow-lg transition-transform hover:scale-105 ${
+                                          darkMode ? 'bg-[#151b17]/90 text-[var(--foreground)]' : 'bg-white/90 text-gray-900'
+                                        }`}
+                                      >
+                                        <Eye className="h-4 w-4" />
+                                      </button>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
                         ) : (
-                          <div className="rounded-[22px] border border-slate-100 bg-slate-50/80 p-4 text-sm text-slate-400">
-                            当前模板没有额外输入字段，保持默认配置即可。
+                          <div className={`rounded-[22px] border p-4 text-sm ${insetPanelClass} ${panelCaptionClass}`}>
+                            当前模板没有额外输入项，可直接生成。
                           </div>
                         )}
                       </div>
@@ -1341,10 +1452,16 @@ export default function BatchGeneratePage() {
 
                     {card.template.allowUserPrompt !== false && (
                       <div className="space-y-3">
-                        <label className="flex cursor-pointer items-center justify-between rounded-[22px] border border-violet-100 bg-violet-50/70 p-4 transition-colors hover:bg-violet-50">
+                        <label
+                          className={`flex cursor-pointer items-center justify-between rounded-[22px] border p-4 transition-colors ${
+                            darkMode
+                              ? 'border-violet-500/20 bg-violet-500/10 hover:bg-violet-500/15'
+                              : 'border-violet-100 bg-violet-50/70 hover:bg-violet-50'
+                          }`}
+                        >
                           <div>
-                            <p className="text-sm font-semibold text-slate-900">启用自定义提示词</p>
-                            <p className="mt-1 text-xs text-slate-400">开启后可为当前模板追加独立描述</p>
+                            <p className={`text-sm font-semibold ${panelTitleClass}`}>启用自定义提示词</p>
+                            <p className={`mt-1 text-xs ${panelCaptionClass}`}>开启后可为当前模板追加独立描述</p>
                           </div>
                           <input
                             type="checkbox"
@@ -1356,13 +1473,17 @@ export default function BatchGeneratePage() {
 
                         <div
                           onClick={() => handleUserPromptPriorityToggle(cardIndex)}
-                          className="flex cursor-pointer items-center justify-between rounded-[22px] border border-violet-100 bg-white px-4 py-3 transition-colors hover:border-violet-200"
+                          className={`flex cursor-pointer items-center justify-between rounded-[22px] border px-4 py-3 transition-colors ${
+                            darkMode
+                              ? 'border-white/10 bg-[linear-gradient(180deg,rgba(28,35,29,0.94),rgba(20,26,21,0.86))] hover:border-violet-500/20'
+                              : 'border-violet-100 bg-white hover:border-violet-200'
+                          }`}
                         >
                           <div>
-                            <p className="text-sm font-semibold text-slate-900">优先</p>
-                            <p className="mt-1 text-xs text-slate-400">优先时会把补充提示词放到模板提示词前面</p>
+                            <p className={`text-sm font-semibold ${panelTitleClass}`}>优先</p>
+                            <p className={`mt-1 text-xs ${panelCaptionClass}`}>优先时会把补充提示词放到模板提示词前面</p>
                           </div>
-                          <div className={`relative h-6 w-11 rounded-full transition-colors ${card.userPromptPriority ? 'bg-violet-500' : 'bg-slate-200'}`}>
+                          <div className={`relative h-6 w-11 rounded-full transition-colors ${card.userPromptPriority ? 'bg-violet-500' : darkMode ? 'bg-white/10' : 'bg-slate-200'}`}>
                             <motion.div
                               animate={{ x: card.userPromptPriority ? 22 : 2 }}
                               transition={{ type: 'spring', stiffness: 500, damping: 30 }}
@@ -1376,31 +1497,31 @@ export default function BatchGeneratePage() {
                           onChange={(e) => handleUserPromptChange(cardIndex, e.target.value)}
                           rows={4}
                           disabled={!card.enableUserPrompt}
-                          className="w-full resize-none rounded-[22px] border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 outline-none transition-all placeholder:text-slate-400 focus:border-violet-300 focus:ring-4 focus:ring-violet-100 disabled:cursor-not-allowed disabled:bg-slate-50"
+                          className={`w-full resize-none rounded-[22px] border px-4 py-3 text-sm outline-none transition-all focus:border-violet-300 focus:ring-4 focus:ring-violet-100 disabled:cursor-not-allowed ${inputSurfaceClass}`}
                           placeholder="在这里输入额外的提示词描述..."
                         />
                       </div>
                     )}
 
                     {card.specifiedColors.length > 0 && (
-                      <div className="rounded-[22px] border border-violet-100 bg-violet-50/60 p-4">
+                      <div className={`rounded-[22px] border p-4 ${accentPanelClass}`}>
                         <div className="mb-3 flex items-center justify-between">
                           <div className="flex items-center gap-2">
                             <Palette className="h-4 w-4 text-violet-500" />
-                            <span className="text-sm font-semibold text-slate-900">自定义颜色</span>
+                            <span className={`text-sm font-semibold ${panelTitleClass}`}>自定义颜色</span>
                           </div>
-                          <span className="text-xs text-slate-400">共 {card.specifiedColors.length} 个</span>
+                          <span className={`text-xs ${panelCaptionClass}`}>共 {card.specifiedColors.length} 个</span>
                         </div>
 
                         <div className="space-y-2">
                           {card.specifiedColors.map((color) => (
                             <div
                               key={color.name}
-                              className="flex items-center gap-3 rounded-2xl border border-violet-100 bg-white px-3 py-2.5 shadow-sm"
+                              className={`flex items-center gap-3 rounded-2xl border px-3 py-2.5 ${elevatedPanelClass}`}
                             >
                               <div className="relative shrink-0">
                                 <div
-                                  className="h-8 w-8 rounded-full border-2 border-slate-200 shadow-inner"
+                                  className={`h-8 w-8 rounded-full border-2 shadow-inner ${darkMode ? 'border-white/10' : 'border-slate-200'}`}
                                   style={{ backgroundColor: color.color }}
                                 >
                                   <input
@@ -1418,7 +1539,7 @@ export default function BatchGeneratePage() {
                               </div>
 
                               <div className="min-w-0 flex-1">
-                                <p className="truncate text-sm text-slate-800">{color.label || color.name}</p>
+                                <p className={`truncate text-sm ${panelTitleClass}`}>{color.label || color.name}</p>
                               </div>
 
                               <input
@@ -1428,7 +1549,7 @@ export default function BatchGeneratePage() {
                                   handleSpecifiedColorTextChange(cardIndex, color.name, e.target.value)
                                 }
                                 onBlur={() => handleSpecifiedColorTextBlur(cardIndex, color.name)}
-                                className="w-24 rounded-xl border border-slate-200 bg-white px-2 py-1.5 text-xs font-mono text-slate-700 outline-none transition-all focus:border-violet-300 focus:ring-4 focus:ring-violet-100"
+                                className={`w-24 rounded-xl border px-2 py-1.5 text-xs font-mono outline-none transition-all focus:border-violet-300 focus:ring-4 focus:ring-violet-100 ${inputSurfaceClass}`}
                                 placeholder="#888888"
                               />
                             </div>
@@ -1456,7 +1577,7 @@ export default function BatchGeneratePage() {
                     </button>
 
                     {card.error && (
-                      <div className="flex items-start gap-3 rounded-[22px] border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
+                      <div className={`flex items-start gap-3 rounded-[22px] border px-4 py-3 text-sm ${darkMode ? 'border-red-500/20 bg-red-500/10 text-red-200' : 'border-red-100 bg-red-50 text-red-700'}`}>
                         <XCircle className="mt-0.5 h-4 w-4 shrink-0" />
                         <p>{card.error}</p>
                       </div>
@@ -1467,13 +1588,13 @@ export default function BatchGeneratePage() {
                 <div className="px-6 py-6">
                   <div className="mb-4 flex items-center gap-2">
                     <span className="h-5 w-1 rounded-full bg-violet-500" />
-                    <span className="text-lg font-bold text-slate-900">预览效果</span>
+                    <span className={`text-lg font-bold ${panelTitleClass}`}>预览效果</span>
                   </div>
 
                   {card.result ? (
                     <div className="space-y-4">
                       <div
-                        className="group relative cursor-pointer overflow-hidden rounded-[24px] border border-violet-100 bg-white p-3 shadow-sm"
+                        className={`group relative cursor-pointer overflow-hidden rounded-[24px] border p-3 ${elevatedPanelClass}`}
                         onClick={() => setPreviewImage(card.result.imageUrl)}
                       >
                         <img
@@ -1499,7 +1620,11 @@ export default function BatchGeneratePage() {
                         <button
                           onClick={() => handleRegenerateSingle(cardIndex)}
                           disabled={batchGenerating}
-                          className="flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                          className={`flex items-center justify-center gap-2 rounded-2xl border px-4 py-3 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
+                            darkMode
+                              ? 'border-white/10 bg-[#151b17] text-[var(--foreground)] hover:bg-[#1b211d]'
+                              : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                          }`}
                         >
                           <RefreshCw className="h-4 w-4" />
                           重新生成
@@ -1507,19 +1632,25 @@ export default function BatchGeneratePage() {
                       </div>
 
                       {card.result.revisedPrompt && (user?.role === 'admin' || user?.role === 'sub_admin') && (
-                        <div className="rounded-2xl border border-slate-100 bg-slate-50 p-3">
-                          <p className="mb-1 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">
+                        <div className={`rounded-2xl border p-3 ${insetPanelClass}`}>
+                          <p className={`mb-1 text-[10px] font-bold uppercase tracking-[0.2em] ${panelCaptionClass}`}>
                             Prompt
                           </p>
-                          <p className="line-clamp-3 text-xs italic leading-5 text-slate-500">
+                          <p className={`line-clamp-3 text-xs italic leading-5 ${panelBodyClass}`}>
                             {card.result.revisedPrompt}
                           </p>
                         </div>
                       )}
                     </div>
                   ) : (
-                    <div className="flex min-h-[420px] flex-col rounded-[26px] border-2 border-dashed border-violet-200 bg-[linear-gradient(180deg,rgba(250,248,255,0.96),rgba(255,255,255,0.96))] p-6">
-                      <div className="mb-6 flex items-center justify-between text-xs text-slate-400">
+                    <div
+                      className={`flex min-h-[420px] flex-col rounded-[26px] border-2 border-dashed p-6 ${
+                        darkMode
+                          ? 'border-violet-500/25 bg-[linear-gradient(180deg,rgba(38,27,51,0.6),rgba(21,26,22,0.96))]'
+                          : 'border-violet-200 bg-[linear-gradient(180deg,rgba(250,248,255,0.96),rgba(255,255,255,0.96))]'
+                      }`}
+                    >
+                      <div className={`mb-6 flex items-center justify-between text-xs ${panelCaptionClass}`}>
                         <span>待生成区域</span>
                         <span>{card.generating ? card.generationStatus || '处理中...' : '等待中'}</span>
                       </div>
@@ -1528,23 +1659,27 @@ export default function BatchGeneratePage() {
                         {card.generating ? (
                           <>
                             <div className="relative mb-6">
-                              <div className="h-16 w-16 animate-spin rounded-full border-4 border-violet-100 border-t-violet-500" />
+                              <div className={`h-16 w-16 animate-spin rounded-full border-4 border-t-violet-500 ${darkMode ? 'border-violet-500/15' : 'border-violet-100'}`} />
                               <Sparkles className="absolute inset-0 m-auto h-5 w-5 text-violet-400" />
                             </div>
                             <p className="text-lg font-bold text-violet-700">正在生成</p>
-                            <p className="mt-2 text-sm text-slate-400">请稍候，系统正在生成当前模板效果图</p>
+                            <p className={`mt-2 text-sm ${panelCaptionClass}`}>请稍候，系统正在生成当前模板效果图</p>
                           </>
                         ) : (
                           <>
                             <div className="relative mb-6">
-                              <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-[22px] border border-violet-200 bg-white shadow-[0_18px_40px_-28px_rgba(124,58,237,0.45)]">
+                              <div
+                                className={`mx-auto flex h-20 w-20 items-center justify-center rounded-[22px] border shadow-[0_18px_40px_-28px_rgba(124,58,237,0.45)] ${
+                                  darkMode ? 'border-violet-500/20 bg-[#151b17]' : 'border-violet-200 bg-white'
+                                }`}
+                              >
                                 <ImageIcon className="h-9 w-9 text-violet-300" />
                               </div>
                               <span className="absolute -right-2 top-1 h-2 w-2 rounded-full bg-violet-200" />
                               <span className="absolute left-1 top-7 h-1.5 w-1.5 rounded-full bg-violet-200" />
                             </div>
                             <p className="text-2xl font-bold text-violet-700">等待生成</p>
-                            <p className="mt-2 text-sm leading-6 text-slate-400">点击左侧生成按钮开始创作</p>
+                            <p className={`mt-2 text-sm leading-6 ${panelCaptionClass}`}>点击左侧生成按钮开始创作</p>
                           </>
                         )}
                       </div>

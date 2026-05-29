@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence, Reorder, useDragControls } from 'framer-motion';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { UserAvatar } from '@/components/UserAvatar';
+import { UserMenuDropdown } from '@/components/UserMenuDropdown';
 import { 
   ArrowLeft, 
   Plus, 
@@ -732,76 +732,22 @@ export default function TemplateConfigPage() {
             </button>
 
             {user && (
-              <div className="relative user-menu-container">
-                <button
-                  onClick={() => setShowUserMenu(!showUserMenu)}
-                  className="flex items-center gap-3 hover:opacity-80 transition-opacity"
-                >
-                  <UserAvatar user={user} size="lg" />
-                  <div className="hidden md:flex min-h-11 items-center text-left">
-                    <p className="text-sm font-medium text-gray-900">{user.name || user.username}</p>
-                  </div>
-                </button>
-
-                <AnimatePresence>
-                  {showUserMenu && (
-                    <motion.div
-                      initial={{ opacity: 0, y: -10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -10 }}
-                      className="absolute right-0 top-full mt-2 w-56 bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden z-50"
-                      onClick={() => setShowUserMenu(false)}
-                    >
-                      <div className="p-4 bg-gradient-to-r from-violet-50 to-purple-50 border-b border-gray-100">
-                        <div className="flex items-center gap-3">
-                          <UserAvatar user={user} size="lg" />
-                          <div className="flex min-h-10 items-center">
-                            <p className="font-semibold text-gray-900">{user.name || user.username}</p>
-                          </div>
-                        </div>
-                        {user.role === 'admin' && (
-                          <div className="mt-3">
-                            <span className="px-2 py-1 bg-amber-100 text-amber-700 text-xs font-medium rounded-full flex items-center gap-1 w-fit">
-                              <Shield className="w-3 h-3" />
-                              管理员
-                            </span>
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="p-2">
-                        <button
-                          onClick={() => router.push('/history')}
-                          className="w-full px-4 py-2.5 text-left text-gray-700 hover:bg-violet-50 hover:text-violet-600 rounded-lg transition-colors flex items-center gap-3"
-                        >
-                          <History className="w-4 h-4" />
-                          我的历史
-                        </button>
-
-                        {user.role === 'admin' && (
-                          <button
-                            onClick={() => router.push('/admin/users')}
-                            className="w-full px-4 py-2.5 text-left text-amber-700 hover:bg-amber-50 rounded-lg transition-colors flex items-center gap-3 mt-1"
-                          >
-                            <Users className="w-4 h-4" />
-                            用户管理
-                          </button>
-                        )}
-
-                        <div className="my-2 border-t border-gray-100" />
-
-                        <button
-                          onClick={handleLogout}
-                          className="w-full px-4 py-2.5 text-left text-red-600 hover:bg-red-50 rounded-lg transition-colors flex items-center gap-3"
-                        >
-                          <LogOut className="w-4 h-4" />
-                          退出登录
-                        </button>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
+              <UserMenuDropdown
+                user={user}
+                isOpen={showUserMenu}
+                onToggle={() => setShowUserMenu((prev) => !prev)}
+                onClose={() => setShowUserMenu(false)}
+                onHistory={() => router.push('/history')}
+                onAdminUsers={() => router.push('/admin/users')}
+                onLogout={handleLogout}
+                canManage={user.role === 'admin' || user.role === 'sub_admin'}
+                isAdmin={user.role === 'admin'}
+                isSubAdmin={user.role === 'sub_admin'}
+                manageLabel={user.role === 'admin' ? '用户与部门管理' : '人员列表'}
+                avatarSize="lg"
+                showTriggerName={true}
+                triggerTextClassName="hidden md:flex min-h-11 items-center"
+              />
             )}
           </div>
         </div>
