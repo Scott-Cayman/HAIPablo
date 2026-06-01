@@ -94,9 +94,33 @@ interface TemplateCardState {
 interface ImageProviderResponse {
   providers: ImageProviderSummary[];
   defaultProviderId: string | null;
+  requestId?: string;
 }
 
 const HEX_COLOR_REGEX = /^#[0-9A-Fa-f]{6}$/;
+
+async function readResponseBodySafely(response: Response) {
+  const contentType = response.headers.get('content-type') || '';
+
+  if (contentType.includes('application/json')) {
+    try {
+      return await response.json();
+    } catch {
+      return null;
+    }
+  }
+
+  try {
+    return await response.text();
+  } catch {
+    return null;
+  }
+}
+
+function getErrorMessage(error: unknown) {
+  if (error instanceof Error) return error.message;
+  return String(error);
+}
 
 function extractSpecifiedColorNames(text: string) {
   const matches = [...text.matchAll(/指定色(\d+)/g)];
@@ -172,11 +196,25 @@ export default function BatchGeneratePage() {
   const isSubAdmin = user?.role === 'sub_admin';
 
   const fetchImageProviders = useCallback(async () => {
-    try {
-      const res = await fetch('/api/image/providers', { cache: 'no-store' });
-      if (!res.ok) return;
+    const requestStartedAt = Date.now();
 
-      const data: ImageProviderResponse = await res.json();
+    try {
+      console.info('[batch][providers] 开始获取供应商列表');
+      const res = await fetch('/api/image/providers', { cache: 'no-store' });
+      const payload = await readResponseBodySafely(res);
+
+      if (!res.ok) {
+        console.error('[batch][providers] 请求失败', {
+          status: res.status,
+          statusText: res.statusText,
+          durationMs: Date.now() - requestStartedAt,
+          requestId: res.headers.get('X-Request-Id'),
+          payload,
+        });
+        return;
+      }
+
+      const data = (payload || {}) as ImageProviderResponse;
       setImageProviders(Array.isArray(data.providers) ? data.providers : []);
       setSelectedProviderId((prev) => {
         if (prev && data.providers?.some((provider) => provider.id === prev)) {
@@ -184,8 +222,19 @@ export default function BatchGeneratePage() {
         }
         return data.defaultProviderId || data.providers?.[0]?.id || '';
       });
+
+      console.info('[batch][providers] 获取成功', {
+        durationMs: Date.now() - requestStartedAt,
+        count: Array.isArray(data.providers) ? data.providers.length : 0,
+        defaultProviderId: data.defaultProviderId || null,
+        requestId: data.requestId || res.headers.get('X-Request-Id'),
+      });
     } catch (error) {
-      console.error('获取图片供应商失败:', error);
+      console.error('[batch][providers] 网络异常', {
+        durationMs: Date.now() - requestStartedAt,
+        message: getErrorMessage(error),
+        error,
+      });
     }
   }, []);
 
@@ -232,25 +281,6 @@ export default function BatchGeneratePage() {
   }, [fetchImageProviders]);
 
   useEffect(() => {
-    const handleWindowFocus = () => {
-      fetchImageProviders();
-    };
-
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        fetchImageProviders();
-      }
-    };
-
-    window.addEventListener('focus', handleWindowFocus);
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => {
-      window.removeEventListener('focus', handleWindowFocus);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, [fetchImageProviders]);
-
-  useEffect(() => {
     if (!hasFetched.current && templateIds.length > 0) {
       hasFetched.current = true;
       fetchTemplates();
@@ -271,7 +301,7 @@ export default function BatchGeneratePage() {
             acc[variable.key] = '';
             return acc;
           }, {}) || {},
-        selectedPresetImage: null,
+        selectedPresetImage: template.referenceImages?.[0] || null,
         enableUserPrompt: template.allowUserPrompt !== false,
         userPromptPriority: template.userPromptPriorityDefault || false,
         userPrompt: '',
@@ -327,7 +357,15 @@ export default function BatchGeneratePage() {
     if (!file) return;
 
     setUploadingKv(true);
+    const requestStartedAt = Date.now();
+
     try {
+      console.info('[batch][upload] 开始上传主视觉', {
+        name: file.name,
+        type: file.type || 'unknown',
+        size: file.size,
+      });
+
       const formData = new FormData();
       formData.append('file', file);
 
@@ -336,17 +374,76 @@ export default function BatchGeneratePage() {
         body: formData
       });
 
-      if (!response.ok) throw new Error('上传失败');
+      const payload = await readResponseBodySafely(response);
 
-      const data = await response.json();
+      if (!response.ok) {
+        const errorMessage =
+          typeof payload === 'object' && payload
+            ? ((payload as { error?: string; message?: string }).message ||
+              (payload as { error?: string; message?: string }).error)
+            : null;
+
+        console.error('[batch][upload] 服务端返回失败', {
+          status: response.status,
+          statusText: response.statusText,
+          durationMs: Date.now() - requestStartedAt,
+          requestId:
+            (typeof payload === 'object' && payload && 'requestId' in payload
+              ? String((payload as { requestId?: string }).requestId || '')
+              : '') || response.headers.get('X-Request-Id'),
+          payload,
+          file: {
+            name: file.name,
+            type: file.type || 'unknown',
+            size: file.size,
+          },
+        });
+
+        throw new Error(errorMessage || `上传失败（HTTP ${response.status}）`);
+      }
+
+      const data =
+        typeof payload === 'object' && payload
+          ? (payload as { url: string; requestId?: string })
+          : null;
+
+      if (!data?.url) {
+        console.error('[batch][upload] 返回结果缺少 url', {
+          durationMs: Date.now() - requestStartedAt,
+          requestId: response.headers.get('X-Request-Id'),
+          payload,
+        });
+        throw new Error('上传成功，但服务端未返回图片地址');
+      }
+
       setKvImage({
         id: `kv_${Date.now()}`,
         url: data.url,
         name: file.name
       });
+
+      console.info('[batch][upload] 上传成功', {
+        durationMs: Date.now() - requestStartedAt,
+        requestId: data.requestId || response.headers.get('X-Request-Id'),
+        url: data.url,
+        file: {
+          name: file.name,
+          type: file.type || 'unknown',
+          size: file.size,
+        },
+      });
     } catch (error) {
-      console.error('上传失败:', error);
-      alert('图片上传失败');
+      console.error('[batch][upload] 上传异常', {
+        durationMs: Date.now() - requestStartedAt,
+        message: getErrorMessage(error),
+        error,
+        file: {
+          name: file.name,
+          type: file.type || 'unknown',
+          size: file.size,
+        },
+      });
+      alert(`图片上传失败：${getErrorMessage(error)}`);
     } finally {
       setUploadingKv(false);
     }
@@ -453,7 +550,7 @@ export default function BatchGeneratePage() {
 
         return {
           ...card,
-          selectedPresetImage: card.selectedPresetImage?.id === image.id ? null : image
+          selectedPresetImage: image
         };
       })
     );
@@ -1218,7 +1315,7 @@ export default function BatchGeneratePage() {
                     <select
                       value={selectedProviderId}
                       onChange={(e) => setSelectedProviderId(e.target.value)}
-                      onFocus={() => fetchImageProviders()}
+                      onFocus={() => void fetchImageProviders()}
                       className="w-full appearance-none rounded-2xl border border-white/70 bg-white px-4 py-3 pr-11 text-sm font-medium text-slate-900 outline-none transition-all focus:border-violet-300 focus:ring-4 focus:ring-violet-100 dark:border-white/10 dark:bg-slate-950/60 dark:text-white"
                     >
                       {imageProviders.map((provider) => (
@@ -1378,7 +1475,7 @@ export default function BatchGeneratePage() {
                               <div>
                                 <p className={`text-sm font-semibold ${panelTitleClass}`}>模板选择</p>
                                 <p className={`mt-1 text-xs leading-5 ${panelCaptionClass}`}>
-                                  默认使用当前模板的全部预设图；点击下方缩略图后，仅使用选中的那张模板图。
+                                  默认选中第一张预设图；点击下方缩略图可切换当前使用的模板图。
                                 </p>
                               </div>
                               <span
@@ -1390,7 +1487,7 @@ export default function BatchGeneratePage() {
                                       : 'bg-slate-100 text-slate-500'
                                 }`}
                               >
-                                {card.selectedPresetImage ? '已选择 1 张' : `默认 ${card.template.referenceImages.length} 张`}
+                                {card.selectedPresetImage ? '已选择 1 张' : `共 ${card.template.referenceImages.length} 张`}
                               </span>
                             </div>
 

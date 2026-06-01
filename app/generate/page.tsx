@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { UserMenuDropdown } from '@/components/UserMenuDropdown';
@@ -139,9 +139,11 @@ interface SpecifiedColor {
 interface ImageProviderResponse {
   providers: ImageProviderSummary[];
   defaultProviderId: string | null;
+  requestId?: string;
 }
 
 const SMART_COLOR_PROMPT = '自动适配合理的颜色';
+const PROVIDER_FETCH_COOLDOWN_MS = 15_000;
 
 const LEGACY_SIZE_MAP: Record<string, string> = {
   '1024x1024': '2048x2048',
@@ -334,6 +336,10 @@ interface GenerationHistoryItem {
   outputImageUrl: string | null;
   thumbnailUrl: string | null;
   status: string;
+  errorMessage?: string | null;
+  providerId?: string | null;
+  startedAt?: string | null;
+  finishedAt?: string | null;
   creditsUsed?: number;
   createdAt: string;
 }
@@ -370,6 +376,114 @@ interface GenerationRequestOptions {
     currentImage: ReferenceImage | null;
     allUserImages: ReferenceImage[];
   };
+}
+
+interface ImageJobSubmitResponse {
+  success: boolean;
+  jobId?: string;
+  historyId?: string;
+  status?: string;
+  progressText?: string;
+  error?: string;
+  message?: string;
+}
+
+interface ImageJobStatusResponse extends ImageJobSubmitResponse {
+  imageUrl?: string | null;
+  revisedPrompt?: string | null;
+  providerId?: string | null;
+  errorMessage?: string | null;
+}
+
+const PENDING_JOB_STORAGE_KEY = 'haipablo:pending-image-job';
+
+function isTerminalJobStatus(status?: string) {
+  return status === 'success' || status === 'failed' || status === 'cancelled';
+}
+
+function getJobProgressLabel(job: ImageJobStatusResponse | ImageJobSubmitResponse) {
+  if (job.progressText) {
+    return job.progressText;
+  }
+
+  if (job.status === 'queued') {
+    return '任务已提交，等待开始';
+  }
+
+  if (job.status === 'processing') {
+    return '正在调用图片供应商';
+  }
+
+  if (job.status === 'success') {
+    return '图片已生成完成';
+  }
+
+  if (job.status === 'failed') {
+    return '图片生成失败';
+  }
+
+  return '正在处理中...';
+}
+
+function getHistoryStatusLabel(status: string) {
+  switch (status) {
+    case 'queued':
+      return '排队中';
+    case 'processing':
+      return '生成中';
+    case 'success':
+      return '已生成';
+    case 'failed':
+      return '失败';
+    case 'cancelled':
+      return '已取消';
+    default:
+      return status;
+  }
+}
+
+function formatHistoryDuration(startedAt?: string | null, finishedAt?: string | null) {
+  if (!startedAt) {
+    return null;
+  }
+
+  const startMs = new Date(startedAt).getTime();
+  const endMs = finishedAt ? new Date(finishedAt).getTime() : Date.now();
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) {
+    return null;
+  }
+
+  const diffMs = Math.max(0, endMs - startMs);
+  if (diffMs < 1000) {
+    return '<1s';
+  }
+
+  const diffSeconds = Math.round(diffMs / 1000);
+  if (diffSeconds < 60) {
+    return `${diffSeconds}s`;
+  }
+
+  const diffMinutes = Math.round(diffSeconds / 60);
+  if (diffMinutes < 60) {
+    return `${diffMinutes}m`;
+  }
+
+  const diffHours = Math.round(diffMinutes / 60);
+  return `${diffHours}h`;
+}
+
+function getHistoryMetaSummary(item: GenerationHistoryItem) {
+  const duration = formatHistoryDuration(item.startedAt, item.finishedAt);
+  return {
+    providerLabel: item.providerId ? `供应商 ${item.providerId}` : null,
+    durationLabel: duration
+      ? `${item.finishedAt ? '耗时' : '进行'} ${duration}`
+      : null
+  };
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
 interface ActionIconButtonProps {
@@ -456,6 +570,36 @@ function normalizeReferenceImageList(images?: Array<ReferenceImage | null | unde
     .filter((image): image is ReferenceImage => !!image);
 }
 
+async function readResponseBodySafely(response: Response) {
+  const contentType = response.headers.get('content-type') || '';
+
+  if (contentType.includes('application/json')) {
+    try {
+      return await response.json();
+    } catch {
+      return null;
+    }
+  }
+
+  try {
+    return await response.text();
+  } catch {
+    return null;
+  }
+}
+
+function getErrorMessage(error: unknown) {
+  if (error instanceof Error) return error.message;
+  return String(error);
+}
+
+function getApiErrorMessage(
+  payload: { errorMessage?: string | null; message?: string | null; error?: string | null } | null | undefined,
+  fallback = '操作失败'
+) {
+  return payload?.errorMessage || payload?.message || payload?.error || fallback;
+}
+
 export default function GeneratePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -505,6 +649,9 @@ export default function GeneratePage() {
   const [deletingFailedHistories, setDeletingFailedHistories] = useState(false);
   const [deleteFailedModalOpen, setDeleteFailedModalOpen] = useState(false);
   const [pendingCompressionUploads, setPendingCompressionUploads] = useState<PendingCompressionUpload[]>([]);
+  const pendingJobRecoveryRef = useRef<string | null>(null);
+  const providerFetchInFlightRef = useRef(false);
+  const lastProviderFetchAtRef = useRef(0);
 
   // 预览图片缩放和拖拽状态
   const [zoomScale, setZoomScale] = useState(1);
@@ -518,12 +665,44 @@ export default function GeneratePage() {
   const isAdmin = user?.role === 'admin';
   const isSubAdmin = user?.role === 'sub_admin';
 
-  const fetchImageProviders = useCallback(async () => {
-    try {
-      const res = await fetch('/api/image/providers', { cache: 'no-store' });
-      if (!res.ok) return;
+  const fetchImageProviders = useCallback(async (reason = 'manual', options?: { force?: boolean }) => {
+    const now = Date.now();
+    const force = options?.force === true;
 
-      const data: ImageProviderResponse = await res.json();
+    if (providerFetchInFlightRef.current) {
+      console.info('[generate][providers] 跳过请求，原因：上一请求仍在进行中', { reason });
+      return;
+    }
+
+    if (!force && now - lastProviderFetchAtRef.current < PROVIDER_FETCH_COOLDOWN_MS) {
+      console.info('[generate][providers] 跳过请求，原因：处于冷却期', {
+        reason,
+        cooldownRemainingMs: PROVIDER_FETCH_COOLDOWN_MS - (now - lastProviderFetchAtRef.current),
+      });
+      return;
+    }
+
+    providerFetchInFlightRef.current = true;
+    const requestStartedAt = Date.now();
+
+    try {
+      console.info('[generate][providers] 开始获取供应商列表', { reason });
+      const res = await fetch('/api/image/providers', { cache: 'no-store' });
+      const payload = await readResponseBodySafely(res);
+
+      if (!res.ok) {
+        console.error('[generate][providers] 请求失败', {
+          reason,
+          status: res.status,
+          statusText: res.statusText,
+          durationMs: Date.now() - requestStartedAt,
+          requestId: res.headers.get('X-Request-Id'),
+          payload,
+        });
+        return;
+      }
+
+      const data = (payload || {}) as ImageProviderResponse;
       setImageProviders(Array.isArray(data.providers) ? data.providers : []);
       setSelectedProviderId((prev) => {
         if (prev && data.providers?.some((provider) => provider.id === prev)) {
@@ -531,10 +710,115 @@ export default function GeneratePage() {
         }
         return data.defaultProviderId || data.providers?.[0]?.id || '';
       });
+
+      lastProviderFetchAtRef.current = Date.now();
+      console.info('[generate][providers] 获取成功', {
+        reason,
+        durationMs: Date.now() - requestStartedAt,
+        count: Array.isArray(data.providers) ? data.providers.length : 0,
+        defaultProviderId: data.defaultProviderId || null,
+        requestId: data.requestId || res.headers.get('X-Request-Id'),
+      });
     } catch (providerError) {
-      console.error('获取图片供应商失败:', providerError);
+      console.error('[generate][providers] 网络异常', {
+        reason,
+        durationMs: Date.now() - requestStartedAt,
+        message: getErrorMessage(providerError),
+        error: providerError,
+      });
+    } finally {
+      providerFetchInFlightRef.current = false;
     }
   }, []);
+
+  const refreshCurrentUser = useCallback(async (redirectOnFailure = false) => {
+    try {
+      const res = await fetch('/api/auth/me', { cache: 'no-store' });
+      if (!res.ok) {
+        if (redirectOnFailure) {
+          router.push('/auth');
+        }
+        return null;
+      }
+
+      const nextUser = await res.json();
+      setUser(nextUser);
+      return nextUser;
+    } catch {
+      if (redirectOnFailure) {
+        router.push('/auth');
+      }
+      return null;
+    }
+  }, [router]);
+
+  const persistPendingJob = useCallback((jobId: string) => {
+    if (typeof window === 'undefined' || !templateId || !user?.id) {
+      return;
+    }
+
+    localStorage.setItem(PENDING_JOB_STORAGE_KEY, JSON.stringify({
+      jobId,
+      templateId,
+      userId: user.id
+    }));
+  }, [templateId, user?.id]);
+
+  const clearPendingJob = useCallback((jobId?: string) => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const rawValue = localStorage.getItem(PENDING_JOB_STORAGE_KEY);
+    if (!rawValue) {
+      return;
+    }
+
+    try {
+      const parsed = JSON.parse(rawValue) as { jobId?: string };
+      if (!jobId || parsed.jobId === jobId) {
+        localStorage.removeItem(PENDING_JOB_STORAGE_KEY);
+      }
+    } catch {
+      localStorage.removeItem(PENDING_JOB_STORAGE_KEY);
+    }
+  }, []);
+
+  const pollGenerationJob = useCallback(async (
+    jobId: string,
+    options?: { suppressGlobalStatus?: boolean }
+  ) => {
+    const suppressGlobalStatus = options?.suppressGlobalStatus === true;
+
+    for (let attempt = 0; attempt < 150; attempt += 1) {
+      const response = await fetch(`/api/image/jobs/${jobId}`, { cache: 'no-store' });
+      const data = await response.json() as ImageJobStatusResponse;
+
+      if (!suppressGlobalStatus) {
+        setGenerationStatus(getJobProgressLabel(data));
+      }
+
+      if (!response.ok || isTerminalJobStatus(data.status)) {
+        if (isTerminalJobStatus(data.status)) {
+          clearPendingJob(jobId);
+        }
+        return { response, data };
+      }
+
+      await sleep(2000);
+    }
+
+    clearPendingJob(jobId);
+    return {
+      response: new Response(null, { status: 504 }),
+      data: {
+        success: false,
+        status: 'failed',
+        error: '任务轮询超时',
+        message: '等待生成结果超时，请稍后到历史记录查看',
+      } satisfies ImageJobStatusResponse
+    };
+  }, [clearPendingJob]);
 
   useEffect(() => {
     const savedDarkMode = localStorage.getItem('darkMode');
@@ -546,21 +830,8 @@ export default function GeneratePage() {
       document.documentElement.classList.add('dark');
     }
 
-    const fetchUser = async () => {
-      try {
-        const res = await fetch('/api/auth/me');
-        if (res.ok) {
-          setUser(await res.json());
-        } else {
-          router.push('/auth');
-        }
-      } catch {
-        router.push('/auth');
-      }
-    };
-
-    fetchUser();
-    fetchImageProviders();
+    void refreshCurrentUser(true);
+    void fetchImageProviders('init', { force: true });
     
     if (templateId) {
       fetchTemplate();
@@ -577,26 +848,7 @@ export default function GeneratePage() {
 
     document.addEventListener('click', handleClickOutside);
     return () => document.removeEventListener('click', handleClickOutside);
-  }, [templateId, historyId, fetchImageProviders]);
-
-  useEffect(() => {
-    const handleWindowFocus = () => {
-      fetchImageProviders();
-    };
-
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        fetchImageProviders();
-      }
-    };
-
-    window.addEventListener('focus', handleWindowFocus);
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => {
-      window.removeEventListener('focus', handleWindowFocus);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, [fetchImageProviders]);
+  }, [templateId, historyId, fetchImageProviders, refreshCurrentUser]);
 
   useEffect(() => {
     if (!user?.id || !templateId || !template || isSpecialThreeDRender) {
@@ -641,6 +893,7 @@ export default function GeneratePage() {
 
       if (response.ok) {
         setTemplate(data);
+        setSelectedPresetImage(normalizeReferenceImage(data.referenceImages?.[0]) || null);
         setSize(normalizeSizeValue(data.defaultSize));
         setQuality(data.defaultQuality || 'medium');
         setEnableUserPrompt(false);
@@ -759,6 +1012,61 @@ export default function GeneratePage() {
     return fetchTemplateHistories(user.id, templateId, template.name);
   }, [user?.id, templateId, template, isSpecialThreeDRender]);
 
+  useEffect(() => {
+    if (!user?.id || !templateId || pendingJobRecoveryRef.current === templateId || typeof window === 'undefined') {
+      return;
+    }
+
+    const rawValue = localStorage.getItem(PENDING_JOB_STORAGE_KEY);
+    if (!rawValue) {
+      pendingJobRecoveryRef.current = templateId;
+      return;
+    }
+
+    let parsed: { jobId?: string; templateId?: string; userId?: string } | null = null;
+    try {
+      parsed = JSON.parse(rawValue);
+    } catch {
+      localStorage.removeItem(PENDING_JOB_STORAGE_KEY);
+      pendingJobRecoveryRef.current = templateId;
+      return;
+    }
+
+    if (!parsed?.jobId || parsed.templateId !== templateId || parsed.userId !== user.id) {
+      pendingJobRecoveryRef.current = templateId;
+      return;
+    }
+
+    pendingJobRecoveryRef.current = templateId;
+    setGenerating(true);
+    setError('');
+    setGenerationStatus('正在恢复任务状态...');
+    const recoveredJobId = parsed.jobId;
+
+    void (async () => {
+      try {
+        const { response, data } = await pollGenerationJob(recoveredJobId);
+        if (response.ok && data.status === 'success' && data.imageUrl) {
+          setResult({
+            success: true,
+            imageUrl: data.imageUrl,
+            revisedPrompt: data.revisedPrompt,
+            providerId: data.providerId,
+          });
+          setGenerationStatus('');
+        } else {
+          setGenerationStatus('');
+          setError(data.errorMessage || data.message || data.error || '生成失败，请稍后到历史记录查看');
+        }
+
+        await refreshCurrentTemplateHistories();
+        await refreshCurrentUser();
+      } finally {
+        setGenerating(false);
+      }
+    })();
+  }, [pollGenerationJob, refreshCurrentTemplateHistories, refreshCurrentUser, templateId, user?.id]);
+
   const uploadPreparedFiles = useCallback(async (
     filesToUpload: File[],
     source: UploadTarget,
@@ -772,17 +1080,80 @@ export default function GeneratePage() {
       const formData = new FormData();
       formData.append('file', file);
 
+      const requestStartedAt = Date.now();
+      console.info('[generate][upload] 开始上传文件', {
+        source,
+        variableKey: variableKey || null,
+        name: file.name,
+        type: file.type || 'unknown',
+        size: file.size,
+      });
+
       const response = await fetch('/api/upload', {
         method: 'POST',
         body: formData
       });
 
+      const payload = await readResponseBodySafely(response);
+
       if (!response.ok) {
-        throw new Error('上传失败');
+        const errorMessage =
+          typeof payload === 'object' && payload
+            ? ((payload as { error?: string; message?: string }).message ||
+              (payload as { error?: string; message?: string }).error)
+            : null;
+
+        console.error('[generate][upload] 服务端返回失败', {
+          source,
+          variableKey: variableKey || null,
+          status: response.status,
+          statusText: response.statusText,
+          durationMs: Date.now() - requestStartedAt,
+          requestId:
+            (typeof payload === 'object' && payload && 'requestId' in payload
+              ? String((payload as { requestId?: string }).requestId || '')
+              : '') || response.headers.get('X-Request-Id'),
+          payload,
+          file: {
+            name: file.name,
+            type: file.type || 'unknown',
+            size: file.size,
+          },
+        });
+
+        throw new Error(errorMessage || `上传失败（HTTP ${response.status}）`);
       }
 
-      const data = await response.json();
+      const data =
+        typeof payload === 'object' && payload
+          ? (payload as { url?: string; requestId?: string })
+          : null;
+
+      if (!data?.url) {
+        console.error('[generate][upload] 返回结果缺少 url', {
+          source,
+          variableKey: variableKey || null,
+          durationMs: Date.now() - requestStartedAt,
+          requestId: response.headers.get('X-Request-Id'),
+          payload,
+        });
+        throw new Error('上传成功，但服务端未返回图片地址');
+      }
+
       const prefix = source === 'variable' ? `var_${variableKey || 'image'}` : source;
+
+      console.info('[generate][upload] 上传成功', {
+        source,
+        variableKey: variableKey || null,
+        durationMs: Date.now() - requestStartedAt,
+        requestId: data.requestId || response.headers.get('X-Request-Id'),
+        url: data.url,
+        file: {
+          name: file.name,
+          type: file.type || 'unknown',
+          size: file.size,
+        },
+      });
 
       return {
         id: `${prefix}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
@@ -931,8 +1302,11 @@ export default function GeneratePage() {
     try {
       await processSelectedUploads(Array.from(files), 'main');
     } catch (error) {
-      console.error('上传失败:', error);
-      setError('图片上传失败');
+      console.error('[generate][upload] 主视觉上传异常', {
+        message: getErrorMessage(error),
+        error,
+      });
+      setError(`图片上传失败：${getErrorMessage(error)}`);
     } finally {
       setUploadingImage(false);
       e.target.value = '';
@@ -949,8 +1323,11 @@ export default function GeneratePage() {
     try {
       await processSelectedUploads(Array.from(files), 'custom');
     } catch (error) {
-      console.error('上传自定义模板参考图失败:', error);
-      setError('自定义模板参考图上传失败');
+      console.error('[generate][upload] 自定义模板参考图上传异常', {
+        message: getErrorMessage(error),
+        error,
+      });
+      setError(`自定义模板参考图上传失败：${getErrorMessage(error)}`);
     } finally {
       setUploadingImage(false);
       e.target.value = '';
@@ -1488,28 +1865,77 @@ export default function GeneratePage() {
       }
     };
 
-    console.info('[generate] request', {
+    console.info('[generate][submit] 开始提交生成任务', {
       totalReferences: generationData.allImages.length,
       variableReferenceCount: generationData.variableImageUrls.length,
       annotatedReferenceCount: getAnnotationPromptEntries(mainImage).length,
       promptLength: generationData.renderedPrompt.length,
+      providerId: selectedProviderId || 'auto',
       batchMode: currentReferenceBatchMode,
       batchSequence: options?.batchContext?.sequence,
       batchTotal: options?.batchContext?.total
     });
 
-    const response = await fetch('/api/image/generate', {
+    const submitResponse = await fetch('/api/image/jobs', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify(requestData)
     });
+    const submitData = await submitResponse.json() as ImageJobSubmitResponse;
+
+    if (!submitResponse.ok || !submitData.jobId) {
+      console.error('[generate][submit] 提交失败', {
+        status: submitResponse.status,
+        statusText: submitResponse.statusText,
+        message: getApiErrorMessage(submitData, '任务提交失败'),
+        payload: submitData,
+      });
+      return {
+        ...generationData,
+        response: submitResponse,
+        data: submitData
+      };
+    }
+
+    console.info('[generate][submit] 任务已创建', {
+      jobId: submitData.jobId,
+      historyId: submitData.historyId,
+      status: submitData.status,
+      progressText: submitData.progressText,
+    });
+
+    persistPendingJob(submitData.jobId);
+
+    if (!currentReferenceBatchMode) {
+      setGenerationStatus(getJobProgressLabel(submitData));
+    }
+
+    const polledJob = await pollGenerationJob(submitData.jobId, {
+      suppressGlobalStatus: currentReferenceBatchMode
+    });
+
+    if (polledJob.response.ok && polledJob.data.success) {
+      console.info('[generate][result] 生成成功', {
+        jobId: submitData.jobId,
+        providerId: polledJob.data.providerId || null,
+        imageUrl: polledJob.data.imageUrl || null,
+      });
+    } else {
+      console.error('[generate][result] 生成失败', {
+        jobId: submitData.jobId,
+        status: polledJob.data.status,
+        message: getApiErrorMessage(polledJob.data, '生成失败'),
+        providerId: polledJob.data.providerId || null,
+      });
+    }
 
     return {
       ...generationData,
-      response,
-      data: await response.json()
+      response: polledJob.response,
+      data: polledJob.data,
+      jobId: submitData.jobId
     };
   };
 
@@ -1616,7 +2042,7 @@ export default function GeneratePage() {
                           ...item,
                           status: 'error',
                           generationStatus: '',
-                          error: generationResponse.data.message || generationResponse.data.error || '生成失败'
+                          error: getApiErrorMessage(generationResponse.data, '生成失败')
                         }
                       : item
                   )
@@ -1651,6 +2077,7 @@ export default function GeneratePage() {
       console.error('批量生成失败:', batchError);
       setError('批量生成中断：' + (batchError.message || '请稍后重试'));
     } finally {
+      await refreshCurrentUser();
       setBatchGenerating(false);
     }
   };
@@ -1678,8 +2105,10 @@ export default function GeneratePage() {
 
       if (generationResponse.response.ok && generationResponse.data.success) {
         setResult(generationResponse.data);
+        setGenerationStatus('');
       } else {
-        setError(generationResponse.data.message || generationResponse.data.error || '生成失败，请重试');
+        setGenerationStatus('');
+        setError(getApiErrorMessage(generationResponse.data, '生成失败，请重试'));
       }
 
       await refreshCurrentTemplateHistories();
@@ -1689,6 +2118,7 @@ export default function GeneratePage() {
       setError('网络错误：' + (error.message || '请检查网络连接'));
       await refreshCurrentTemplateHistories();
     } finally {
+      await refreshCurrentUser();
       setGenerating(false);
     }
   };
@@ -2379,7 +2809,7 @@ export default function GeneratePage() {
                                 } ${hasActiveCustomReferences ? 'opacity-50' : ''}
                                 `}
                                 onClick={() => {
-                                  setSelectedPresetImage(selectedPresetImage?.id === image.id ? null : image);
+                                  setSelectedPresetImage(image);
                                   setSelectedCustomReferenceIds([]);
                                 }}
                               >
@@ -2663,7 +3093,7 @@ export default function GeneratePage() {
                                   <select
                                     value={selectedProviderId}
                                     onChange={(e) => setSelectedProviderId(e.target.value)}
-                                    onFocus={() => fetchImageProviders()}
+                                    onFocus={() => void fetchImageProviders('provider-select-focus')}
                                     className={`w-full appearance-none bg-transparent px-4 py-3 pr-11 text-sm font-medium outline-none ${darkMode ? 'text-white' : 'text-gray-900'}`}
                                   >
                                     {imageProviders.map((provider) => (
@@ -3428,6 +3858,9 @@ export default function GeneratePage() {
                           }}
                         >
                           {templateHistories.map((item) => (
+                            (() => {
+                              const meta = getHistoryMetaSummary(item);
+                              return (
                             <div
                               role="button"
                               tabIndex={item.outputImageUrl ? 0 : -1}
@@ -3452,14 +3885,44 @@ export default function GeneratePage() {
                                     alt={item.templateName}
                                     className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
                                   />
+                                ) : item.status === 'queued' || item.status === 'processing' ? (
+                                  <div className="flex h-full flex-col items-center justify-center gap-2">
+                                    <Loader2 className={`h-5 w-5 animate-spin ${darkMode ? 'text-violet-300' : 'text-violet-600'}`} />
+                                    <span className={`text-xs font-medium ${darkMode ? 'text-violet-200' : 'text-violet-700'}`}>
+                                      {item.status === 'queued' ? '任务排队中' : '正在生成中'}
+                                    </span>
+                                  </div>
                                 ) : (
-                                  <div className="flex h-full items-center justify-center">
+                                  <div className="flex h-full flex-col items-center justify-center gap-2 px-3 text-center">
                                     <ImageIcon className={`h-5 w-5 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`} />
+                                    <span className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                                      {item.errorMessage || '暂无出图'}
+                                    </span>
                                   </div>
                                 )}
-                                <div className={`absolute left-2 top-2 rounded-full px-2 py-0.5 text-[10px] font-semibold ${item.status === 'success' ? 'bg-violet-600 text-white' : 'bg-gray-800 text-white'}`}>
-                                  {item.status === 'success' ? '已生成' : item.status}
+                                <div className={`absolute left-2 top-2 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                                  item.status === 'success'
+                                    ? 'bg-violet-600 text-white'
+                                    : item.status === 'queued' || item.status === 'processing'
+                                      ? 'bg-amber-500 text-white'
+                                      : 'bg-gray-800 text-white'
+                                }`}>
+                                  {getHistoryStatusLabel(item.status)}
                                 </div>
+                                {(meta.providerLabel || meta.durationLabel) && (
+                                  <div className="absolute bottom-2 left-2 flex flex-wrap gap-1">
+                                    {meta.providerLabel && (
+                                      <span className="rounded-full bg-black/45 px-2 py-0.5 text-[9px] text-white backdrop-blur-md">
+                                        {meta.providerLabel}
+                                      </span>
+                                    )}
+                                    {meta.durationLabel && (
+                                      <span className="rounded-full bg-black/45 px-2 py-0.5 text-[9px] text-white backdrop-blur-md">
+                                        {meta.durationLabel}
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
                                 <div className="absolute inset-0 flex items-center justify-center gap-2 bg-black/50 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
                                   <ActionIconButton
                                     label="套用本次参数"
@@ -3487,6 +3950,8 @@ export default function GeneratePage() {
                                 </div>
                               </div>
                             </div>
+                              );
+                            })()
                           ))}
                         </div>
 
@@ -3518,6 +3983,9 @@ export default function GeneratePage() {
                               <div className="haipablo-scrollbar p-5 lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
                                 <div className="mx-auto grid w-full max-w-[1320px] grid-cols-1 gap-4 content-start md:grid-cols-2 lg:grid-cols-3">
                                   {templateHistories.map((item) => (
+                                    (() => {
+                                      const meta = getHistoryMetaSummary(item);
+                                      return (
                                     <div
                                       key={item.id}
                                       className={`overflow-hidden rounded-2xl border transition-colors ${darkMode ? 'border-[#2f3a31] bg-[#141915]' : 'border-gray-200 bg-white'}`}
@@ -3532,17 +4000,48 @@ export default function GeneratePage() {
                                             alt={item.templateName}
                                             className="h-full w-full object-cover"
                                           />
+                                        ) : item.status === 'queued' || item.status === 'processing' ? (
+                                          <div className="flex h-full items-center justify-center">
+                                            <div className="text-center">
+                                              <Loader2 className={`mx-auto h-8 w-8 animate-spin ${darkMode ? 'text-violet-300' : 'text-violet-600'}`} />
+                                              <p className={`mt-2 text-xs ${darkMode ? 'text-violet-200' : 'text-violet-700'}`}>
+                                                {item.status === 'queued' ? '任务排队中，等待处理' : '任务处理中，正在出图'}
+                                              </p>
+                                            </div>
+                                          </div>
                                         ) : (
                                           <div className="flex h-full items-center justify-center">
                                             <div className="text-center">
                                               <ImageIcon className={`mx-auto h-8 w-8 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`} />
-                                              <p className={`mt-2 text-xs ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>暂无出图</p>
+                                              <p className={`mt-2 text-xs ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+                                                {item.errorMessage || '暂无出图'}
+                                              </p>
                                             </div>
                                           </div>
                                         )}
-                                        <div className={`absolute left-3 top-3 rounded-full px-2.5 py-1 text-[10px] font-semibold ${item.status === 'success' ? 'bg-violet-600 text-white' : 'bg-gray-800 text-white'}`}>
-                                          {item.status === 'success' ? '已生成' : item.status}
+                                        <div className={`absolute left-3 top-3 rounded-full px-2.5 py-1 text-[10px] font-semibold ${
+                                          item.status === 'success'
+                                            ? 'bg-violet-600 text-white'
+                                            : item.status === 'queued' || item.status === 'processing'
+                                              ? 'bg-amber-500 text-white'
+                                              : 'bg-gray-800 text-white'
+                                        }`}>
+                                          {getHistoryStatusLabel(item.status)}
                                         </div>
+                                        {(meta.providerLabel || meta.durationLabel) && (
+                                          <div className="absolute bottom-3 left-3 flex flex-wrap gap-1">
+                                            {meta.providerLabel && (
+                                              <span className="rounded-full bg-black/45 px-2 py-0.5 text-[10px] text-white backdrop-blur-md">
+                                                {meta.providerLabel}
+                                              </span>
+                                            )}
+                                            {meta.durationLabel && (
+                                              <span className="rounded-full bg-black/45 px-2 py-0.5 text-[10px] text-white backdrop-blur-md">
+                                                {meta.durationLabel}
+                                              </span>
+                                            )}
+                                          </div>
+                                        )}
                                         <div className="absolute inset-0 flex items-center justify-center gap-2 bg-black/50 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
                                           <ActionIconButton
                                             label="套用本次参数"
@@ -3588,6 +4087,27 @@ export default function GeneratePage() {
                                           </span>
                                         </div>
 
+                                        {(meta.providerLabel || meta.durationLabel) && (
+                                          <div className="flex flex-wrap gap-2">
+                                            {meta.providerLabel && (
+                                              <span className={`rounded-full px-2 py-1 text-[10px] font-medium ${darkMode ? 'bg-[#202821] text-gray-300' : 'bg-gray-100 text-gray-600'}`}>
+                                                {meta.providerLabel}
+                                              </span>
+                                            )}
+                                            {meta.durationLabel && (
+                                              <span className={`rounded-full px-2 py-1 text-[10px] font-medium ${darkMode ? 'bg-[#202821] text-gray-300' : 'bg-gray-100 text-gray-600'}`}>
+                                                {meta.durationLabel}
+                                              </span>
+                                            )}
+                                          </div>
+                                        )}
+
+                                        {item.errorMessage && item.status === 'failed' && (
+                                          <p className={`line-clamp-2 text-xs leading-5 ${darkMode ? 'text-red-300' : 'text-red-500'}`}>
+                                            {item.errorMessage}
+                                          </p>
+                                        )}
+
                                         <div className="flex items-center justify-end gap-2">
                                           <ActionIconButton
                                             label="套用本次参数"
@@ -3612,6 +4132,8 @@ export default function GeneratePage() {
                                         </div>
                                       </div>
                                     </div>
+                                      );
+                                    })()
                                   ))}
                                 </div>
                               </div>

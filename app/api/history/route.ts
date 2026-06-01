@@ -4,14 +4,34 @@ import { getCurrentUser } from '@/lib/auth';
 
 export async function GET(request: NextRequest) {
   try {
+    const currentUser = await getCurrentUser();
+
+    if (!currentUser) {
+      return NextResponse.json(
+        { error: '未登录' },
+        { status: 401 }
+      );
+    }
+
     const { searchParams } = new URL(request.url);
     const userId = searchParams.get('userId');
     const requesterId = searchParams.get('requesterId');
     const limit = parseInt(searchParams.get('limit') || '50');
     const offset = parseInt(searchParams.get('offset') || '0');
+    const isAdmin =
+      currentUser.role === 'admin' ||
+      currentUser.role === 'sub_admin' ||
+      currentUser.role === 'superadmin' ||
+      currentUser.username === 'admin';
 
-    // 如果指定了 userId，直接查询该用户的历史
     if (userId) {
+      if (userId !== currentUser.userId && !isAdmin) {
+        return NextResponse.json(
+          { error: '权限不足' },
+          { status: 403 }
+        );
+      }
+
       const histories = await prisma.generationHistory.findMany({
         where: { userId },
         include: {
@@ -31,41 +51,36 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(histories);
     }
 
-    // 如果没有 userId，检查 requesterId 是否是管理员，如果是则返回所有历史
     if (requesterId) {
-      const requester = await prisma.user.findUnique({
-        where: { id: requesterId }
-      });
-
-      if (requester && (requester.role === 'admin' || requester.username === 'admin')) {
-        const histories = await prisma.generationHistory.findMany({
-          include: {
-            user: {
-              select: {
-                name: true,
-                username: true,
-                email: true,
-                avatar: true
-              }
-            }
-          },
-          orderBy: { createdAt: 'desc' },
-          take: limit,
-          skip: offset
-        });
-        
-        const total = await prisma.generationHistory.count();
-        
-        return NextResponse.json({
-          items: histories,
-          total
-        });
+      if (requesterId !== currentUser.userId || !isAdmin) {
+        return NextResponse.json(
+          { error: '权限不足' },
+          { status: 403 }
+        );
       }
 
-      return NextResponse.json(
-        { error: '权限不足' },
-        { status: 403 }
-      );
+      const histories = await prisma.generationHistory.findMany({
+        include: {
+          user: {
+            select: {
+              name: true,
+              username: true,
+              email: true,
+              avatar: true
+            }
+          }
+        },
+        orderBy: { createdAt: 'desc' },
+        take: limit,
+        skip: offset
+      });
+
+      const total = await prisma.generationHistory.count();
+
+      return NextResponse.json({
+        items: histories,
+        total
+      });
     }
 
     return NextResponse.json(
@@ -83,10 +98,34 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { userId, templateId, templateName, prompt, variables, configJson, outputImageUrl, thumbnailUrl } = body;
+    const currentUser = await getCurrentUser();
 
-    if (!userId || !prompt) {
+    if (!currentUser) {
+      return NextResponse.json(
+        { error: '未登录' },
+        { status: 401 }
+      );
+    }
+
+    const body = await request.json();
+    const {
+      templateId,
+      templateName,
+      prompt,
+      variables,
+      configJson,
+      outputImageUrl,
+      thumbnailUrl,
+      status,
+      errorMessage,
+      taskType,
+      providerId,
+      startedAt,
+      finishedAt,
+      creditsUsed
+    } = body;
+
+    if (!prompt) {
       return NextResponse.json(
         { error: '缺少必填字段' },
         { status: 400 }
@@ -95,7 +134,7 @@ export async function POST(request: NextRequest) {
 
     const history = await prisma.generationHistory.create({
       data: {
-        userId,
+        userId: currentUser.userId,
         templateId: templateId || null,
         templateName: templateName || '未命名',
         prompt,
@@ -103,7 +142,17 @@ export async function POST(request: NextRequest) {
         configJson: configJson ? JSON.stringify(configJson) : null,
         outputImageUrl: outputImageUrl || null,
         thumbnailUrl: thumbnailUrl || null,
-        status: outputImageUrl ? 'success' : 'failed'
+        status: typeof status === 'string' && status.length > 0
+          ? status
+          : (outputImageUrl ? 'success' : 'failed'),
+        errorMessage: errorMessage || null,
+        taskType: taskType || null,
+        providerId: providerId || null,
+        startedAt: startedAt ? new Date(startedAt) : null,
+        finishedAt: finishedAt ? new Date(finishedAt) : null,
+        creditsUsed: typeof creditsUsed === 'number'
+          ? creditsUsed
+          : (outputImageUrl ? 1 : 0)
       }
     });
 

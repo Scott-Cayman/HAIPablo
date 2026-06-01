@@ -30,8 +30,60 @@ interface History {
   outputImageUrl: string | null;
   thumbnailUrl: string | null;
   status: string;
+  errorMessage?: string | null;
+  providerId?: string | null;
+  startedAt?: string | null;
+  finishedAt?: string | null;
   creditsUsed: number;
   createdAt: string;
+}
+
+function isPendingHistoryStatus(status: string) {
+  return status === 'queued' || status === 'processing';
+}
+
+function getPendingHistoryLabel(status: string) {
+  return status === 'queued' ? '任务排队中...' : '正在生成中...';
+}
+
+function formatDuration(startedAt?: string | null, finishedAt?: string | null) {
+  if (!startedAt) {
+    return null;
+  }
+
+  const startMs = new Date(startedAt).getTime();
+  const endMs = finishedAt ? new Date(finishedAt).getTime() : Date.now();
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) {
+    return null;
+  }
+
+  const diffMs = Math.max(0, endMs - startMs);
+  if (diffMs < 1000) {
+    return '<1s';
+  }
+
+  const diffSeconds = Math.round(diffMs / 1000);
+  if (diffSeconds < 60) {
+    return `${diffSeconds}s`;
+  }
+
+  const diffMinutes = Math.round(diffSeconds / 60);
+  if (diffMinutes < 60) {
+    return `${diffMinutes}m`;
+  }
+
+  const diffHours = Math.round(diffMinutes / 60);
+  return `${diffHours}h`;
+}
+
+function getHistoryMeta(history: History) {
+  const duration = formatDuration(history.startedAt, history.finishedAt);
+  return {
+    providerLabel: history.providerId ? `供应商 ${history.providerId}` : null,
+    durationLabel: duration
+      ? `${history.finishedAt ? '耗时' : '进行'} ${duration}`
+      : null
+  };
 }
 
 export default function HistoryPage() {
@@ -130,6 +182,23 @@ export default function HistoryPage() {
 
     fetchUser();
   }, []);
+
+  useEffect(() => {
+    if (!user?.id) {
+      return;
+    }
+
+    const hasPendingItems = histories.some((item) => isPendingHistoryStatus(item.status));
+    if (!hasPendingItems) {
+      return;
+    }
+
+    const timer = window.setInterval(() => {
+      void fetchHistory(user.id);
+    }, 5000);
+
+    return () => window.clearInterval(timer);
+  }, [histories, user?.id]);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -343,6 +412,9 @@ export default function HistoryPage() {
                 </h2>
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
                   {group.items.map((history, index) => (
+                    (() => {
+                      const meta = getHistoryMeta(history);
+                      return (
                     <motion.div
                       key={history.id}
                       initial={{ opacity: 0, scale: 0.95 }}
@@ -350,17 +422,27 @@ export default function HistoryPage() {
                       transition={{ delay: index * 0.05 }}
                       className="group relative aspect-square rounded-xl overflow-hidden bg-gray-100 border border-gray-200 shadow-sm"
                     >
-                      {history.status === 'processing' ? (
+                      {isPendingHistoryStatus(history.status) ? (
                         <div className="w-full h-full flex flex-col items-center justify-center text-violet-600 bg-violet-50/50">
                           <Loader2 className="w-8 h-8 animate-spin mb-2" />
-                          <span className="text-xs font-medium">正在生成中...</span>
+                          <span className="text-xs font-medium">{getPendingHistoryLabel(history.status)}</span>
                           <div className="absolute top-2 right-2 flex flex-col gap-1 items-end pointer-events-none">
                             <span className="px-2 py-0.5 bg-black/40 text-white text-[10px] rounded backdrop-blur-md">
                               {history.templateName}
                             </span>
                             <span className="px-2 py-0.5 bg-violet-600/60 text-white text-[9px] rounded backdrop-blur-md">
-                              消耗 1 潮能力
+                              消耗 {history.creditsUsed ?? 1} 潮能力
                             </span>
+                            {meta.providerLabel && (
+                              <span className="px-2 py-0.5 bg-black/30 text-white text-[8px] rounded backdrop-blur-md">
+                                {meta.providerLabel}
+                              </span>
+                            )}
+                            {meta.durationLabel && (
+                              <span className="px-2 py-0.5 bg-black/30 text-white text-[8px] rounded backdrop-blur-md">
+                                {meta.durationLabel}
+                              </span>
+                            )}
                           </div>
                         </div>
                       ) : history.outputImageUrl ? (
@@ -405,15 +487,30 @@ export default function HistoryPage() {
                             }`}>
                               消耗 {history.creditsUsed ?? (history.status === 'success' ? 1 : 0)} 潮能力
                             </span>
+                            {meta.providerLabel && (
+                              <span className="px-2 py-0.5 bg-black/30 text-white text-[8px] rounded backdrop-blur-md">
+                                {meta.providerLabel}
+                              </span>
+                            )}
+                            {meta.durationLabel && (
+                              <span className="px-2 py-0.5 bg-black/30 text-white text-[8px] rounded backdrop-blur-md">
+                                {meta.durationLabel}
+                              </span>
+                            )}
                             <span className="px-2 py-0.5 bg-black/30 text-white text-[8px] rounded backdrop-blur-md">
                               {new Date(history.createdAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
                             </span>
                           </div>
                         </>
                       ) : (
-                        <div className="w-full h-full flex flex-col items-center justify-center text-gray-400">
+                        <div className="w-full h-full flex flex-col items-center justify-center text-gray-400 px-3 text-center">
                           <ImageIcon className="w-8 h-8 mb-2 opacity-50" />
-                          <span className="text-xs">生成失败</span>
+                          <span className="text-xs font-medium">生成失败</span>
+                          {history.errorMessage && (
+                            <span className="mt-2 line-clamp-3 text-[11px] leading-4 text-red-500">
+                              {history.errorMessage}
+                            </span>
+                          )}
                           <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-row items-center justify-center gap-4 backdrop-blur-sm">
                             <button
                               onClick={() => handleReuse(history)}
@@ -447,10 +544,22 @@ export default function HistoryPage() {
                             <span className="px-2 py-0.5 bg-red-600/60 text-white text-[9px] rounded backdrop-blur-md">
                               消耗 0 潮能力
                             </span>
+                            {meta.providerLabel && (
+                              <span className="px-2 py-0.5 bg-black/30 text-white text-[8px] rounded backdrop-blur-md">
+                                {meta.providerLabel}
+                              </span>
+                            )}
+                            {meta.durationLabel && (
+                              <span className="px-2 py-0.5 bg-black/30 text-white text-[8px] rounded backdrop-blur-md">
+                                {meta.durationLabel}
+                              </span>
+                            )}
                           </div>
                         </div>
                       )}
                     </motion.div>
+                      );
+                    })()
                   ))}
                 </div>
               </div>

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { UserMenuDropdown } from '@/components/UserMenuDropdown';
 import { AdminThemeModal } from '@/components/AdminThemeModal';
 import {
@@ -360,6 +360,7 @@ function TemplatePreviewImage({
 }
 
 export default function TemplatesPage() {
+  const searchParams = useSearchParams();
   const [featureGroups, setFeatureGroups] = useState<FeatureGroup[]>([]);
   const [selectedGroup, setSelectedGroup] = useState<FeatureGroup | null>(null);
   const [loading, setLoading] = useState(true);
@@ -528,7 +529,11 @@ export default function TemplatesPage() {
 
       setFeatureGroupsError('');
       setFeatureGroups(data);
-      setSelectedGroup(data.length > 0 ? data[0] : null);
+      const requestedGroupKey = searchParams.get('group');
+      const initialGroup = requestedGroupKey
+        ? data.find((group: FeatureGroup) => group.key === requestedGroupKey) ?? data[0]
+        : data[0];
+      setSelectedGroup(initialGroup ?? null);
     } catch (error) {
       console.error('获取功能组失败:', error);
       setFeatureGroups([]);

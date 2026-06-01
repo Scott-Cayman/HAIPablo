@@ -167,8 +167,14 @@ model GenerationHistory {
   outputImageUrl  String?
   thumbnailUrl    String?
   status          String   @default("success")
+  errorMessage    String?
+  taskType        String?
+  providerId      String?
+  startedAt       DateTime?
+  finishedAt      DateTime?
   creditsUsed     Int      @default(1)
   createdAt       DateTime @default(now())
+  updatedAt       DateTime @default(now()) @updatedAt
 }
 
 model SystemSetting {

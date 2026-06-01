@@ -1,6 +1,6 @@
 {
   "meta": {
-    "createdAt": "2026-06-01T04:00:02.495Z",
+    "createdAt": "2026-05-29T04:00:02.477Z",
     "provider": "postgresql",
     "host": "113.59.125.17",
     "port": "5458",
@@ -13,14 +13,14 @@
       "Asset": 0,
       "Department": 178,
       "FeatureGroup": 6,
-      "GenerationHistory": 146,
+      "GenerationHistory": 136,
       "GenerationJob": 0,
       "GenerationJobItem": 0,
       "Project": 0,
       "SystemSetting": 2,
       "User": 602,
       "VerificationCode": 0,
-      "_prisma_migrations": 2
+      "_prisma_migrations": 1
     },
     "schemaCheck": {
       "actionTemplateColumns": [
@@ -57,7 +57,7 @@
       "hasEnableCustomReferenceUpload": true,
       "hasAllowMultipleCustomReferences": true,
       "hasPrismaMigrationsTable": true,
-      "prismaMigrationCount": 2
+      "prismaMigrationCount": 1
     }
   },
   "tables": {
@@ -273,6 +273,36 @@
         "enableCustomReferenceUpload": false
       },
       {
+        "id": "cmowq3ype0001t9jv8xff7gx5",
+        "featureGroupId": "cmowb8faf000017jbyyi53zzs",
+        "name": "喜报海报",
+        "key": "喜报_战报生成",
+        "description": "一键生成中标/签约等喜报海报",
+        "mode": "edit",
+        "promptTemplate": "请根据我提供的项目信息，生成一张9:16竖版喜报海报，适合公司内部发布、朋友圈传播、公众号配图和钉钉群分享。\n\n左上角必须放置参考图1，Logo需清晰、完整、比例正确，不要变形，不要遮挡，不要重新设计Logo。\n\n海报主标题为“喜报”，“喜报”两个字必须最大、最醒目，体现荣誉感、仪式感和喜庆感，可以使用高级书法字体、金属质感字体、立体标题字或大气标题字，但不要过度花哨。\n\n请在画面中清晰呈现以下文字信息：\n\n热烈祝贺var_5\n中标var_6\n\n金额var_3元\n\n项目团队：\nvar_4\n\n创意团队：\nvar_1\n\n特别鸣谢：\nvar_2\n\n请重点突出【金额】，金额数字要大、醒目、有视觉冲击力，可以使用金色、红色、发光、描边、数字卡片或视觉中心区域强化表达。项目名称必须完整清楚，人员名单必须全部写清楚，不得遗漏、不得改名、不得生成错别字。\n\n请根据项目类型自动匹配视觉风格：\n【项目类型】\n\n如果是汽车项目，画面要年轻、新潮、有速度感，可加入汽车流线、光轨、金属质感、城市道路、速度线等元素；\n如果是政府会议或政务项目，画面要正式、庄重、大气，可加入红金色系、城市天际线、会堂光影、国风纹样、丝带、光束等元素；\n如果是经销商大会或品牌大会，画面要大气、有舞台感，可加入舞台灯光、发布会现场、品牌主视觉色、金色粒子和空间纵深；\n如果是互联网、科技、AI或数字化项目，画面要科技感强，可加入深蓝、紫色、银色、数据流、网格、数字粒子、AI光环、未来感界面等元素；\n如果是白酒或高端消费品项目，画面要高级、东方、质感强，可加入红金、鎏金、东方纹样、山水意境、礼盒质感等元素；\n如果是校园、文旅或年轻化项目，画面要清新、有活力，但仍然保持喜报的荣誉感。\n\n整体风格要求：高级、大气、喜庆、有层次、有光影、有传播感，体现一家专业活动营销集团的品牌气质。画面不要杂乱，不要廉价红金模板感，不要生成过多无关文字，不要添加空泛口号。\n\n版式建议：\n顶部左上角放Logo；\n中上部放大标题“喜报”；\n中部放“热烈祝贺 + 公司/部门 + 中标项目名称”；\n中下部重点突出金额；\n底部整齐排列项目团队、创意团队、特别鸣谢。\n\n请确保所有文字清晰、准确、可读，尤其是项目名称、金额和人员名单。\n```\n\n---\n\n```text\n请优先保证文字准确性，如果文字过多，宁可减少装饰元素，也要保证姓名、金额、项目名称清晰可读，并且如果提示词中输入的名字有标点，你都以空格形式隔开呈现，注意优化各种文字的换行，自动修复明显文字错误比如金额加了两个元。",
+        "negativePrompt": "",
+        "defaultSize": "auto",
+        "defaultQuality": "high",
+        "responseFormat": "b64_json",
+        "inputSlotsJson": "[]",
+        "variablesJson": "[{\"id\":\"var_1778233048206\",\"key\":\"var_5\",\"label\":\"公司或部门名称\",\"type\":\"text\",\"placeholder\":\"请输入...\",\"required\":true},{\"id\":\"var_1778233099758\",\"key\":\"var_6\",\"label\":\"中标事件\",\"type\":\"text\",\"placeholder\":\"请输入中标事件\",\"required\":true},{\"id\":\"var_1778232972285\",\"key\":\"var_3\",\"label\":\"金额\",\"type\":\"text\",\"placeholder\":\"请输入中标金额\",\"required\":false},{\"id\":\"var_1778232990848\",\"key\":\"var_4\",\"label\":\"项目人员\",\"type\":\"text\",\"placeholder\":\"请输入项目人员名单\",\"required\":false},{\"id\":\"var_1778232908927\",\"key\":\"var_1\",\"label\":\"创意人员名单\",\"type\":\"text\",\"placeholder\":\"请输入...创意人员名单\",\"required\":false},{\"id\":\"var_1778232948652\",\"key\":\"var_2\",\"label\":\"特别鸣谢\",\"type\":\"text\",\"placeholder\":\"请输入特别鸣谢成员名单\",\"required\":false}]",
+        "referenceImagesJson": "[{\"id\":\"img_1778232898843_7ame3k8uq\",\"url\":\"/storage/uploads/1778232898828_aa0zekdgs.png\",\"name\":\"集团logo-C.png\"}]",
+        "coverImageJson": "{\"id\":\"cover_1778294362754\",\"url\":\"/storage/uploads/1778294362742_q6mn2nrql.png\",\"name\":\"PixPin_2026-05-09_10-00-15.png\"}",
+        "coverMetadataJson": "{\"title\":\"\",\"description\":\"\"}",
+        "allowUserPrompt": true,
+        "userPromptPriorityDefault": false,
+        "enableSpecifiedColors": false,
+        "specifiedColorsJson": "[]",
+        "showMainVisual": false,
+        "enableReferenceBatchMode": false,
+        "enabled": true,
+        "sortOrder": 0,
+        "createdAt": "2026-05-08T01:39:18.770Z",
+        "updatedAt": "2026-05-20T20:01:29.635Z",
+        "allowMultipleCustomReferences": false,
+        "enableCustomReferenceUpload": false
+      },
+      {
         "id": "cmoxppat00001la284d6pdger",
         "featureGroupId": "cmowmv6ft000913ez87zqzvf3",
         "name": "出海形象照",
@@ -359,36 +389,6 @@
         "sortOrder": 0,
         "createdAt": "2026-05-07T18:13:53.206Z",
         "updatedAt": "2026-05-24T23:08:21.434Z",
-        "allowMultipleCustomReferences": false,
-        "enableCustomReferenceUpload": false
-      },
-      {
-        "id": "cmowq3ype0001t9jv8xff7gx5",
-        "featureGroupId": "cmowb8faf000017jbyyi53zzs",
-        "name": "喜报海报",
-        "key": "喜报_战报生成",
-        "description": "一键生成中标/签约等喜报海报",
-        "mode": "edit",
-        "promptTemplate": "请根据我提供的项目信息，生成一张9:16竖版商业中标海报\n注意结合var_6的内容，根据这个中标的品牌调整设计风格，决定设计配色，结合var_6的主体品牌调性设计var_6的风格并结合其视觉元素进行设计。多加入品牌视觉风格。\n左上角必须放置参考图1，Logo需清晰、完整、比例正确，不要变形，不要遮挡，不要重新设计Logo。\n\n\n\n请根据内容合理性自动在画面中清晰呈现以下文字信息：\n\n热烈祝贺var_5\n中标var_6\n\n金额var_3\n\n项目团队：\nvar_4\n\n创意团队：\nvar_1\n\n特别鸣谢：\nvar_2\n\n请重点突出【金额】，金额数字要大、醒目、有视觉冲击力，项目名称必须完整清楚，人员名单必须全部写清楚，不得遗漏、不得改名、不得生成错别字。\n\n\n\n整体风格要求：高级、大气、有层次、有光影、有传播感，体现一家专业活动营销集团的品牌气质。画面不要杂乱，\n\n版式建议：\n顶部左上角放Logo；\n中上部放大标题“喜报”；\n中部放“热烈祝贺 + 公司/部门 + 中标项目名称”；\n中下部重点突出金额；\n底部整齐排列项目团队、创意团队、特别鸣谢。\n\n并且如果提示词中输入的名字有标点，你都以空格形式隔开呈现，注意优化各种文字的换行，自动修复明显文字错误比如金额加了两个元。",
-        "negativePrompt": "不要廉价红金模板感，不要生成过多无关文字，不要添加空泛口号。",
-        "defaultSize": "auto",
-        "defaultQuality": "high",
-        "responseFormat": "b64_json",
-        "inputSlotsJson": "[]",
-        "variablesJson": "[{\"id\":\"var_1778233048206\",\"key\":\"var_5\",\"label\":\"公司或部门名称\",\"type\":\"text\",\"placeholder\":\"请输入...\",\"required\":true},{\"id\":\"var_1778233099758\",\"key\":\"var_6\",\"label\":\"中标事件\",\"type\":\"text\",\"placeholder\":\"请输入中标事件\",\"required\":true},{\"id\":\"var_1778232972285\",\"key\":\"var_3\",\"label\":\"金额\",\"type\":\"text\",\"placeholder\":\"请输入中标金额\",\"required\":false},{\"id\":\"var_1778232990848\",\"key\":\"var_4\",\"label\":\"项目人员\",\"type\":\"text\",\"placeholder\":\"请输入项目人员名单\",\"required\":false},{\"id\":\"var_1778232908927\",\"key\":\"var_1\",\"label\":\"创意人员名单\",\"type\":\"text\",\"placeholder\":\"请输入...创意人员名单\",\"required\":false},{\"id\":\"var_1778232948652\",\"key\":\"var_2\",\"label\":\"特别鸣谢\",\"type\":\"text\",\"placeholder\":\"请输入特别鸣谢成员名单\",\"required\":false}]",
-        "referenceImagesJson": "[{\"id\":\"img_1778232898843_7ame3k8uq\",\"url\":\"/storage/uploads/1778232898828_aa0zekdgs.png\",\"name\":\"集团logo-C.png\"}]",
-        "coverImageJson": "{\"id\":\"cover_1778294362754\",\"url\":\"/storage/uploads/1778294362742_q6mn2nrql.png\",\"name\":\"PixPin_2026-05-09_10-00-15.png\"}",
-        "coverMetadataJson": "{\"title\":\"\",\"description\":\"\"}",
-        "allowUserPrompt": true,
-        "userPromptPriorityDefault": false,
-        "enableSpecifiedColors": false,
-        "specifiedColorsJson": "[]",
-        "showMainVisual": false,
-        "enableReferenceBatchMode": false,
-        "enabled": true,
-        "sortOrder": 0,
-        "createdAt": "2026-05-08T01:39:18.770Z",
-        "updatedAt": "2026-05-31T18:06:06.352Z",
         "allowMultipleCustomReferences": false,
         "enableCustomReferenceUpload": false
       },
@@ -2201,13 +2201,7 @@
         "thumbnailUrl": "/storage/outputs/generated_1779439286151_b65395e1.png",
         "status": "success",
         "creditsUsed": 1,
-        "createdAt": "2026-05-22T00:41:26.143Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-22T00:41:26.143Z"
       },
       {
         "id": "cmpgobtob0005nnbgheey7cur",
@@ -2221,13 +2215,7 @@
         "thumbnailUrl": "/storage/outputs/generated_1779439489789_fa91428d.png",
         "status": "success",
         "creditsUsed": 1,
-        "createdAt": "2026-05-22T00:44:49.784Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-22T00:44:49.784Z"
       },
       {
         "id": "cmpm276of000yubjntgi262ed",
@@ -2241,13 +2229,7 @@
         "thumbnailUrl": null,
         "status": "failed",
         "creditsUsed": 1,
-        "createdAt": "2026-05-25T19:11:58.857Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-25T19:11:58.857Z"
       },
       {
         "id": "cmpnuz5b2000t48fb7r7dk2ri",
@@ -2261,13 +2243,7 @@
         "thumbnailUrl": "https://himiceai.oss-cn-guangzhou.aliyuncs.com/outputs/generated_1779873918880_db006529.png",
         "status": "success",
         "creditsUsed": 1,
-        "createdAt": "2026-05-27T01:25:18.874Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-27T01:25:18.874Z"
       },
       {
         "id": "cmpnuz4c4000q48fb7nliwnrs",
@@ -2281,13 +2257,7 @@
         "thumbnailUrl": "https://himiceai.oss-cn-guangzhou.aliyuncs.com/outputs/generated_1779873917622_ccb67d81.png",
         "status": "success",
         "creditsUsed": 1,
-        "createdAt": "2026-05-27T01:25:17.617Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-27T01:25:17.617Z"
       },
       {
         "id": "cmpgog2gh0008nnbgwop8b6c4",
@@ -2301,13 +2271,7 @@
         "thumbnailUrl": "/storage/outputs/generated_1779439687796_0a298f87.png",
         "status": "success",
         "creditsUsed": 1,
-        "createdAt": "2026-05-22T00:48:07.791Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-22T00:48:07.791Z"
       },
       {
         "id": "cmpknb1ze0002iu53clph9vd5",
@@ -2321,13 +2285,7 @@
         "thumbnailUrl": "/storage/outputs/generated_1779679638990_270ff4ac.png",
         "status": "success",
         "creditsUsed": 1,
-        "createdAt": "2026-05-24T19:27:18.979Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-24T19:27:18.979Z"
       },
       {
         "id": "cmpl1ddb70005ubjnw1qg9w0p",
@@ -2341,13 +2299,7 @@
         "thumbnailUrl": "/storage/outputs/generated_1779703261606_e8618297.png",
         "status": "success",
         "creditsUsed": 1,
-        "createdAt": "2026-05-25T02:01:01.598Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-25T02:01:01.598Z"
       },
       {
         "id": "cmpl1h1y20008ubjnsnj53w1y",
@@ -2361,13 +2313,7 @@
         "thumbnailUrl": "/storage/outputs/generated_1779703433500_321c2483.png",
         "status": "success",
         "creditsUsed": 1,
-        "createdAt": "2026-05-25T02:03:53.495Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-25T02:03:53.495Z"
       },
       {
         "id": "cmpm2fz5f0011ubjnyxcg4w4z",
@@ -2381,13 +2327,7 @@
         "thumbnailUrl": null,
         "status": "failed",
         "creditsUsed": 1,
-        "createdAt": "2026-05-25T19:18:49.005Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-25T19:18:49.005Z"
       },
       {
         "id": "cmpnv42qb000w48fbenpqit4h",
@@ -2401,13 +2341,7 @@
         "thumbnailUrl": null,
         "status": "failed",
         "creditsUsed": 1,
-        "createdAt": "2026-05-27T01:29:08.816Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-27T01:29:08.816Z"
       },
       {
         "id": "cmpgr9nrj0002ckd09qchjt2c",
@@ -2421,13 +2355,7 @@
         "thumbnailUrl": "/storage/outputs/generated_1779444427667_4084bd6f.png",
         "status": "success",
         "creditsUsed": 1,
-        "createdAt": "2026-05-22T02:07:07.659Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-22T02:07:07.659Z"
       },
       {
         "id": "cmpknt1ei0002rfrn8q5ez2to",
@@ -2441,13 +2369,7 @@
         "thumbnailUrl": "/storage/outputs/generated_1779680478050_b72ac606.png",
         "status": "success",
         "creditsUsed": 1,
-        "createdAt": "2026-05-24T19:41:18.035Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-24T19:41:18.035Z"
       },
       {
         "id": "cmplzx23d000eubjnkk72gfzc",
@@ -2461,13 +2383,7 @@
         "thumbnailUrl": null,
         "status": "failed",
         "creditsUsed": 1,
-        "createdAt": "2026-05-25T18:08:07.125Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-25T18:08:07.125Z"
       },
       {
         "id": "cmpmr90j70005qgji59kbqndn",
@@ -2481,13 +2397,7 @@
         "thumbnailUrl": null,
         "status": "failed",
         "creditsUsed": 1,
-        "createdAt": "2026-05-26T06:53:14.606Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-26T06:53:14.606Z"
       },
       {
         "id": "cmpou4bkx0005iyzxmmwjxmkq",
@@ -2501,13 +2411,7 @@
         "thumbnailUrl": "https://himiceai.oss-cn-guangzhou.aliyuncs.com/outputs/generated_1779932946851_c5a33522.png",
         "status": "success",
         "creditsUsed": 1,
-        "createdAt": "2026-05-27T17:49:06.847Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-27T17:49:06.847Z"
       },
       {
         "id": "cmpkk97kt00021183t412a630",
@@ -2521,13 +2425,7 @@
         "thumbnailUrl": null,
         "status": "failed",
         "creditsUsed": 1,
-        "createdAt": "2026-05-24T18:01:54.071Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-24T18:01:54.071Z"
       },
       {
         "id": "cmpkkct3t00051183lvj974i8",
@@ -2541,13 +2439,7 @@
         "thumbnailUrl": "/storage/outputs/generated_1779674681947_81cb2c92.png",
         "status": "success",
         "creditsUsed": 1,
-        "createdAt": "2026-05-24T18:04:41.941Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-24T18:04:41.941Z"
       },
       {
         "id": "cmpm04iss000hubjnc5diims8",
@@ -2561,13 +2453,7 @@
         "thumbnailUrl": null,
         "status": "failed",
         "creditsUsed": 1,
-        "createdAt": "2026-05-25T18:13:55.365Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-25T18:13:55.365Z"
       },
       {
         "id": "cmovawspz0003rgye7juhl49f",
@@ -2581,13 +2467,7 @@
         "thumbnailUrl": "/storage/outputs/generated_1778147121309.png",
         "status": "success",
         "creditsUsed": 1,
-        "createdAt": "2026-05-07T01:46:04.007Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-07T01:46:04.007Z"
       },
       {
         "id": "cmpmrki1a0008qgji6bc29kwg",
@@ -2601,13 +2481,7 @@
         "thumbnailUrl": null,
         "status": "failed",
         "creditsUsed": 1,
-        "createdAt": "2026-05-26T07:02:10.504Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-26T07:02:10.504Z"
       },
       {
         "id": "cmpov4uch000eiyzx7vya2huy",
@@ -2621,13 +2495,7 @@
         "thumbnailUrl": "https://himiceai.oss-cn-guangzhou.aliyuncs.com/outputs/generated_1779934650788_59af370e.png",
         "status": "success",
         "creditsUsed": 1,
-        "createdAt": "2026-05-27T18:17:30.781Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-27T18:17:30.781Z"
       },
       {
         "id": "cmpov51a4000hiyzxuckcq2fc",
@@ -2641,13 +2509,7 @@
         "thumbnailUrl": "https://himiceai.oss-cn-guangzhou.aliyuncs.com/outputs/generated_1779934659774_424c76b7.png",
         "status": "success",
         "creditsUsed": 1,
-        "createdAt": "2026-05-27T18:17:39.770Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-27T18:17:39.770Z"
       },
       {
         "id": "cmpkkeq6z000811837u0khra7",
@@ -2661,13 +2523,7 @@
         "thumbnailUrl": "/storage/outputs/generated_1779674771486_de6ccf1b.png",
         "status": "success",
         "creditsUsed": 1,
-        "createdAt": "2026-05-24T18:06:11.481Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-24T18:06:11.481Z"
       },
       {
         "id": "cmpkvq2d10005rfrn63f9f70p",
@@ -2681,13 +2537,7 @@
         "thumbnailUrl": "/storage/outputs/generated_1779693776248_48ae9f1a.png",
         "status": "success",
         "creditsUsed": 1,
-        "createdAt": "2026-05-24T23:22:56.240Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-24T23:22:56.240Z"
       },
       {
         "id": "cmpms33ti0008t404q5gu5plp",
@@ -2701,13 +2551,7 @@
         "thumbnailUrl": null,
         "status": "failed",
         "creditsUsed": 1,
-        "createdAt": "2026-05-26T07:16:38.546Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-26T07:16:38.546Z"
       },
       {
         "id": "cmovax0sh0005rgye260z2avb",
@@ -2721,13 +2565,7 @@
         "thumbnailUrl": "/storage/outputs/generated_1778147122258.png",
         "status": "success",
         "creditsUsed": 1,
-        "createdAt": "2026-05-07T01:46:14.466Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-07T01:46:14.466Z"
       },
       {
         "id": "cmpms3dtp000bt4042e1pyt7c",
@@ -2741,13 +2579,7 @@
         "thumbnailUrl": null,
         "status": "failed",
         "creditsUsed": 1,
-        "createdAt": "2026-05-26T07:16:51.514Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-26T07:16:51.514Z"
       },
       {
         "id": "cmpkknr710002hpqsacesyakk",
@@ -2761,13 +2593,7 @@
         "thumbnailUrl": "/storage/outputs/generated_1779675192689_5d1755a0.png",
         "status": "success",
         "creditsUsed": 1,
-        "createdAt": "2026-05-24T18:13:12.682Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-24T18:13:12.682Z"
       },
       {
         "id": "cmpkvt2ii0008rfrnfv042r4n",
@@ -2781,13 +2607,7 @@
         "thumbnailUrl": null,
         "status": "failed",
         "creditsUsed": 1,
-        "createdAt": "2026-05-24T23:25:16.407Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-24T23:25:16.407Z"
       },
       {
         "id": "cmovax0x70007rgyeuyoipd8k",
@@ -2801,13 +2621,7 @@
         "thumbnailUrl": "/storage/outputs/generated_1778147123392.png",
         "status": "success",
         "creditsUsed": 1,
-        "createdAt": "2026-05-07T01:46:14.634Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-07T01:46:14.634Z"
       },
       {
         "id": "cmowdcgcw0001alir2alg818x",
@@ -2821,13 +2635,7 @@
         "thumbnailUrl": "/storage/outputs/generated_1778211651416.png",
         "status": "success",
         "creditsUsed": 1,
-        "createdAt": "2026-05-07T19:41:59.888Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-07T19:41:59.888Z"
       },
       {
         "id": "cmpkl95t00002igsxvby19ovv",
@@ -2841,13 +2649,7 @@
         "thumbnailUrl": "/storage/outputs/generated_1779676191402_da7cca6c.png",
         "status": "success",
         "creditsUsed": 1,
-        "createdAt": "2026-05-24T18:29:51.392Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-24T18:29:51.392Z"
       },
       {
         "id": "cmpkw0h92000brfrnfxbo5z0s",
@@ -2861,13 +2663,7 @@
         "thumbnailUrl": "/storage/outputs/generated_1779694262105_381c3fa4.png",
         "status": "success",
         "creditsUsed": 1,
-        "createdAt": "2026-05-24T23:31:02.099Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-24T23:31:02.099Z"
       },
       {
         "id": "cmowdjng40001fjhmjsxy0zgu",
@@ -2881,13 +2677,7 @@
         "thumbnailUrl": "/storage/outputs/generated_1778212013633.png",
         "status": "success",
         "creditsUsed": 1,
-        "createdAt": "2026-05-07T19:47:35.668Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-07T19:47:35.668Z"
       },
       {
         "id": "cmpnuwftc000848fbbivok135",
@@ -2901,13 +2691,7 @@
         "thumbnailUrl": null,
         "status": "failed",
         "creditsUsed": 1,
-        "createdAt": "2026-05-27T01:23:12.525Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-27T01:23:12.525Z"
       },
       {
         "id": "cmpnuwk2q000b48fb2kccc7cg",
@@ -2921,13 +2705,7 @@
         "thumbnailUrl": null,
         "status": "failed",
         "creditsUsed": 1,
-        "createdAt": "2026-05-27T01:23:18.047Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-27T01:23:18.047Z"
       },
       {
         "id": "cmpkm8op600024blxobe6ii16",
@@ -2941,13 +2719,7 @@
         "thumbnailUrl": null,
         "status": "failed",
         "creditsUsed": 1,
-        "createdAt": "2026-05-24T18:57:28.838Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-24T18:57:28.838Z"
       },
       {
         "id": "cmpkmdt0y00054blxxsjwkeg7",
@@ -2961,13 +2733,7 @@
         "thumbnailUrl": "/storage/outputs/generated_1779678087732_caa39dca.png",
         "status": "success",
         "creditsUsed": 1,
-        "createdAt": "2026-05-24T19:01:27.727Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-24T19:01:27.727Z"
       },
       {
         "id": "cmpl0sfqi0002ubjn7cid1fq7",
@@ -2981,13 +2747,7 @@
         "thumbnailUrl": "/storage/outputs/generated_1779702284974_53b9faf7.png",
         "status": "success",
         "creditsUsed": 1,
-        "createdAt": "2026-05-25T01:44:44.965Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-25T01:44:44.965Z"
       },
       {
         "id": "cmpkmvhba0002ws7n6n7jlnxz",
@@ -3001,13 +2761,7 @@
         "thumbnailUrl": "/storage/outputs/generated_1779678912361_93fe37b8.png",
         "status": "success",
         "creditsUsed": 1,
-        "createdAt": "2026-05-24T19:15:12.352Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-24T19:15:12.352Z"
       },
       {
         "id": "cmov46z2f00017hsm4ddce0zn",
@@ -3021,13 +2775,7 @@
         "thumbnailUrl": "/storage/outputs/generated_1778135824996.png",
         "status": "success",
         "creditsUsed": 1,
-        "createdAt": "2026-05-06T22:38:01.479Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-06T22:38:01.479Z"
       },
       {
         "id": "cmov4dqar00037hsmy14rwiru",
@@ -3041,13 +2789,7 @@
         "thumbnailUrl": "/storage/outputs/generated_1778136141040.png",
         "status": "success",
         "creditsUsed": 1,
-        "createdAt": "2026-05-06T22:43:16.707Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-06T22:43:16.707Z"
       },
       {
         "id": "cmov4j5uo00057hsm55feb3l6",
@@ -3061,13 +2803,7 @@
         "thumbnailUrl": "/storage/outputs/generated_1778136412062.png",
         "status": "success",
         "creditsUsed": 1,
-        "createdAt": "2026-05-06T22:47:30.145Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-06T22:47:30.145Z"
       },
       {
         "id": "cmov4uqmf00015fzu7x4drkui",
@@ -3081,13 +2817,7 @@
         "thumbnailUrl": "/storage/outputs/generated_1778136943189.png",
         "status": "success",
         "creditsUsed": 1,
-        "createdAt": "2026-05-06T22:56:30.279Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-06T22:56:30.279Z"
       },
       {
         "id": "cmov7cco60003sy5si94k0lhb",
@@ -3101,13 +2831,7 @@
         "thumbnailUrl": "/storage/outputs/generated_1778141106551.png",
         "status": "success",
         "creditsUsed": 1,
-        "createdAt": "2026-05-07T00:06:11.238Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-07T00:06:11.238Z"
       },
       {
         "id": "cmpm1q50u000pubjnm7yxeo0o",
@@ -3121,13 +2845,7 @@
         "thumbnailUrl": null,
         "status": "failed",
         "creditsUsed": 1,
-        "createdAt": "2026-05-25T18:58:43.561Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-25T18:58:43.561Z"
       },
       {
         "id": "cmpm1ul0a000subjnxk0jbt96",
@@ -3141,13 +2859,7 @@
         "thumbnailUrl": null,
         "status": "failed",
         "creditsUsed": 1,
-        "createdAt": "2026-05-25T19:02:10.902Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-25T19:02:10.902Z"
       },
       {
         "id": "cmpnuwwb0000e48fb4ets9bb6",
@@ -3161,13 +2873,7 @@
         "thumbnailUrl": "https://himiceai.oss-cn-guangzhou.aliyuncs.com/outputs/generated_1779873813902_d0134e57.png",
         "status": "success",
         "creditsUsed": 1,
-        "createdAt": "2026-05-27T01:23:33.899Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-27T01:23:33.899Z"
       },
       {
         "id": "cmowkbf9y000113ezwfxg4p4q",
@@ -3181,13 +2887,7 @@
         "thumbnailUrl": "/storage/outputs/generated_1778223370852.png",
         "status": "success",
         "creditsUsed": 1,
-        "createdAt": "2026-05-07T22:57:09.142Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-07T22:57:09.142Z"
       },
       {
         "id": "cmowm69oh000313ezpf4vqvhi",
@@ -3201,13 +2901,7 @@
         "thumbnailUrl": "/storage/outputs/generated_1778226497001.png",
         "status": "success",
         "creditsUsed": 1,
-        "createdAt": "2026-05-07T23:49:07.841Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-07T23:49:07.841Z"
       },
       {
         "id": "cmowmb5in000513ez65g2id6p",
@@ -3221,13 +2915,7 @@
         "thumbnailUrl": "/storage/outputs/generated_1778226739185.png",
         "status": "success",
         "creditsUsed": 1,
-        "createdAt": "2026-05-07T23:52:55.728Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-07T23:52:55.728Z"
       },
       {
         "id": "cmowq5zxa0004t9jvz1jicvmr",
@@ -3241,13 +2929,7 @@
         "thumbnailUrl": "/storage/outputs/generated_1778233253948_d363fa4e.png",
         "status": "success",
         "creditsUsed": 1,
-        "createdAt": "2026-05-08T01:40:53.653Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-08T01:40:53.653Z"
       },
       {
         "id": "cmowqloh90002uk42wa376a2l",
@@ -3261,13 +2943,7 @@
         "thumbnailUrl": "/storage/outputs/generated_1778233985457_9a1542fc.png",
         "status": "success",
         "creditsUsed": 1,
-        "createdAt": "2026-05-08T01:53:05.316Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-08T01:53:05.316Z"
       },
       {
         "id": "cmoxruk3o0002ktezb395yd9q",
@@ -3281,13 +2957,7 @@
         "thumbnailUrl": "/storage/outputs/generated_1778296545979_caf563b7.png",
         "status": "success",
         "creditsUsed": 1,
-        "createdAt": "2026-05-08T19:15:45.341Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-08T19:15:45.341Z"
       },
       {
         "id": "cmp6olsy30002alb5nojlh56g",
@@ -3301,13 +2971,7 @@
         "thumbnailUrl": null,
         "status": "failed",
         "creditsUsed": 1,
-        "createdAt": "2026-05-15T00:54:53.622Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-15T00:54:53.622Z"
       },
       {
         "id": "cmp6om34h0005alb5sjnq9ep5",
@@ -3321,13 +2985,7 @@
         "thumbnailUrl": null,
         "status": "failed",
         "creditsUsed": 1,
-        "createdAt": "2026-05-15T00:55:06.831Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-15T00:55:06.831Z"
       },
       {
         "id": "cmp6ovsch0002hfj9sifouqpt",
@@ -3341,13 +2999,7 @@
         "thumbnailUrl": null,
         "status": "failed",
         "creditsUsed": 1,
-        "createdAt": "2026-05-15T01:02:39.423Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-15T01:02:39.423Z"
       },
       {
         "id": "cmp6p3vhj0002a9q2lb6v3fp6",
@@ -3361,13 +3013,7 @@
         "thumbnailUrl": null,
         "status": "failed",
         "creditsUsed": 1,
-        "createdAt": "2026-05-15T01:08:56.740Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-15T01:08:56.740Z"
       },
       {
         "id": "cmp6p3vvy0005a9q2mj9dlmw6",
@@ -3381,13 +3027,7 @@
         "thumbnailUrl": null,
         "status": "failed",
         "creditsUsed": 1,
-        "createdAt": "2026-05-15T01:08:57.260Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-15T01:08:57.260Z"
       },
       {
         "id": "cmp6qlt9g0002tloc5qt3zfkx",
@@ -3401,13 +3041,7 @@
         "thumbnailUrl": null,
         "status": "failed",
         "creditsUsed": 1,
-        "createdAt": "2026-05-15T01:50:53.279Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-15T01:50:53.279Z"
       },
       {
         "id": "cmp6qltt40005tlocpkt9tch9",
@@ -3421,13 +3055,7 @@
         "thumbnailUrl": null,
         "status": "processing",
         "creditsUsed": 1,
-        "createdAt": "2026-05-15T01:50:53.990Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-15T01:50:53.990Z"
       },
       {
         "id": "cmp6qlty00008tlockpwmqpmm",
@@ -3441,13 +3069,7 @@
         "thumbnailUrl": null,
         "status": "processing",
         "creditsUsed": 1,
-        "createdAt": "2026-05-15T01:50:54.144Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-15T01:50:54.144Z"
       },
       {
         "id": "cmp6qsdf70002klzlhf6rlcxj",
@@ -3461,13 +3083,7 @@
         "thumbnailUrl": null,
         "status": "failed",
         "creditsUsed": 1,
-        "createdAt": "2026-05-15T01:55:59.345Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-15T01:55:59.345Z"
       },
       {
         "id": "cmpanhf5n0002r13j1al72075",
@@ -3481,13 +3097,7 @@
         "thumbnailUrl": null,
         "status": "processing",
         "creditsUsed": 1,
-        "createdAt": "2026-05-17T19:34:34.224Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-17T19:34:34.224Z"
       },
       {
         "id": "cmpanhfl70005r13jxlw659t7",
@@ -3501,13 +3111,7 @@
         "thumbnailUrl": null,
         "status": "processing",
         "creditsUsed": 1,
-        "createdAt": "2026-05-17T19:34:34.793Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-17T19:34:34.793Z"
       },
       {
         "id": "cmpanhfu90008r13jhso7u29d",
@@ -3521,13 +3125,7 @@
         "thumbnailUrl": null,
         "status": "processing",
         "creditsUsed": 1,
-        "createdAt": "2026-05-17T19:34:35.116Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-17T19:34:35.116Z"
       },
       {
         "id": "cmpanhfyp000br13jy3wuwfei",
@@ -3541,13 +3139,7 @@
         "thumbnailUrl": null,
         "status": "processing",
         "creditsUsed": 1,
-        "createdAt": "2026-05-17T19:34:35.271Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-17T19:34:35.271Z"
       },
       {
         "id": "cmpauj8px000263cs4xwa8syp",
@@ -3561,13 +3153,7 @@
         "thumbnailUrl": "/storage/outputs/generated_1779087116634_8590d279.png",
         "status": "success",
         "creditsUsed": 1,
-        "createdAt": "2026-05-17T22:51:56.510Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-17T22:51:56.510Z"
       },
       {
         "id": "cmpaujc6l000563cs9uri25ee",
@@ -3581,13 +3167,7 @@
         "thumbnailUrl": "/storage/outputs/generated_1779087121125_041690ba.png",
         "status": "success",
         "creditsUsed": 1,
-        "createdAt": "2026-05-17T22:52:01.001Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-17T22:52:01.001Z"
       },
       {
         "id": "cmpaujcl7000863cs9is2q6mq",
@@ -3601,13 +3181,7 @@
         "thumbnailUrl": "/storage/outputs/generated_1779087121708_0c78acc2.png",
         "status": "success",
         "creditsUsed": 1,
-        "createdAt": "2026-05-17T22:52:01.524Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-17T22:52:01.524Z"
       },
       {
         "id": "cmpaujcq8000b63csha7v7wfc",
@@ -3621,13 +3195,7 @@
         "thumbnailUrl": "/storage/outputs/generated_1779087121892_7f4625fc.png",
         "status": "success",
         "creditsUsed": 1,
-        "createdAt": "2026-05-17T22:52:01.691Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-17T22:52:01.691Z"
       },
       {
         "id": "cmpaujcvk000e63csyy9fq9v4",
@@ -3641,13 +3209,7 @@
         "thumbnailUrl": "/storage/outputs/generated_1779087122100_e7d18f45.png",
         "status": "success",
         "creditsUsed": 1,
-        "createdAt": "2026-05-17T22:52:01.755Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-17T22:52:01.755Z"
       },
       {
         "id": "cmpaujd1j000h63csrmheathw",
@@ -3661,13 +3223,7 @@
         "thumbnailUrl": null,
         "status": "failed",
         "creditsUsed": 1,
-        "createdAt": "2026-05-17T22:52:01.977Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-17T22:52:01.977Z"
       },
       {
         "id": "cmpauk27w000k63cs3j3akif3",
@@ -3681,13 +3237,7 @@
         "thumbnailUrl": "/storage/outputs/generated_1779087154859_3dd9a37a.png",
         "status": "success",
         "creditsUsed": 1,
-        "createdAt": "2026-05-17T22:52:34.744Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-17T22:52:34.744Z"
       },
       {
         "id": "cmpauk6a6000n63csq090cv7f",
@@ -3701,13 +3251,7 @@
         "thumbnailUrl": "/storage/outputs/generated_1779087160150_0b552950.png",
         "status": "success",
         "creditsUsed": 1,
-        "createdAt": "2026-05-17T22:52:40.013Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-17T22:52:40.013Z"
       },
       {
         "id": "cmpauk9om000q63cs0coxjrlx",
@@ -3721,13 +3265,7 @@
         "thumbnailUrl": "/storage/outputs/generated_1779087164549_69a19f75.png",
         "status": "success",
         "creditsUsed": 1,
-        "createdAt": "2026-05-17T22:52:44.417Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-17T22:52:44.417Z"
       },
       {
         "id": "cmpaukjlt000t63cst074xitv",
@@ -3741,13 +3279,7 @@
         "thumbnailUrl": "/storage/outputs/generated_1779087177402_bdfcd533.png",
         "status": "success",
         "creditsUsed": 1,
-        "createdAt": "2026-05-17T22:52:57.280Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-17T22:52:57.280Z"
       },
       {
         "id": "cmpaukpoh000w63cs6nypywyc",
@@ -3761,13 +3293,7 @@
         "thumbnailUrl": "/storage/outputs/generated_1779087185317_101eb827.png",
         "status": "success",
         "creditsUsed": 1,
-        "createdAt": "2026-05-17T22:53:05.151Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-17T22:53:05.151Z"
       },
       {
         "id": "cmpaukpxy000z63csx9v5sxa3",
@@ -3781,13 +3307,7 @@
         "thumbnailUrl": "/storage/outputs/generated_1779087185606_0ce915a4.png",
         "status": "success",
         "creditsUsed": 1,
-        "createdAt": "2026-05-17T22:53:05.492Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-17T22:53:05.492Z"
       },
       {
         "id": "cmpavtd2g0002roiltgqs39zs",
@@ -3801,13 +3321,7 @@
         "thumbnailUrl": "/storage/outputs/generated_1779089268445_af673ac2.png",
         "status": "success",
         "creditsUsed": 1,
-        "createdAt": "2026-05-17T23:27:48.326Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-17T23:27:48.326Z"
       },
       {
         "id": "cmpavti3k0005roilamgt9zby",
@@ -3821,13 +3335,7 @@
         "thumbnailUrl": "/storage/outputs/generated_1779089275036_8108b719.png",
         "status": "success",
         "creditsUsed": 1,
-        "createdAt": "2026-05-17T23:27:54.846Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-17T23:27:54.846Z"
       },
       {
         "id": "cmpavti8z0008roilrbsumfwd",
@@ -3841,13 +3349,7 @@
         "thumbnailUrl": "/storage/outputs/generated_1779089275194_5f0ad51d.png",
         "status": "success",
         "creditsUsed": 1,
-        "createdAt": "2026-05-17T23:27:54.948Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-17T23:27:54.948Z"
       },
       {
         "id": "cmpavtiy1000broilseswczzo",
@@ -3861,13 +3363,7 @@
         "thumbnailUrl": "/storage/outputs/generated_1779089276093_43fa67ad.png",
         "status": "success",
         "creditsUsed": 1,
-        "createdAt": "2026-05-17T23:27:55.943Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-17T23:27:55.943Z"
       },
       {
         "id": "cmpavtjvy000eroil1mfpq3ra",
@@ -3881,13 +3377,7 @@
         "thumbnailUrl": "/storage/outputs/generated_1779089278634_1a78979a.png",
         "status": "success",
         "creditsUsed": 1,
-        "createdAt": "2026-05-17T23:27:57.164Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-17T23:27:57.164Z"
       },
       {
         "id": "cmpazu7850002j7dj07codjvj",
@@ -3901,13 +3391,7 @@
         "thumbnailUrl": "/storage/outputs/generated_1779096025999_4bda074d.png",
         "status": "success",
         "creditsUsed": 1,
-        "createdAt": "2026-05-18T01:20:25.873Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-18T01:20:25.873Z"
       },
       {
         "id": "cmpazub8j0005j7djis2hnxuq",
@@ -3921,13 +3405,7 @@
         "thumbnailUrl": "/storage/outputs/generated_1779096031202_c371eb87.png",
         "status": "success",
         "creditsUsed": 1,
-        "createdAt": "2026-05-18T01:20:31.072Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-18T01:20:31.072Z"
       },
       {
         "id": "cmpazwvfd0008j7djpkdhqg6h",
@@ -3941,13 +3419,7 @@
         "thumbnailUrl": "/storage/outputs/generated_1779096151050_ac6a1725.png",
         "status": "success",
         "creditsUsed": 1,
-        "createdAt": "2026-05-18T01:22:30.550Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-18T01:22:30.550Z"
       },
       {
         "id": "cmpbzbx62000bj7dj5c1g83ba",
@@ -3961,13 +3433,7 @@
         "thumbnailUrl": "/storage/outputs/generated_1779155639339_fc409888.png",
         "status": "success",
         "creditsUsed": 1,
-        "createdAt": "2026-05-18T17:53:59.205Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-18T17:53:59.205Z"
       },
       {
         "id": "cmpc1oov5000239oy34zr4ldc",
@@ -3981,13 +3447,7 @@
         "thumbnailUrl": "/storage/outputs/generated_1779159594316_fe64fc46.png",
         "status": "success",
         "creditsUsed": 1,
-        "createdAt": "2026-05-18T18:59:54.202Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-18T18:59:54.202Z"
       },
       {
         "id": "cmpcab95l000539oypvxchf5v",
@@ -4001,13 +3461,7 @@
         "thumbnailUrl": "/storage/outputs/generated_1779174084016_ada5babd.png",
         "status": "success",
         "creditsUsed": 1,
-        "createdAt": "2026-05-18T23:01:23.859Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-18T23:01:23.859Z"
       },
       {
         "id": "cmpccxvlz0002tckwiioxooob",
@@ -4021,13 +3475,7 @@
         "thumbnailUrl": "/storage/outputs/generated_1779178498745_a3dcc282.png",
         "status": "success",
         "creditsUsed": 1,
-        "createdAt": "2026-05-19T00:14:58.626Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-19T00:14:58.626Z"
       },
       {
         "id": "cmpcdxoo00002aow9u3eger74",
@@ -4041,13 +3489,7 @@
         "thumbnailUrl": "/storage/outputs/generated_1779180169390_0e7263ef.png",
         "status": "success",
         "creditsUsed": 1,
-        "createdAt": "2026-05-19T00:42:49.242Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-19T00:42:49.242Z"
       },
       {
         "id": "cmpce18ha0005aow9zs8uwzk1",
@@ -4061,13 +3503,7 @@
         "thumbnailUrl": "/storage/outputs/generated_1779180335005_85b697e7.png",
         "status": "success",
         "creditsUsed": 1,
-        "createdAt": "2026-05-19T00:45:34.888Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-19T00:45:34.888Z"
       },
       {
         "id": "cmpcearli0008aow9fonq584f",
@@ -4081,13 +3517,7 @@
         "thumbnailUrl": "/storage/outputs/generated_1779180779703_ce0c706c.png",
         "status": "success",
         "creditsUsed": 1,
-        "createdAt": "2026-05-19T00:52:59.569Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-19T00:52:59.569Z"
       },
       {
         "id": "cmpm21b9r000vubjntzxxp70e",
@@ -4101,13 +3531,7 @@
         "thumbnailUrl": null,
         "status": "failed",
         "creditsUsed": 1,
-        "createdAt": "2026-05-25T19:07:24.873Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-25T19:07:24.873Z"
       },
       {
         "id": "cmpcegh1z000baow980lyp2b1",
@@ -4121,13 +3545,7 @@
         "thumbnailUrl": "/storage/outputs/generated_1779181046023_f986899b.png",
         "status": "success",
         "creditsUsed": 1,
-        "createdAt": "2026-05-19T00:57:25.842Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-19T00:57:25.842Z"
       },
       {
         "id": "cmpcekrzf000eaow9k3dfyg9c",
@@ -4141,13 +3559,7 @@
         "thumbnailUrl": "/storage/outputs/generated_1779181246764_79fc1a47.png",
         "status": "success",
         "creditsUsed": 1,
-        "createdAt": "2026-05-19T01:00:46.633Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-19T01:00:46.633Z"
       },
       {
         "id": "cmpdwamec0002rpwwgzs5g0fh",
@@ -4161,13 +3573,7 @@
         "thumbnailUrl": null,
         "status": "failed",
         "creditsUsed": 1,
-        "createdAt": "2026-05-20T02:04:32.062Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-20T02:04:32.062Z"
       },
       {
         "id": "cmpdwhbhp0005rpwwrigd27fb",
@@ -4181,13 +3587,7 @@
         "thumbnailUrl": null,
         "status": "failed",
         "creditsUsed": 1,
-        "createdAt": "2026-05-20T02:09:44.555Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-20T02:09:44.555Z"
       },
       {
         "id": "cmpe9qvqm0002ynqjbp65kozj",
@@ -4201,13 +3601,7 @@
         "thumbnailUrl": null,
         "status": "failed",
         "creditsUsed": 1,
-        "createdAt": "2026-05-20T08:21:05.708Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-20T08:21:05.708Z"
       },
       {
         "id": "cmpew1ycp0005apndno3229je",
@@ -4221,13 +3615,7 @@
         "thumbnailUrl": "/storage/outputs/generated_1779331534234_737a8acd.png",
         "status": "success",
         "creditsUsed": 1,
-        "createdAt": "2026-05-20T18:45:33.863Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-20T18:45:33.863Z"
       },
       {
         "id": "cmpe9s85g0005ynqji3cdbky2",
@@ -4241,13 +3629,7 @@
         "thumbnailUrl": null,
         "status": "failed",
         "creditsUsed": 1,
-        "createdAt": "2026-05-20T08:22:08.449Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-20T08:22:08.449Z"
       },
       {
         "id": "cmpe9u8c50008ynqj7rmzms86",
@@ -4261,13 +3643,7 @@
         "thumbnailUrl": null,
         "status": "failed",
         "creditsUsed": 1,
-        "createdAt": "2026-05-20T08:23:42.001Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-20T08:23:42.001Z"
       },
       {
         "id": "cmpeu52io000bynqj8x3nbg1v",
@@ -4281,13 +3657,7 @@
         "thumbnailUrl": null,
         "status": "processing",
         "creditsUsed": 1,
-        "createdAt": "2026-05-20T17:51:59.997Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-20T17:51:59.997Z"
       },
       {
         "id": "cmpeu6iin0002wsxm2kw1m90k",
@@ -4301,13 +3671,7 @@
         "thumbnailUrl": "/storage/outputs/generated_1779328387512_e086b1bb.png",
         "status": "success",
         "creditsUsed": 1,
-        "createdAt": "2026-05-20T17:53:07.388Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-20T17:53:07.388Z"
       },
       {
         "id": "cmpeyhjca0008apnd6qk9qnpk",
@@ -4321,13 +3685,7 @@
         "thumbnailUrl": "/storage/outputs/generated_1779335620281_b37e0220.png",
         "status": "success",
         "creditsUsed": 1,
-        "createdAt": "2026-05-20T19:53:40.136Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-20T19:53:40.136Z"
       },
       {
         "id": "cmpeu8rbr0005wsxmdal2woc8",
@@ -4341,13 +3699,7 @@
         "thumbnailUrl": "/storage/outputs/generated_1779328492236_3ca64355.png",
         "status": "success",
         "creditsUsed": 1,
-        "createdAt": "2026-05-20T17:54:52.117Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-20T17:54:52.117Z"
       },
       {
         "id": "cmpeuacev0008wsxmaal3hl2l",
@@ -4361,13 +3713,7 @@
         "thumbnailUrl": null,
         "status": "processing",
         "creditsUsed": 1,
-        "createdAt": "2026-05-20T17:56:06.101Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-20T17:56:06.101Z"
       },
       {
         "id": "cmpevo1kn0002z514pje3531u",
@@ -4381,13 +3727,7 @@
         "thumbnailUrl": "/storage/outputs/generated_1779330884960_1e101885.png",
         "status": "success",
         "creditsUsed": 1,
-        "createdAt": "2026-05-20T18:34:44.850Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-20T18:34:44.850Z"
       },
       {
         "id": "cmpew1urd0002apndv4kuy454",
@@ -4401,13 +3741,7 @@
         "thumbnailUrl": "/storage/outputs/generated_1779331529353_c4c5738a.png",
         "status": "success",
         "creditsUsed": 1,
-        "createdAt": "2026-05-20T18:45:29.206Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-20T18:45:29.206Z"
       },
       {
         "id": "cmpeyow2l000bapndq4lkumig",
@@ -4421,13 +3755,7 @@
         "thumbnailUrl": "/storage/outputs/generated_1779335963366_53678b60.png",
         "status": "success",
         "creditsUsed": 1,
-        "createdAt": "2026-05-20T19:59:23.226Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-20T19:59:23.226Z"
       },
       {
         "id": "cmpf4j3u2000eapndddadkwl2",
@@ -4441,13 +3769,7 @@
         "thumbnailUrl": "/storage/outputs/generated_1779345771204_c5c32763.png",
         "status": "success",
         "creditsUsed": 1,
-        "createdAt": "2026-05-20T22:42:51.047Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-20T22:42:51.047Z"
       },
       {
         "id": "cmpf4lzgl000hapndbjfkafpv",
@@ -4461,13 +3783,7 @@
         "thumbnailUrl": "/storage/outputs/generated_1779345905722_7d5c95f9.png",
         "status": "success",
         "creditsUsed": 1,
-        "createdAt": "2026-05-20T22:45:05.347Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-20T22:45:05.347Z"
       },
       {
         "id": "cmpf53rli000kapndx7zso164",
@@ -4481,13 +3797,7 @@
         "thumbnailUrl": null,
         "status": "failed",
         "creditsUsed": 1,
-        "createdAt": "2026-05-20T22:58:54.963Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-20T22:58:54.963Z"
       },
       {
         "id": "cmpkn3sar0005ws7nwaubb23m",
@@ -4501,13 +3811,7 @@
         "thumbnailUrl": "/storage/outputs/generated_1779679299846_650894b1.png",
         "status": "success",
         "creditsUsed": 1,
-        "createdAt": "2026-05-24T19:21:39.840Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-24T19:21:39.840Z"
       },
       {
         "id": "cmpm2xg8q00084ffywxbu4k3n",
@@ -4521,13 +3825,7 @@
         "thumbnailUrl": null,
         "status": "failed",
         "creditsUsed": 1,
-        "createdAt": "2026-05-25T19:32:24.311Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-25T19:32:24.311Z"
       },
       {
         "id": "cmpm2zejt000b4ffy1896j22v",
@@ -4541,13 +3839,7 @@
         "thumbnailUrl": "/storage/outputs/generated_1779766435436_f071f43e.png",
         "status": "success",
         "creditsUsed": 1,
-        "createdAt": "2026-05-25T19:33:55.430Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-25T19:33:55.430Z"
       },
       {
         "id": "cmpm30yip000e4ffyxad8ts17",
@@ -4561,13 +3853,7 @@
         "thumbnailUrl": "/storage/outputs/generated_1779766507971_284a0efb.png",
         "status": "success",
         "creditsUsed": 1,
-        "createdAt": "2026-05-25T19:35:07.966Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-25T19:35:07.966Z"
       },
       {
         "id": "cmpm3gfof000h4ffyc5n0algr",
@@ -4581,13 +3867,7 @@
         "thumbnailUrl": "/storage/outputs/generated_1779767230062_ff5de984.png",
         "status": "success",
         "creditsUsed": 1,
-        "createdAt": "2026-05-25T19:47:10.042Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-25T19:47:10.042Z"
       },
       {
         "id": "cmpm3jsfr000k4ffy1bt4m5ya",
@@ -4601,13 +3881,7 @@
         "thumbnailUrl": "/storage/outputs/generated_1779767386553_e47f28fa.png",
         "status": "success",
         "creditsUsed": 1,
-        "createdAt": "2026-05-25T19:49:46.548Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-25T19:49:46.548Z"
       },
       {
         "id": "cmpma3e9j000n4ffykhnc36ra",
@@ -4621,13 +3895,7 @@
         "thumbnailUrl": "/storage/outputs/generated_1779778379002_756fc49e.png",
         "status": "success",
         "creditsUsed": 1,
-        "createdAt": "2026-05-25T22:52:58.994Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-25T22:52:58.994Z"
       },
       {
         "id": "cmpmaj9hd000q4ffybdr7uf47",
@@ -4641,13 +3909,7 @@
         "thumbnailUrl": "/storage/outputs/generated_1779779119300_cec44fd9.png",
         "status": "success",
         "creditsUsed": 1,
-        "createdAt": "2026-05-25T23:05:19.292Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-25T23:05:19.292Z"
       },
       {
         "id": "cmpmrmpt60002t4049rdbtdas",
@@ -4661,13 +3923,7 @@
         "thumbnailUrl": "/storage/outputs/generated_1779807833901_b778d7ab.png",
         "status": "success",
         "creditsUsed": 1,
-        "createdAt": "2026-05-26T07:03:53.894Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-26T07:03:53.894Z"
       },
       {
         "id": "cmpmrskfa0005t404p88b54pt",
@@ -4681,13 +3937,7 @@
         "thumbnailUrl": "/storage/outputs/generated_1779808106863_ed6f5254.png",
         "status": "success",
         "creditsUsed": 1,
-        "createdAt": "2026-05-26T07:08:26.850Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-26T07:08:26.850Z"
       },
       {
         "id": "cmpng28wq0004107hocd3ofd6",
@@ -4701,13 +3951,7 @@
         "thumbnailUrl": null,
         "status": "failed",
         "creditsUsed": 1,
-        "createdAt": "2026-05-26T18:27:49.267Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-26T18:27:49.267Z"
       },
       {
         "id": "cmpnuwz8r000h48fbn097873w",
@@ -4721,13 +3965,7 @@
         "thumbnailUrl": null,
         "status": "failed",
         "creditsUsed": 1,
-        "createdAt": "2026-05-27T01:23:37.704Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-27T01:23:37.704Z"
       },
       {
         "id": "cmpnqc5ym0007107hl0gogzm1",
@@ -4741,13 +3979,7 @@
         "thumbnailUrl": "/storage/outputs/generated_1779866128177_205110e5.png",
         "status": "success",
         "creditsUsed": 1,
-        "createdAt": "2026-05-26T23:15:28.168Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-26T23:15:28.168Z"
       },
       {
         "id": "cmpnsf7k40002qwlzrepbo8xx",
@@ -4761,13 +3993,7 @@
         "thumbnailUrl": "/storage/outputs/generated_1779869629448_f2b688e2.png",
         "status": "success",
         "creditsUsed": 1,
-        "createdAt": "2026-05-27T00:13:49.441Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-27T00:13:49.441Z"
       },
       {
         "id": "cmpnshv0h0002ci48pnki25wv",
@@ -4781,13 +4007,7 @@
         "thumbnailUrl": "/storage/outputs/generated_1779869753156_3cc9d7ce.png",
         "status": "success",
         "creditsUsed": 1,
-        "createdAt": "2026-05-27T00:15:53.147Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-27T00:15:53.147Z"
       },
       {
         "id": "cmpnux2uy000k48fbu041k6qt",
@@ -4801,13 +4021,7 @@
         "thumbnailUrl": null,
         "status": "failed",
         "creditsUsed": 1,
-        "createdAt": "2026-05-27T01:23:42.392Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-27T01:23:42.392Z"
       },
       {
         "id": "cmpnuz15h000n48fb75gwj7kv",
@@ -4821,13 +4035,7 @@
         "thumbnailUrl": "https://himiceai.oss-cn-guangzhou.aliyuncs.com/outputs/generated_1779873913495_ce442563.png",
         "status": "success",
         "creditsUsed": 1,
-        "createdAt": "2026-05-27T01:25:13.491Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-27T01:25:13.491Z"
       },
       {
         "id": "cmpntwv1w000248fbtf15z63d",
@@ -4841,13 +4049,7 @@
         "thumbnailUrl": "https://himiceai.oss-cn-guangzhou.aliyuncs.com/outputs/generated_1779872132663_96847999.png",
         "status": "success",
         "creditsUsed": 1,
-        "createdAt": "2026-05-27T00:55:32.653Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-27T00:55:32.653Z"
       },
       {
         "id": "cmppcil8y0004pxegs7a48whm",
@@ -4861,13 +4063,7 @@
         "thumbnailUrl": null,
         "status": "failed",
         "creditsUsed": 1,
-        "createdAt": "2026-05-28T02:24:05.645Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-28T02:24:05.645Z"
       },
       {
         "id": "cmppcnvw70007pxegmr27u8dp",
@@ -4881,13 +4077,7 @@
         "thumbnailUrl": "https://himiceai.oss-cn-guangzhou.aliyuncs.com/outputs/generated_1779964092736_1e7a4c36.png",
         "status": "success",
         "creditsUsed": 1,
-        "createdAt": "2026-05-28T02:28:12.722Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
+        "createdAt": "2026-05-28T02:28:12.722Z"
       },
       {
         "id": "cmppgugqh000apxeg01z7yxqt",
@@ -4901,213 +4091,7 @@
         "thumbnailUrl": "https://himiceai.oss-cn-guangzhou.aliyuncs.com/outputs/generated_1779971118140_b24fe517.png",
         "status": "success",
         "creditsUsed": 1,
-        "createdAt": "2026-05-28T04:25:18.134Z",
-        "errorMessage": null,
-        "taskType": null,
-        "providerId": null,
-        "startedAt": null,
-        "finishedAt": null,
-        "updatedAt": "2026-05-29T06:56:59.278Z"
-      },
-      {
-        "id": "cmpqkoxrw0002lv65tfqhuoqs",
-        "userId": "cmoux0zkt000094s23ki9f4gc",
-        "templateId": "cmov78s9f0001sy5s874lztky",
-        "templateName": "指示牌",
-        "prompt": "将参考图2的画面放到参考图1的效果图红色色块中，参考图1中的主题变成两行放在画面的上半部分，参考图2红色色块中的原有文字位置和大小保持不变字的颜色变成#ffffff，箭头大小不变颜色变为#ffffff，维持参考图1的原始比例，文字标识保持清晰\n",
-        "variables": "{}",
-        "configJson": "{\"formData\":{},\"variableImages\":{},\"userImages\":[{\"id\":\"main_1780038042751_qngypg7it\",\"url\":\"https://himiceai.oss-cn-guangzhou.aliyuncs.com/uploads/1780038042321_1zu9i1jzc.png\",\"name\":\"kpl.png\",\"originalUrl\":\"https://himiceai.oss-cn-guangzhou.aliyuncs.com/uploads/1780038042321_1zu9i1jzc.png\",\"annotations\":[],\"annotationTokens\":[]}],\"customReferenceImages\":[],\"selectedCustomReferenceIds\":[],\"selectedPresetImage\":null,\"selectedUserImage\":{\"id\":\"main_1780038042751_qngypg7it\",\"url\":\"https://himiceai.oss-cn-guangzhou.aliyuncs.com/uploads/1780038042321_1zu9i1jzc.png\",\"name\":\"kpl.png\",\"originalUrl\":\"https://himiceai.oss-cn-guangzhou.aliyuncs.com/uploads/1780038042321_1zu9i1jzc.png\",\"annotations\":[],\"annotationTokens\":[]},\"userPrompt\":\"\",\"enableUserPrompt\":false,\"userPromptPriority\":false,\"useSmartColoring\":false,\"size\":\"auto\",\"quality\":\"high\",\"referenceBatchMode\":false,\"batchReferenceImages\":[{\"id\":\"main_1780038042751_qngypg7it\",\"url\":\"https://himiceai.oss-cn-guangzhou.aliyuncs.com/uploads/1780038042321_1zu9i1jzc.png\",\"name\":\"kpl.png\",\"originalUrl\":\"https://himiceai.oss-cn-guangzhou.aliyuncs.com/uploads/1780038042321_1zu9i1jzc.png\",\"annotations\":[],\"annotationTokens\":[]}],\"asyncJobRequest\":{\"mode\":\"edit\",\"promptTemplate\":\"将参考图2的画面放到参考图1的效果图红色色块中，参考图1中的主题变成两行放在画面的上半部分，参考图2红色色块中的原有文字位置和大小保持不变字的颜色变成#ffffff，箭头大小不变颜色变为#ffffff，维持参考图1的原始比例，文字标识保持清晰\\n\",\"variables\":{},\"size\":\"auto\",\"quality\":\"high\",\"images\":[\"https://himiceai.oss-cn-guangzhou.aliyuncs.com/uploads/1780038042321_1zu9i1jzc.png\"],\"referenceImages\":[\"/storage/uploads/1778140998903_lkcfopikq.png\",\"/storage/uploads/1778141018307_bbagjhayl.png\",\"/storage/uploads/1779680463966_e1godl52i.png\"],\"userId\":\"cmoux0zkt000094s23ki9f4gc\",\"templateId\":\"cmov78s9f0001sy5s874lztky\",\"templateName\":\"指示牌\",\"providerId\":\"openai_std\"}}",
-        "outputImageUrl": "https://himiceai.oss-cn-guangzhou.aliyuncs.com/outputs/generated_1780038044936_b9bf8ef2.png",
-        "thumbnailUrl": "https://himiceai.oss-cn-guangzhou.aliyuncs.com/outputs/generated_1780038044936_b9bf8ef2.png",
-        "status": "success",
-        "creditsUsed": 1,
-        "createdAt": "2026-05-28T23:00:44.919Z",
-        "errorMessage": null,
-        "taskType": "async_generate",
-        "providerId": "openai_std",
-        "startedAt": "2026-05-28T23:00:44.931Z",
-        "finishedAt": "2026-05-28T23:01:45.607Z",
-        "updatedAt": "2026-05-28T23:01:45.608Z"
-      },
-      {
-        "id": "cmpujwzgk0005v7iit0t6c8lt",
-        "userId": "cmovc1qsk0001q59hfrkx1c9i",
-        "templateId": "cmov78s9f0001sy5s874lztky",
-        "templateName": "指示牌",
-        "prompt": "将参考图2的画面放到参考图1的效果图红色色块中，参考图1中的主题变成两行放在画面的上半部分，参考图2红色色块中的原有文字位置和大小保持不变字的颜色变成自动适配合理的颜色，箭头大小不变颜色变为自动适配合理的颜色，维持参考图1的原始比例，文字标识保持清晰\n",
-        "variables": "{}",
-        "configJson": "{\"formData\":{},\"variableImages\":{},\"userImages\":[{\"id\":\"main_1780278598279_xi967x6sk\",\"url\":\"https://himiceai.oss-cn-guangzhou.aliyuncs.com/uploads/1780278598717_205xhplf4.png\",\"name\":\"5B1DFA29-8CA3-4EE7-B370-CFA5AA7F0C15.png\",\"originalUrl\":\"https://himiceai.oss-cn-guangzhou.aliyuncs.com/uploads/1780278598717_205xhplf4.png\",\"annotations\":[],\"annotationTokens\":[]}],\"customReferenceImages\":[],\"selectedCustomReferenceIds\":[],\"selectedPresetImage\":{\"id\":\"img_1779680463734_5chlm7aml\",\"url\":\"/storage/uploads/1779680463966_e1godl52i.png\",\"name\":\"侧面指示牌效果-真实.png\"},\"selectedUserImage\":{\"id\":\"main_1780278598279_xi967x6sk\",\"url\":\"https://himiceai.oss-cn-guangzhou.aliyuncs.com/uploads/1780278598717_205xhplf4.png\",\"name\":\"5B1DFA29-8CA3-4EE7-B370-CFA5AA7F0C15.png\",\"originalUrl\":\"https://himiceai.oss-cn-guangzhou.aliyuncs.com/uploads/1780278598717_205xhplf4.png\",\"annotations\":[],\"annotationTokens\":[]},\"userPrompt\":\"\",\"enableUserPrompt\":false,\"userPromptPriority\":false,\"useSmartColoring\":true,\"size\":\"auto\",\"quality\":\"high\",\"referenceBatchMode\":false,\"batchReferenceImages\":[{\"id\":\"main_1780278598279_xi967x6sk\",\"url\":\"https://himiceai.oss-cn-guangzhou.aliyuncs.com/uploads/1780278598717_205xhplf4.png\",\"name\":\"5B1DFA29-8CA3-4EE7-B370-CFA5AA7F0C15.png\",\"originalUrl\":\"https://himiceai.oss-cn-guangzhou.aliyuncs.com/uploads/1780278598717_205xhplf4.png\",\"annotations\":[],\"annotationTokens\":[]}],\"asyncJobRequest\":{\"mode\":\"edit\",\"promptTemplate\":\"将参考图2的画面放到参考图1的效果图红色色块中，参考图1中的主题变成两行放在画面的上半部分，参考图2红色色块中的原有文字位置和大小保持不变字的颜色变成自动适配合理的颜色，箭头大小不变颜色变为自动适配合理的颜色，维持参考图1的原始比例，文字标识保持清晰\\n\",\"variables\":{},\"size\":\"auto\",\"quality\":\"high\",\"images\":[\"https://himiceai.oss-cn-guangzhou.aliyuncs.com/uploads/1780278598717_205xhplf4.png\"],\"referenceImages\":[\"/storage/uploads/1779680463966_e1godl52i.png\"],\"userId\":\"cmovc1qsk0001q59hfrkx1c9i\",\"templateId\":\"cmov78s9f0001sy5s874lztky\",\"templateName\":\"指示牌\",\"providerId\":\"openai_std\"}}",
-        "outputImageUrl": "https://himiceai.oss-cn-guangzhou.aliyuncs.com/outputs/generated_1780278605460_8241662e.png",
-        "thumbnailUrl": "https://himiceai.oss-cn-guangzhou.aliyuncs.com/outputs/generated_1780278605460_8241662e.png",
-        "status": "success",
-        "creditsUsed": 1,
-        "createdAt": "2026-05-31T17:50:05.441Z",
-        "errorMessage": null,
-        "taskType": "async_generate",
-        "providerId": "openai_std",
-        "startedAt": "2026-05-31T17:50:05.455Z",
-        "finishedAt": "2026-05-31T17:51:22.808Z",
-        "updatedAt": "2026-05-31T17:51:22.809Z"
-      },
-      {
-        "id": "cmpujzt9y0008v7iib12xepog",
-        "userId": "cmovc1qsk0001q59hfrkx1c9i",
-        "templateId": "cmowq3ype0001t9jv8xff7gx5",
-        "templateName": "喜报海报",
-        "prompt": "请根据我提供的项目信息，生成一张9:16竖版喜报海报，适合公司内部发布、朋友圈传播、公众号配图和钉钉群分享。\n\n左上角必须放置参考图1，Logo需清晰、完整、比例正确，不要变形，不要遮挡，不要重新设计Logo。\n\n海报主标题为“喜报”，“喜报”两个字必须最大、最醒目，体现荣誉感、仪式感和喜庆感，可以使用高级书法字体、金属质感字体、立体标题字或大气标题字，但不要过度花哨。\n\n请在画面中清晰呈现以下文字信息：\n\n热烈祝贺厦门公司\n中标美乐家年会\n\n金额元\n\n项目团队：\n\n\n创意团队：\n\n\n特别鸣谢：\n\n\n请重点突出【金额】，金额数字要大、醒目、有视觉冲击力，可以使用金色、红色、发光、描边、数字卡片或视觉中心区域强化表达。项目名称必须完整清楚，人员名单必须全部写清楚，不得遗漏、不得改名、不得生成错别字。\n\n请根据项目类型自动匹配视觉风格：\n【项目类型】\n\n如果是汽车项目，画面要年轻、新潮、有速度感，可加入汽车流线、光轨、金属质感、城市道路、速度线等元素；\n如果是政府会议或政务项目，画面要正式、庄重、大气，可加入红金色系、城市天际线、会堂光影、国风纹样、丝带、光束等元素；\n如果是经销商大会或品牌大会，画面要大气、有舞台感，可加入舞台灯光、发布会现场、品牌主视觉色、金色粒子和空间纵深；\n如果是互联网、科技、AI或数字化项目，画面要科技感强，可加入深蓝、紫色、银色、数据流、网格、数字粒子、AI光环、未来感界面等元素；\n如果是白酒或高端消费品项目，画面要高级、东方、质感强，可加入红金、鎏金、东方纹样、山水意境、礼盒质感等元素；\n如果是校园、文旅或年轻化项目，画面要清新、有活力，但仍然保持喜报的荣誉感。\n\n整体风格要求：高级、大气、喜庆、有层次、有光影、有传播感，体现一家专业活动营销集团的品牌气质。画面不要杂乱，不要廉价红金模板感，不要生成过多无关文字，不要添加空泛口号。\n\n版式建议：\n顶部左上角放Logo；\n中上部放大标题“喜报”；\n中部放“热烈祝贺 + 公司/部门 + 中标项目名称”；\n中下部重点突出金额；\n底部整齐排列项目团队、创意团队、特别鸣谢。\n\n请确保所有文字清晰、准确、可读，尤其是项目名称、金额和人员名单。\n```\n\n---\n\n```text\n请优先保证文字准确性，如果文字过多，宁可减少装饰元素，也要保证姓名、金额、项目名称清晰可读，并且如果提示词中输入的名字有标点，你都以空格形式隔开呈现，注意优化各种文字的换行，自动修复明显文字错误比如金额加了两个元。",
-        "variables": "{\"var_5\":\"厦门公司\",\"var_6\":\"美乐家年会\",\"var_3\":\"\",\"var_4\":\"\",\"var_1\":\"\",\"var_2\":\"\"}",
-        "configJson": "{\"formData\":{\"var_5\":\"厦门公司\",\"var_6\":\"美乐家年会\",\"var_3\":\"\",\"var_4\":\"\",\"var_1\":\"\",\"var_2\":\"\"},\"variableImages\":{},\"userImages\":[],\"customReferenceImages\":[],\"selectedCustomReferenceIds\":[],\"selectedPresetImage\":null,\"selectedUserImage\":null,\"userPrompt\":\"\",\"enableUserPrompt\":false,\"userPromptPriority\":false,\"useSmartColoring\":false,\"size\":\"auto\",\"quality\":\"high\",\"referenceBatchMode\":false,\"batchReferenceImages\":[],\"asyncJobRequest\":{\"mode\":\"edit\",\"promptTemplate\":\"请根据我提供的项目信息，生成一张9:16竖版喜报海报，适合公司内部发布、朋友圈传播、公众号配图和钉钉群分享。\\n\\n左上角必须放置参考图1，Logo需清晰、完整、比例正确，不要变形，不要遮挡，不要重新设计Logo。\\n\\n海报主标题为“喜报”，“喜报”两个字必须最大、最醒目，体现荣誉感、仪式感和喜庆感，可以使用高级书法字体、金属质感字体、立体标题字或大气标题字，但不要过度花哨。\\n\\n请在画面中清晰呈现以下文字信息：\\n\\n热烈祝贺厦门公司\\n中标美乐家年会\\n\\n金额元\\n\\n项目团队：\\n\\n\\n创意团队：\\n\\n\\n特别鸣谢：\\n\\n\\n请重点突出【金额】，金额数字要大、醒目、有视觉冲击力，可以使用金色、红色、发光、描边、数字卡片或视觉中心区域强化表达。项目名称必须完整清楚，人员名单必须全部写清楚，不得遗漏、不得改名、不得生成错别字。\\n\\n请根据项目类型自动匹配视觉风格：\\n【项目类型】\\n\\n如果是汽车项目，画面要年轻、新潮、有速度感，可加入汽车流线、光轨、金属质感、城市道路、速度线等元素；\\n如果是政府会议或政务项目，画面要正式、庄重、大气，可加入红金色系、城市天际线、会堂光影、国风纹样、丝带、光束等元素；\\n如果是经销商大会或品牌大会，画面要大气、有舞台感，可加入舞台灯光、发布会现场、品牌主视觉色、金色粒子和空间纵深；\\n如果是互联网、科技、AI或数字化项目，画面要科技感强，可加入深蓝、紫色、银色、数据流、网格、数字粒子、AI光环、未来感界面等元素；\\n如果是白酒或高端消费品项目，画面要高级、东方、质感强，可加入红金、鎏金、东方纹样、山水意境、礼盒质感等元素；\\n如果是校园、文旅或年轻化项目，画面要清新、有活力，但仍然保持喜报的荣誉感。\\n\\n整体风格要求：高级、大气、喜庆、有层次、有光影、有传播感，体现一家专业活动营销集团的品牌气质。画面不要杂乱，不要廉价红金模板感，不要生成过多无关文字，不要添加空泛口号。\\n\\n版式建议：\\n顶部左上角放Logo；\\n中上部放大标题“喜报”；\\n中部放“热烈祝贺 + 公司/部门 + 中标项目名称”；\\n中下部重点突出金额；\\n底部整齐排列项目团队、创意团队、特别鸣谢。\\n\\n请确保所有文字清晰、准确、可读，尤其是项目名称、金额和人员名单。\\n```\\n\\n---\\n\\n```text\\n请优先保证文字准确性，如果文字过多，宁可减少装饰元素，也要保证姓名、金额、项目名称清晰可读，并且如果提示词中输入的名字有标点，你都以空格形式隔开呈现，注意优化各种文字的换行，自动修复明显文字错误比如金额加了两个元。\",\"variables\":{\"var_5\":\"厦门公司\",\"var_6\":\"美乐家年会\",\"var_3\":\"\",\"var_4\":\"\",\"var_1\":\"\",\"var_2\":\"\"},\"size\":\"auto\",\"quality\":\"high\",\"images\":[],\"referenceImages\":[\"/storage/uploads/1778232898828_aa0zekdgs.png\"],\"userId\":\"cmovc1qsk0001q59hfrkx1c9i\",\"templateId\":\"cmowq3ype0001t9jv8xff7gx5\",\"templateName\":\"喜报海报\",\"providerId\":\"openai_std\"}}",
-        "outputImageUrl": "https://himiceai.oss-cn-guangzhou.aliyuncs.com/outputs/generated_1780278737406_ddf052b2.png",
-        "thumbnailUrl": "https://himiceai.oss-cn-guangzhou.aliyuncs.com/outputs/generated_1780278737406_ddf052b2.png",
-        "status": "success",
-        "creditsUsed": 1,
-        "createdAt": "2026-05-31T17:52:17.393Z",
-        "errorMessage": null,
-        "taskType": "async_generate",
-        "providerId": "openai_std",
-        "startedAt": "2026-05-31T17:52:17.403Z",
-        "finishedAt": "2026-05-31T17:53:10.975Z",
-        "updatedAt": "2026-05-31T17:53:10.976Z"
-      },
-      {
-        "id": "cmpqkryq90005lv65khybt815",
-        "userId": "cmoux0zkt000094s23ki9f4gc",
-        "templateId": "cmov78s9f0001sy5s874lztky",
-        "templateName": "指示牌",
-        "prompt": "将参考图2的画面放到参考图1的效果图红色色块中，参考图1中的主题变成两行放在画面的上半部分，参考图2红色色块中的原有文字位置和大小保持不变字的颜色变成#ffffff，箭头大小不变颜色变为#ffffff，维持参考图1的原始比例，文字标识保持清晰\n",
-        "variables": "{}",
-        "configJson": "{\"formData\":{},\"variableImages\":{},\"userImages\":[{\"id\":\"main_1780038042751_qngypg7it\",\"url\":\"https://himiceai.oss-cn-guangzhou.aliyuncs.com/uploads/1780038042321_1zu9i1jzc.png\",\"name\":\"kpl.png\",\"originalUrl\":\"https://himiceai.oss-cn-guangzhou.aliyuncs.com/uploads/1780038042321_1zu9i1jzc.png\",\"annotations\":[],\"annotationTokens\":[]}],\"customReferenceImages\":[],\"selectedCustomReferenceIds\":[],\"selectedPresetImage\":{\"id\":\"img_1778140998951_ti78ph7o7\",\"url\":\"/storage/uploads/1778140998903_lkcfopikq.png\",\"name\":\"侧面指示牌效果.png\"},\"selectedUserImage\":{\"id\":\"main_1780038042751_qngypg7it\",\"url\":\"https://himiceai.oss-cn-guangzhou.aliyuncs.com/uploads/1780038042321_1zu9i1jzc.png\",\"name\":\"kpl.png\",\"originalUrl\":\"https://himiceai.oss-cn-guangzhou.aliyuncs.com/uploads/1780038042321_1zu9i1jzc.png\",\"annotations\":[],\"annotationTokens\":[]},\"userPrompt\":\"\",\"enableUserPrompt\":false,\"userPromptPriority\":false,\"useSmartColoring\":false,\"size\":\"auto\",\"quality\":\"high\",\"referenceBatchMode\":false,\"batchReferenceImages\":[{\"id\":\"main_1780038042751_qngypg7it\",\"url\":\"https://himiceai.oss-cn-guangzhou.aliyuncs.com/uploads/1780038042321_1zu9i1jzc.png\",\"name\":\"kpl.png\",\"originalUrl\":\"https://himiceai.oss-cn-guangzhou.aliyuncs.com/uploads/1780038042321_1zu9i1jzc.png\",\"annotations\":[],\"annotationTokens\":[]}],\"asyncJobRequest\":{\"mode\":\"edit\",\"promptTemplate\":\"将参考图2的画面放到参考图1的效果图红色色块中，参考图1中的主题变成两行放在画面的上半部分，参考图2红色色块中的原有文字位置和大小保持不变字的颜色变成#ffffff，箭头大小不变颜色变为#ffffff，维持参考图1的原始比例，文字标识保持清晰\\n\",\"variables\":{},\"size\":\"auto\",\"quality\":\"high\",\"images\":[\"https://himiceai.oss-cn-guangzhou.aliyuncs.com/uploads/1780038042321_1zu9i1jzc.png\"],\"referenceImages\":[\"/storage/uploads/1778140998903_lkcfopikq.png\"],\"userId\":\"cmoux0zkt000094s23ki9f4gc\",\"templateId\":\"cmov78s9f0001sy5s874lztky\",\"templateName\":\"指示牌\",\"providerId\":\"openai_std\"}}",
-        "outputImageUrl": "https://himiceai.oss-cn-guangzhou.aliyuncs.com/outputs/generated_1780038186142_3b42b80e.png",
-        "thumbnailUrl": "https://himiceai.oss-cn-guangzhou.aliyuncs.com/outputs/generated_1780038186142_3b42b80e.png",
-        "status": "success",
-        "creditsUsed": 1,
-        "createdAt": "2026-05-28T23:03:06.126Z",
-        "errorMessage": null,
-        "taskType": "async_generate",
-        "providerId": "openai_std",
-        "startedAt": "2026-05-28T23:03:06.134Z",
-        "finishedAt": "2026-05-28T23:04:01.012Z",
-        "updatedAt": "2026-05-28T23:04:01.013Z"
-      },
-      {
-        "id": "cmpum647y0002133c6txlzeap",
-        "userId": "cmoux0zkt000094s23ki9f4gc",
-        "templateId": "cmow9yx7z0056s43084nybzt5",
-        "templateName": "水瓶贴",
-        "prompt": "这是一个将主视觉KV迁移到效果图上的任务，将参考图2的画面放到参考图1的效果图红色色块中，参考图1中的主题变成两行放在画面的中间，维持参考图2的原始比例，文字标识保持清晰\n",
-        "variables": "{}",
-        "configJson": "{\"formData\":{},\"selectedPresetImage\":null,\"userPrompt\":\"\",\"enableUserPrompt\":true,\"userPromptPriority\":false,\"size\":\"auto\",\"quality\":\"medium\",\"specifiedColors\":[],\"asyncJobRequest\":{\"mode\":\"edit\",\"promptTemplate\":\"这是一个将主视觉KV迁移到效果图上的任务，将参考图2的画面放到参考图1的效果图红色色块中，参考图1中的主题变成两行放在画面的中间，维持参考图2的原始比例，文字标识保持清晰\\n\",\"variables\":{},\"size\":\"auto\",\"quality\":\"medium\",\"images\":[\"https://himiceai.oss-cn-guangzhou.aliyuncs.com/uploads/1780282382037_kbbu2d1dq.jpg\"],\"referenceImages\":[\"/storage/uploads/1778206048815_dav58lmek.png\",\"/storage/uploads/1779692298308_fbs4n0bi5.png\"],\"userId\":\"cmoux0zkt000094s23ki9f4gc\",\"templateId\":\"cmow9yx7z0056s43084nybzt5\",\"templateName\":\"水瓶贴\",\"providerId\":\"openai_std\"}}",
-        "outputImageUrl": "https://himiceai.oss-cn-guangzhou.aliyuncs.com/outputs/generated_1780282390754_19d18874.png",
-        "thumbnailUrl": "https://himiceai.oss-cn-guangzhou.aliyuncs.com/outputs/generated_1780282390754_19d18874.png",
-        "status": "success",
-        "creditsUsed": 1,
-        "createdAt": "2026-05-31T18:53:10.746Z",
-        "errorMessage": null,
-        "taskType": "sync_generate",
-        "providerId": "openai_std",
-        "startedAt": "2026-05-31T18:53:10.748Z",
-        "finishedAt": "2026-05-31T18:54:03.611Z",
-        "updatedAt": "2026-05-31T18:54:03.613Z"
-      },
-      {
-        "id": "cmpujgcb00009lv650owzxicp",
-        "userId": "cmovc1qsk0001q59hfrkx1c9i",
-        "templateId": "cmpmv2qqz0001107hl5rp3amm",
-        "templateName": "视觉设计复刻",
-        "prompt": "请参考我上传的图片，把它们作为视觉风格参考，而不是内容复制对象。请提取参考图中的设计气质、构图方式、色彩关系、光影层次、材质质感、图形语言、版式节奏、字体气质和整体艺术审美，并根据我的新需求生成一张全新的图片。\n\n新图片需求：转换为一张新的海报，人像换成葫芦娃\n主题内容：5毒不侵\n需要出现的文字：一棵藤上七朵花\n主色调：指定色1\n辅助色：指定色2\n附加要求：。\n\n生成时请只复刻参考图的设计风格，不复制参考图中的 logo、品牌名称、标语、二维码、水印、原有文字、人物身份、产品商标或专属信息。不要机械照搬参考图版式，而是根据我的新主题重新设计构图和视觉元素。若有多张参考图，请提取各图优势进行高级融合，形成统一、自然、完整的新视觉，而不是简单拼贴。设计元素需要围绕新主题合理变化，既保留参考风格，又符合当前需求。画面要专业、高级、有主视觉、有留白、有层次，避免廉价模板感、素材堆砌和无关装饰。如果指定了文字，文字必须准确，不得错字、漏字、乱码或添加无关文字。最终输出应是全新原创画面，而不是对参考图的复制、改字或换皮。",
-        "variables": "{\"var_1\":\"转换为一张新的海报，人像换成葫芦娃\",\"var_2\":\"5毒不侵\",\"var_3\":\"一棵藤上七朵花\"}",
-        "configJson": "{\"formData\":{\"var_1\":\"转换为一张新的海报，人像换成葫芦娃\",\"var_2\":\"5毒不侵\",\"var_3\":\"一棵藤上七朵花\"},\"variableImages\":{},\"userImages\":[{\"id\":\"main_1780277772820_bcnbur2k3\",\"url\":\"https://himiceai.oss-cn-guangzhou.aliyuncs.com/uploads/1780277772382_nyc263iro.png\",\"name\":\"7974ae52-a5ba-44b6-987c-ccd098688a71.png\",\"originalUrl\":\"https://himiceai.oss-cn-guangzhou.aliyuncs.com/uploads/1780277772382_nyc263iro.png\",\"annotations\":[],\"annotationTokens\":[]}],\"customReferenceImages\":[],\"selectedCustomReferenceIds\":[],\"selectedPresetImage\":null,\"selectedUserImage\":{\"id\":\"main_1780277772820_bcnbur2k3\",\"url\":\"https://himiceai.oss-cn-guangzhou.aliyuncs.com/uploads/1780277772382_nyc263iro.png\",\"name\":\"7974ae52-a5ba-44b6-987c-ccd098688a71.png\",\"originalUrl\":\"https://himiceai.oss-cn-guangzhou.aliyuncs.com/uploads/1780277772382_nyc263iro.png\",\"annotations\":[],\"annotationTokens\":[]},\"userPrompt\":\"\",\"enableUserPrompt\":false,\"userPromptPriority\":false,\"useSmartColoring\":false,\"size\":\"auto\",\"quality\":\"high\",\"referenceBatchMode\":false,\"batchReferenceImages\":[{\"id\":\"main_1780277772820_bcnbur2k3\",\"url\":\"https://himiceai.oss-cn-guangzhou.aliyuncs.com/uploads/1780277772382_nyc263iro.png\",\"name\":\"7974ae52-a5ba-44b6-987c-ccd098688a71.png\",\"originalUrl\":\"https://himiceai.oss-cn-guangzhou.aliyuncs.com/uploads/1780277772382_nyc263iro.png\",\"annotations\":[],\"annotationTokens\":[]}],\"asyncJobRequest\":{\"mode\":\"edit\",\"promptTemplate\":\"请参考我上传的图片，把它们作为视觉风格参考，而不是内容复制对象。请提取参考图中的设计气质、构图方式、色彩关系、光影层次、材质质感、图形语言、版式节奏、字体气质和整体艺术审美，并根据我的新需求生成一张全新的图片。\\n\\n新图片需求：转换为一张新的海报，人像换成葫芦娃\\n主题内容：5毒不侵\\n需要出现的文字：一棵藤上七朵花\\n主色调：指定色1\\n辅助色：指定色2\\n附加要求：。\\n\\n生成时请只复刻参考图的设计风格，不复制参考图中的 logo、品牌名称、标语、二维码、水印、原有文字、人物身份、产品商标或专属信息。不要机械照搬参考图版式，而是根据我的新主题重新设计构图和视觉元素。若有多张参考图，请提取各图优势进行高级融合，形成统一、自然、完整的新视觉，而不是简单拼贴。设计元素需要围绕新主题合理变化，既保留参考风格，又符合当前需求。画面要专业、高级、有主视觉、有留白、有层次，避免廉价模板感、素材堆砌和无关装饰。如果指定了文字，文字必须准确，不得错字、漏字、乱码或添加无关文字。最终输出应是全新原创画面，而不是对参考图的复制、改字或换皮。\",\"variables\":{\"var_1\":\"转换为一张新的海报，人像换成葫芦娃\",\"var_2\":\"5毒不侵\",\"var_3\":\"一棵藤上七朵花\"},\"size\":\"auto\",\"quality\":\"high\",\"images\":[\"https://himiceai.oss-cn-guangzhou.aliyuncs.com/uploads/1780277772382_nyc263iro.png\"],\"referenceImages\":[],\"userId\":\"cmovc1qsk0001q59hfrkx1c9i\",\"templateId\":\"cmpmv2qqz0001107hl5rp3amm\",\"templateName\":\"视觉设计复刻\",\"providerId\":\"openai_std\"}}",
-        "outputImageUrl": null,
-        "thumbnailUrl": null,
-        "status": "failed",
-        "creditsUsed": 0,
-        "createdAt": "2026-05-31T17:37:08.935Z",
-        "errorMessage": "生成过程中遇到问题，请稍后重试",
-        "taskType": "async_generate",
-        "providerId": "openai_std",
-        "startedAt": "2026-05-31T17:37:08.947Z",
-        "finishedAt": "2026-05-31T17:39:39.428Z",
-        "updatedAt": "2026-05-31T17:39:39.430Z"
-      },
-      {
-        "id": "cmpujsl110002v7iis9gqt5r3",
-        "userId": "cmovc1qsk0001q59hfrkx1c9i",
-        "templateId": "cmpmv2qqz0001107hl5rp3amm",
-        "templateName": "视觉设计复刻",
-        "prompt": "请参考我上传的图片，把它们作为视觉风格参考，而不是内容复制对象。请提取参考图中的设计气质、构图方式、色彩关系、光影层次、材质质感、图形语言、版式节奏、字体气质和整体艺术审美，并根据我的新需求生成一张全新的图片。\n\n新图片需求：转换为一张新的海报，人像换成葫芦娃\n主题内容：5毒不侵\n需要出现的文字：一棵藤上七朵花\n主色调：指定色1\n辅助色：指定色2\n附加要求：。\n\n生成时请只复刻参考图的设计风格，不复制参考图中的 logo、品牌名称、标语、二维码、水印、原有文字、人物身份、产品商标或专属信息。不要机械照搬参考图版式，而是根据我的新主题重新设计构图和视觉元素。若有多张参考图，请提取各图优势进行高级融合，形成统一、自然、完整的新视觉，而不是简单拼贴。设计元素需要围绕新主题合理变化，既保留参考风格，又符合当前需求。画面要专业、高级、有主视觉、有留白、有层次，避免廉价模板感、素材堆砌和无关装饰。如果指定了文字，文字必须准确，不得错字、漏字、乱码或添加无关文字。最终输出应是全新原创画面，而不是对参考图的复制、改字或换皮。",
-        "variables": "{\"var_1\":\"转换为一张新的海报，人像换成葫芦娃\",\"var_2\":\"5毒不侵\",\"var_3\":\"一棵藤上七朵花\"}",
-        "configJson": "{\"formData\":{\"var_1\":\"转换为一张新的海报，人像换成葫芦娃\",\"var_2\":\"5毒不侵\",\"var_3\":\"一棵藤上七朵花\"},\"variableImages\":{},\"userImages\":[{\"id\":\"main_1780277772820_bcnbur2k3\",\"url\":\"https://himiceai.oss-cn-guangzhou.aliyuncs.com/uploads/1780277772382_nyc263iro.png\",\"name\":\"7974ae52-a5ba-44b6-987c-ccd098688a71.png\",\"originalUrl\":\"https://himiceai.oss-cn-guangzhou.aliyuncs.com/uploads/1780277772382_nyc263iro.png\",\"annotations\":[],\"annotationTokens\":[]}],\"customReferenceImages\":[],\"selectedCustomReferenceIds\":[],\"selectedPresetImage\":null,\"selectedUserImage\":{\"id\":\"main_1780277772820_bcnbur2k3\",\"url\":\"https://himiceai.oss-cn-guangzhou.aliyuncs.com/uploads/1780277772382_nyc263iro.png\",\"name\":\"7974ae52-a5ba-44b6-987c-ccd098688a71.png\",\"originalUrl\":\"https://himiceai.oss-cn-guangzhou.aliyuncs.com/uploads/1780277772382_nyc263iro.png\",\"annotations\":[],\"annotationTokens\":[]},\"userPrompt\":\"\",\"enableUserPrompt\":false,\"userPromptPriority\":false,\"useSmartColoring\":false,\"size\":\"auto\",\"quality\":\"high\",\"referenceBatchMode\":false,\"batchReferenceImages\":[{\"id\":\"main_1780277772820_bcnbur2k3\",\"url\":\"https://himiceai.oss-cn-guangzhou.aliyuncs.com/uploads/1780277772382_nyc263iro.png\",\"name\":\"7974ae52-a5ba-44b6-987c-ccd098688a71.png\",\"originalUrl\":\"https://himiceai.oss-cn-guangzhou.aliyuncs.com/uploads/1780277772382_nyc263iro.png\",\"annotations\":[],\"annotationTokens\":[]}],\"asyncJobRequest\":{\"mode\":\"edit\",\"promptTemplate\":\"请参考我上传的图片，把它们作为视觉风格参考，而不是内容复制对象。请提取参考图中的设计气质、构图方式、色彩关系、光影层次、材质质感、图形语言、版式节奏、字体气质和整体艺术审美，并根据我的新需求生成一张全新的图片。\\n\\n新图片需求：转换为一张新的海报，人像换成葫芦娃\\n主题内容：5毒不侵\\n需要出现的文字：一棵藤上七朵花\\n主色调：指定色1\\n辅助色：指定色2\\n附加要求：。\\n\\n生成时请只复刻参考图的设计风格，不复制参考图中的 logo、品牌名称、标语、二维码、水印、原有文字、人物身份、产品商标或专属信息。不要机械照搬参考图版式，而是根据我的新主题重新设计构图和视觉元素。若有多张参考图，请提取各图优势进行高级融合，形成统一、自然、完整的新视觉，而不是简单拼贴。设计元素需要围绕新主题合理变化，既保留参考风格，又符合当前需求。画面要专业、高级、有主视觉、有留白、有层次，避免廉价模板感、素材堆砌和无关装饰。如果指定了文字，文字必须准确，不得错字、漏字、乱码或添加无关文字。最终输出应是全新原创画面，而不是对参考图的复制、改字或换皮。\",\"variables\":{\"var_1\":\"转换为一张新的海报，人像换成葫芦娃\",\"var_2\":\"5毒不侵\",\"var_3\":\"一棵藤上七朵花\"},\"size\":\"auto\",\"quality\":\"high\",\"images\":[\"https://himiceai.oss-cn-guangzhou.aliyuncs.com/uploads/1780277772382_nyc263iro.png\"],\"referenceImages\":[],\"userId\":\"cmovc1qsk0001q59hfrkx1c9i\",\"templateId\":\"cmpmv2qqz0001107hl5rp3amm\",\"templateName\":\"视觉设计复刻\",\"providerId\":\"openai_std\"}}",
-        "outputImageUrl": "https://himiceai.oss-cn-guangzhou.aliyuncs.com/outputs/generated_1780278400130_1cd261af.png",
-        "thumbnailUrl": "https://himiceai.oss-cn-guangzhou.aliyuncs.com/outputs/generated_1780278400130_1cd261af.png",
-        "status": "success",
-        "creditsUsed": 1,
-        "createdAt": "2026-05-31T17:46:40.110Z",
-        "errorMessage": null,
-        "taskType": "async_generate",
-        "providerId": "openai_std",
-        "startedAt": "2026-05-31T17:46:40.123Z",
-        "finishedAt": "2026-05-31T17:48:59.729Z",
-        "updatedAt": "2026-05-31T17:48:59.732Z"
-      },
-      {
-        "id": "cmpum69x60005133ci8cts9a7",
-        "userId": "cmoux0zkt000094s23ki9f4gc",
-        "templateId": "cmow9mme1004ys430t10zossb",
-        "templateName": "大巴车身贴",
-        "prompt": "这是一个将主视觉KV迁移到效果图上的任务，\n将参考图2的画面放到参考图2的果图红色色块中，参考图1中的主题一行放在画面的中间，参考图1的效果图保持原始比例\n",
-        "variables": "{}",
-        "configJson": "{\"formData\":{},\"selectedPresetImage\":null,\"userPrompt\":\"\",\"enableUserPrompt\":true,\"userPromptPriority\":false,\"size\":\"auto\",\"quality\":\"medium\",\"specifiedColors\":[],\"asyncJobRequest\":{\"mode\":\"edit\",\"promptTemplate\":\"这是一个将主视觉KV迁移到效果图上的任务，\\n将参考图2的画面放到参考图2的果图红色色块中，参考图1中的主题一行放在画面的中间，参考图1的效果图保持原始比例\\n\",\"variables\":{},\"size\":\"auto\",\"quality\":\"medium\",\"images\":[\"https://himiceai.oss-cn-guangzhou.aliyuncs.com/uploads/1780282382037_kbbu2d1dq.jpg\"],\"referenceImages\":[\"/storage/uploads/1778205474349_qtrapv4io.png\",\"/storage/uploads/1779692232677_opp5h7jw4.png\"],\"userId\":\"cmoux0zkt000094s23ki9f4gc\",\"templateId\":\"cmow9mme1004ys430t10zossb\",\"templateName\":\"大巴车身贴\",\"providerId\":\"openai_std\"}}",
-        "outputImageUrl": "https://himiceai.oss-cn-guangzhou.aliyuncs.com/outputs/generated_1780282398140_a7e6aa46.png",
-        "thumbnailUrl": "https://himiceai.oss-cn-guangzhou.aliyuncs.com/outputs/generated_1780282398140_a7e6aa46.png",
-        "status": "success",
-        "creditsUsed": 1,
-        "createdAt": "2026-05-31T18:53:18.136Z",
-        "errorMessage": null,
-        "taskType": "sync_generate",
-        "providerId": "openai_std",
-        "startedAt": "2026-05-31T18:53:18.136Z",
-        "finishedAt": "2026-05-31T18:54:14.131Z",
-        "updatedAt": "2026-05-31T18:54:14.133Z"
-      },
-      {
-        "id": "cmpuk9li1000bv7iifmyzxj92",
-        "userId": "cmoux0zkt000094s23ki9f4gc",
-        "templateId": "cmowq3ype0001t9jv8xff7gx5",
-        "templateName": "喜报海报",
-        "prompt": "请根据我提供的项目信息，生成一张9:16竖版商业喜报海报\n\n左上角必须放置参考图1，Logo需清晰、完整、比例正确，不要变形，不要遮挡，不要重新设计Logo。\n\n海报主标题为“喜报”，“喜报”两个字须最大\n\n请根据内容合理性自动在画面中清晰呈现以下文字信息：\n\n热烈祝贺海口公司\n中标小红书年会\n\n金额3000万\n\n项目团队：\n张三\n\n创意团队：\n李四\n\n特别鸣谢：\n王麻子\n\n请重点突出【金额】，金额数字要大、醒目、有视觉冲击力，项目名称必须完整清楚，人员名单必须全部写清楚，不得遗漏、不得改名、不得生成错别字。\n\n\n\n整体风格要求：高级、大气、喜庆、有层次、有光影、有传播感，体现一家专业活动营销集团的品牌气质。画面不要杂乱，不要廉价红金模板感，不要生成过多无关文字，不要添加空泛口号。\n\n版式建议：\n顶部左上角放Logo；\n中上部放大标题“喜报”；\n中部放“热烈祝贺 + 公司/部门 + 中标项目名称”；\n中下部重点突出金额；\n底部整齐排列项目团队、创意团队、特别鸣谢。\n\n并且如果提示词中输入的名字有标点，你都以空格形式隔开呈现，注意优化各种文字的换行，自动修复明显文字错误比如金额加了两个元。",
-        "variables": "{\"var_5\":\"海口公司\",\"var_6\":\"小红书年会\",\"var_3\":\"3000万\",\"var_4\":\"张三\",\"var_1\":\"李四\",\"var_2\":\"王麻子\"}",
-        "configJson": "{\"formData\":{\"var_5\":\"海口公司\",\"var_6\":\"小红书年会\",\"var_3\":\"3000万\",\"var_4\":\"张三\",\"var_1\":\"李四\",\"var_2\":\"王麻子\"},\"variableImages\":{},\"userImages\":[],\"customReferenceImages\":[],\"selectedCustomReferenceIds\":[],\"selectedPresetImage\":null,\"selectedUserImage\":null,\"userPrompt\":\"\",\"enableUserPrompt\":false,\"userPromptPriority\":false,\"useSmartColoring\":false,\"size\":\"auto\",\"quality\":\"high\",\"referenceBatchMode\":false,\"batchReferenceImages\":[],\"asyncJobRequest\":{\"mode\":\"edit\",\"promptTemplate\":\"请根据我提供的项目信息，生成一张9:16竖版商业喜报海报\\n\\n左上角必须放置参考图1，Logo需清晰、完整、比例正确，不要变形，不要遮挡，不要重新设计Logo。\\n\\n海报主标题为“喜报”，“喜报”两个字须最大\\n\\n请根据内容合理性自动在画面中清晰呈现以下文字信息：\\n\\n热烈祝贺海口公司\\n中标小红书年会\\n\\n金额3000万\\n\\n项目团队：\\n张三\\n\\n创意团队：\\n李四\\n\\n特别鸣谢：\\n王麻子\\n\\n请重点突出【金额】，金额数字要大、醒目、有视觉冲击力，项目名称必须完整清楚，人员名单必须全部写清楚，不得遗漏、不得改名、不得生成错别字。\\n\\n\\n\\n整体风格要求：高级、大气、喜庆、有层次、有光影、有传播感，体现一家专业活动营销集团的品牌气质。画面不要杂乱，不要廉价红金模板感，不要生成过多无关文字，不要添加空泛口号。\\n\\n版式建议：\\n顶部左上角放Logo；\\n中上部放大标题“喜报”；\\n中部放“热烈祝贺 + 公司/部门 + 中标项目名称”；\\n中下部重点突出金额；\\n底部整齐排列项目团队、创意团队、特别鸣谢。\\n\\n并且如果提示词中输入的名字有标点，你都以空格形式隔开呈现，注意优化各种文字的换行，自动修复明显文字错误比如金额加了两个元。\",\"variables\":{\"var_5\":\"海口公司\",\"var_6\":\"小红书年会\",\"var_3\":\"3000万\",\"var_4\":\"张三\",\"var_1\":\"李四\",\"var_2\":\"王麻子\"},\"size\":\"auto\",\"quality\":\"high\",\"images\":[],\"referenceImages\":[\"/storage/uploads/1778232898828_aa0zekdgs.png\"],\"userId\":\"cmoux0zkt000094s23ki9f4gc\",\"templateId\":\"cmowq3ype0001t9jv8xff7gx5\",\"templateName\":\"喜报海报\",\"providerId\":\"openai_std\"}}",
-        "outputImageUrl": "https://himiceai.oss-cn-guangzhou.aliyuncs.com/outputs/generated_1780279193890_820fec39.png",
-        "thumbnailUrl": "https://himiceai.oss-cn-guangzhou.aliyuncs.com/outputs/generated_1780279193890_820fec39.png",
-        "status": "success",
-        "creditsUsed": 1,
-        "createdAt": "2026-05-31T17:59:53.877Z",
-        "errorMessage": null,
-        "taskType": "async_generate",
-        "providerId": "openai_std",
-        "startedAt": "2026-05-31T17:59:53.885Z",
-        "finishedAt": "2026-05-31T18:01:23.677Z",
-        "updatedAt": "2026-05-31T18:01:23.678Z"
-      },
-      {
-        "id": "cmpukdxzu000ev7iiccuwjz0o",
-        "userId": "cmoux0zkt000094s23ki9f4gc",
-        "templateId": "cmowq3ype0001t9jv8xff7gx5",
-        "templateName": "喜报海报",
-        "prompt": "请根据我提供的项目信息，生成一张9:16竖版商业喜报海报\n注意结合小红书年会的内容，根据这个中标的品牌调整设计风格，决定设计配色，结合小红书年会的主体品牌调性设计小红书年会的风格并结合其视觉元素进行设计。\n左上角必须放置参考图1，Logo需清晰、完整、比例正确，不要变形，不要遮挡，不要重新设计Logo。\n\n海报主标题为“喜报”，“喜报”两个字须最大\n\n请根据内容合理性自动在画面中清晰呈现以下文字信息：\n\n热烈祝贺海口公司\n中标小红书年会\n\n金额3000万\n\n项目团队：\n张三\n\n创意团队：\n李四\n\n特别鸣谢：\n王麻子\n\n请重点突出【金额】，金额数字要大、醒目、有视觉冲击力，项目名称必须完整清楚，人员名单必须全部写清楚，不得遗漏、不得改名、不得生成错别字。\n\n\n\n整体风格要求：高级、大气、有层次、有光影、有传播感，体现一家专业活动营销集团的品牌气质。画面不要杂乱，\n\n版式建议：\n顶部左上角放Logo；\n中上部放大标题“喜报”；\n中部放“热烈祝贺 + 公司/部门 + 中标项目名称”；\n中下部重点突出金额；\n底部整齐排列项目团队、创意团队、特别鸣谢。\n\n并且如果提示词中输入的名字有标点，你都以空格形式隔开呈现，注意优化各种文字的换行，自动修复明显文字错误比如金额加了两个元。",
-        "variables": "{\"var_5\":\"海口公司\",\"var_6\":\"小红书年会\",\"var_3\":\"3000万\",\"var_4\":\"张三\",\"var_1\":\"李四\",\"var_2\":\"王麻子\"}",
-        "configJson": "{\"formData\":{\"var_5\":\"海口公司\",\"var_6\":\"小红书年会\",\"var_3\":\"3000万\",\"var_4\":\"张三\",\"var_1\":\"李四\",\"var_2\":\"王麻子\"},\"variableImages\":{},\"userImages\":[],\"customReferenceImages\":[],\"selectedCustomReferenceIds\":[],\"selectedPresetImage\":null,\"selectedUserImage\":null,\"userPrompt\":\"\",\"enableUserPrompt\":false,\"userPromptPriority\":false,\"useSmartColoring\":false,\"size\":\"auto\",\"quality\":\"high\",\"referenceBatchMode\":false,\"batchReferenceImages\":[],\"asyncJobRequest\":{\"mode\":\"edit\",\"promptTemplate\":\"请根据我提供的项目信息，生成一张9:16竖版商业喜报海报\\n注意结合小红书年会的内容，根据这个中标的品牌调整设计风格，决定设计配色，结合小红书年会的主体品牌调性设计小红书年会的风格并结合其视觉元素进行设计。\\n左上角必须放置参考图1，Logo需清晰、完整、比例正确，不要变形，不要遮挡，不要重新设计Logo。\\n\\n海报主标题为“喜报”，“喜报”两个字须最大\\n\\n请根据内容合理性自动在画面中清晰呈现以下文字信息：\\n\\n热烈祝贺海口公司\\n中标小红书年会\\n\\n金额3000万\\n\\n项目团队：\\n张三\\n\\n创意团队：\\n李四\\n\\n特别鸣谢：\\n王麻子\\n\\n请重点突出【金额】，金额数字要大、醒目、有视觉冲击力，项目名称必须完整清楚，人员名单必须全部写清楚，不得遗漏、不得改名、不得生成错别字。\\n\\n\\n\\n整体风格要求：高级、大气、有层次、有光影、有传播感，体现一家专业活动营销集团的品牌气质。画面不要杂乱，\\n\\n版式建议：\\n顶部左上角放Logo；\\n中上部放大标题“喜报”；\\n中部放“热烈祝贺 + 公司/部门 + 中标项目名称”；\\n中下部重点突出金额；\\n底部整齐排列项目团队、创意团队、特别鸣谢。\\n\\n并且如果提示词中输入的名字有标点，你都以空格形式隔开呈现，注意优化各种文字的换行，自动修复明显文字错误比如金额加了两个元。\",\"variables\":{\"var_5\":\"海口公司\",\"var_6\":\"小红书年会\",\"var_3\":\"3000万\",\"var_4\":\"张三\",\"var_1\":\"李四\",\"var_2\":\"王麻子\"},\"size\":\"auto\",\"quality\":\"high\",\"images\":[],\"referenceImages\":[\"/storage/uploads/1778232898828_aa0zekdgs.png\"],\"userId\":\"cmoux0zkt000094s23ki9f4gc\",\"templateId\":\"cmowq3ype0001t9jv8xff7gx5\",\"templateName\":\"喜报海报\",\"providerId\":\"openai_std\"}}",
-        "outputImageUrl": "https://himiceai.oss-cn-guangzhou.aliyuncs.com/outputs/generated_1780279396710_783fd9e2.png",
-        "thumbnailUrl": "https://himiceai.oss-cn-guangzhou.aliyuncs.com/outputs/generated_1780279396710_783fd9e2.png",
-        "status": "success",
-        "creditsUsed": 1,
-        "createdAt": "2026-05-31T18:03:16.693Z",
-        "errorMessage": null,
-        "taskType": "async_generate",
-        "providerId": "openai_std",
-        "startedAt": "2026-05-31T18:03:16.704Z",
-        "finishedAt": "2026-05-31T18:04:46.661Z",
-        "updatedAt": "2026-05-31T18:04:46.662Z"
+        "createdAt": "2026-05-28T04:25:18.134Z"
       }
     ],
     "GenerationJob": [],
@@ -5124,9 +4108,9 @@
       {
         "id": "cmpqccra0000bpxeg3ue47lw7",
         "key": "maintenance_mode_settings",
-        "value": "{\"enabled\":false,\"title\":\"装修中\",\"message\":\"我们正在进行系统升级与稳定性维护，请稍后再试。\",\"allowAdminBypass\":true,\"updatedAt\":\"2026-06-01T01:29:50.454Z\",\"updatedByName\":\"admin\"}",
+        "value": "{\"enabled\":true,\"title\":\"装修中\",\"message\":\"我们正在进行系统升级与稳定性维护，请稍后再试。\",\"allowAdminBypass\":true,\"updatedAt\":\"2026-05-29T03:10:37.398Z\",\"updatedByName\":\"admin\"}",
         "createdAt": "2026-05-28T19:07:19.704Z",
-        "updatedAt": "2026-05-31T17:29:50.456Z"
+        "updatedAt": "2026-05-28T19:10:37.399Z"
       }
     ],
     "User": [
@@ -5138,13 +4122,13 @@
         "name": "管理员",
         "avatar": null,
         "role": "admin",
-        "credits": 8798,
+        "credits": 8804,
         "departmentId": null,
         "dingtalkUnionId": null,
         "dingtalkOpenId": null,
-        "lastLoginAt": "2026-05-31T17:54:42.217Z",
+        "lastLoginAt": "2026-05-27T00:12:17.791Z",
         "createdAt": "2026-05-06T19:17:24.893Z",
-        "updatedAt": "2026-05-31T18:53:18.136Z"
+        "updatedAt": "2026-05-28T02:28:12.722Z"
       },
       {
         "id": "cmow8u3e5009v14lckqzit57f",
@@ -14754,13 +13738,13 @@
         "name": "王志豪",
         "avatar": "https://static-legacy.dingtalk.com/media/lADPD26eRpZlO6rNBQTNBQQ_1284_1284.jpg",
         "role": "user",
-        "credits": 208,
+        "credits": 211,
         "departmentId": "cmovcfqv2000mq59h3n8ux370",
         "dingtalkUnionId": "XEd3mBadEOkxobI4uOC2pAiEiE",
         "dingtalkOpenId": "17235991925508033",
-        "lastLoginAt": "2026-05-31T17:30:13.996Z",
+        "lastLoginAt": "2026-05-28T19:07:02.526Z",
         "createdAt": "2026-05-07T02:17:54.404Z",
-        "updatedAt": "2026-05-31T17:52:17.393Z"
+        "updatedAt": "2026-05-28T19:07:02.526Z"
       }
     ],
     "VerificationCode": [],
@@ -14774,16 +13758,6 @@
         "rolled_back_at": null,
         "started_at": "2026-05-25T02:22:41.112Z",
         "applied_steps_count": 0
-      },
-      {
-        "id": "d5f87edb-db1d-4eb8-b979-736ba5d8524b",
-        "checksum": "9f6be3294fff940aaf0fce2fcd95b7ec62b769a4c89f7a25cca398d60499db8e",
-        "finished_at": "2026-05-29T06:56:59.293Z",
-        "migration_name": "20260529120000_add_async_generation_history_fields",
-        "logs": null,
-        "rolled_back_at": null,
-        "started_at": "2026-05-29T06:56:59.288Z",
-        "applied_steps_count": 1
       }
     ]
   }

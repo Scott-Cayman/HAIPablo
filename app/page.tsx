@@ -1,101 +1,91 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useEffect, useMemo, useState } from 'react';
+import { motion } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import LightPillar from './LightPillar';
 import { UserMenuDropdown } from '@/components/UserMenuDropdown';
 import { AuthModal } from '@/components/AuthModal';
-import { 
-  Sparkles, 
-  Image, 
-  Layers, 
-  Palette, 
-  User, 
-  Settings,
+import {
+  Sparkles,
+  Layers,
   ArrowRight,
   Plus,
-  Clock,
-  TrendingUp,
   FolderKanban,
-  Palette as PaletteIcon,
   Image as ImageIcon,
-  User as UserIcon,
-  LogOut,
+  Palette as PaletteIcon,
   History,
-  Shield,
   Users,
-  LayoutGrid,
-  Smartphone,
   UserCircle,
-  Timer,
-  Gift,
   MoreHorizontal,
   ChevronRight,
-  Search,
-  CheckCircle2,
   Download,
   Upload,
   Rocket,
   PieChart,
-  Database,
-  ArrowRightCircle
+  Database
 } from 'lucide-react';
+import {
+  getTemplateGradient,
+  getTemplateImageUrl,
+  pickCommonTemplates,
+  pickFeatureHeroTemplate,
+  type HomeFeatureGroup
+} from '@/lib/home-page';
 
-const features = [
+const FEATURE_VISUALS: Record<
+  string,
   {
-    icon: Layers,
-    title: '物料延展生成',
-    description: '基于主视觉智能延展，一键生成多尺寸物料',
-    gradient: 'from-blue-500 to-indigo-600',
-    delay: 0.1,
-    path: '/templates?group=material_extension'
-  },
-  {
-    icon: PaletteIcon,
-    title: '海报智能生成',
-    description: 'AI智能生成各类营销海报，高效出图更出彩',
-    gradient: 'from-sky-400 to-blue-500',
-    delay: 0.2,
-    path: '/templates?group=poster_generation'
-  },
-  {
-    icon: UserCircle,
-    title: '形象照生成',
-    description: 'AI生成专业形象照，多风格多场景可选',
-    gradient: 'from-emerald-400 to-teal-500',
-    delay: 0.3,
-    path: '/templates?group=portrait_generation'
-  },
-  {
-    icon: Timer,
-    title: '倒计时海报',
-    description: '高颜值倒计时海报模板，多样风格一键生成',
-    gradient: 'from-orange-400 to-red-500',
-    delay: 0.4,
-    path: '/templates?group=countdown'
-  },
-  {
-    icon: Gift,
-    title: '喜报生成',
-    description: '智能生成喜报海报，数据可视化更惊艳',
-    gradient: 'from-rose-400 to-pink-500',
-    delay: 0.5,
-    path: '/templates?group=success_report'
-  },
-  {
-    icon: LayoutGrid,
-    title: '更多模板',
-    description: '海量优质模板持续更新，满足更多创作需求',
-    gradient: 'from-gray-400 to-gray-500',
-    delay: 0.6,
-    path: '/templates'
+    icon: typeof Sparkles;
+    gradient: string;
+    description: string;
   }
+> = {
+  extended_generation: {
+    icon: Layers,
+    gradient: 'from-blue-500 to-indigo-600',
+    description: '基于主视觉智能延展，一键生成多尺寸物料'
+  },
+  intelligent_poster_generation: {
+    icon: PaletteIcon,
+    gradient: 'from-sky-400 to-blue-500',
+    description: 'AI 智能生成各类营销海报，高效出图更出彩'
+  },
+  intelligent_portrait_processing: {
+    icon: UserCircle,
+    gradient: 'from-emerald-400 to-teal-500',
+    description: 'AI 生成专业形象照，多风格多场景可选'
+  },
+  '3d_rendering_optimization': {
+    icon: Sparkles,
+    gradient: 'from-orange-400 to-red-500',
+    description: '白膜、草图、线稿一键优化为高质量 3D 效果图'
+  },
+  smart_diagram: {
+    icon: ImageIcon,
+    gradient: 'from-cyan-400 to-sky-500',
+    description: '快速生成结构清晰、表达准确的图示与视觉说明'
+  },
+  style_clone: {
+    icon: Sparkles,
+    gradient: 'from-rose-400 to-pink-500',
+    description: '围绕创意小工具与风格能力，提升创作效率'
+  }
+};
+
+const FALLBACK_FEATURE_VISUALS = [
+  { icon: Layers, gradient: 'from-blue-500 to-indigo-600' },
+  { icon: PaletteIcon, gradient: 'from-sky-400 to-blue-500' },
+  { icon: UserCircle, gradient: 'from-emerald-400 to-teal-500' },
+  { icon: Sparkles, gradient: 'from-orange-400 to-red-500' },
+  { icon: ImageIcon, gradient: 'from-cyan-400 to-sky-500' },
+  { icon: Sparkles, gradient: 'from-rose-400 to-pink-500' }
 ];
 
 export default function HomePage() {
   const [mounted, setMounted] = useState(false);
   const [user, setUser] = useState<any>(null);
+  const [featureGroups, setFeatureGroups] = useState<HomeFeatureGroup[]>([]);
   const [stats, setStats] = useState({
     todayCount: 0,
     successRate: 0,
@@ -106,6 +96,32 @@ export default function HomePage() {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const darkMode = true;
   const router = useRouter();
+  const commonTemplates = useMemo(() => pickCommonTemplates(featureGroups, 4), [featureGroups]);
+  const features = useMemo(
+    () =>
+      featureGroups.filter((group) => group.templates.length > 0).map((group, index) => {
+        const visual = FEATURE_VISUALS[group.key] ?? FALLBACK_FEATURE_VISUALS[index % FALLBACK_FEATURE_VISUALS.length];
+
+        return {
+          icon: visual.icon,
+          title: group.name,
+          description: group.description || ('description' in visual ? visual.description : '探索该分类下的真实模板与封面'),
+          gradient: visual.gradient,
+          delay: 0.1 + index * 0.1,
+          groupKey: group.key,
+          path: `/templates?group=${group.key}`
+        };
+      }),
+    [featureGroups]
+  );
+  const featurePreviewMap = useMemo(
+    () =>
+      features.reduce<Record<string, ReturnType<typeof pickFeatureHeroTemplate>>>((acc, feature) => {
+        acc[feature.groupKey] = pickFeatureHeroTemplate(featureGroups, feature.groupKey);
+        return acc;
+      }, {}),
+    [featureGroups, features]
+  );
 
   useEffect(() => {
     setMounted(true);
@@ -155,7 +171,9 @@ export default function HomePage() {
       if (!Array.isArray(data)) {
         throw new Error('统计数据格式异常');
       }
-      
+
+      setFeatureGroups(data);
+
       let templateCount = 0;
       data.forEach((group: any) => {
         templateCount += group.templates?.length || 0;
@@ -193,6 +211,15 @@ export default function HomePage() {
       return;
     }
     router.push(path);
+  };
+
+  const handleTemplateOpen = (templateId: string) => {
+    if (!user) {
+      setShowAuthModal(true);
+      return;
+    }
+
+    router.push(`/generate?templateId=${templateId}`);
   };
 
   const handleLogin = () => {
@@ -463,16 +490,46 @@ export default function HomePage() {
                   </div>
                 </div>
                 
-                <div className="mt-6 flex items-end justify-between">
-                  <div className="flex gap-2">
-                    {[1, 2].map((i) => (
-                      <div key={i} className="w-16 h-20 rounded-lg bg-white/[0.04] ring-1 ring-white/[0.06] overflow-hidden relative group-hover:scale-105 transition-transform duration-500">
-                        <div className={`absolute inset-0 bg-gradient-to-br ${feature.gradient} opacity-10`} />
-                        <div className="absolute inset-x-2 top-2 h-1 rounded-full bg-current opacity-20" />
-                        <div className="absolute inset-x-2 top-4 h-1 w-2/3 rounded-full bg-current opacity-10" />
+                <div className="mt-6 flex items-end justify-between gap-4">
+                  {(() => {
+                    const preview = featurePreviewMap[feature.groupKey];
+                    const previewUrl = getTemplateImageUrl(preview);
+
+                    return (
+                      <div className="flex-1 min-w-0">
+                        <div className="relative h-24 rounded-[1.35rem] bg-white/[0.04] ring-1 ring-white/[0.06] overflow-hidden group-hover:scale-[1.02] transition-transform duration-500">
+                          {previewUrl ? (
+                            <>
+                              <img
+                                src={previewUrl}
+                                alt={preview?.name || feature.title}
+                                className="absolute inset-0 h-full w-full object-cover"
+                              />
+                              <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(3,7,18,0.78),rgba(3,7,18,0.24),rgba(3,7,18,0.18))]" />
+                              <div className="absolute inset-0 bg-[radial-gradient(circle_at_right,rgba(255,255,255,0.14),transparent_38%)]" />
+                              <div className="absolute inset-x-4 bottom-3 flex items-end justify-between gap-3">
+                                <div className="min-w-0">
+                                  <div className="mb-1 inline-flex rounded-full border border-white/15 bg-black/15 px-2 py-0.5 text-[9px] font-semibold tracking-[0.18em] text-white/75">
+                                    真实模板
+                                  </div>
+                                  <p className="truncate text-xs font-semibold text-white">
+                                    {preview?.name || preview?.coverMetadata?.title || '该分类暂无模板封面'}
+                                  </p>
+                                </div>
+                              </div>
+                            </>
+                          ) : (
+                            <>
+                              <div className={`absolute inset-0 bg-gradient-to-br ${feature.gradient} opacity-20`} />
+                              <div className="absolute inset-x-4 top-4 h-1.5 rounded-full bg-white/20" />
+                              <div className="absolute inset-x-4 top-8 h-1.5 w-2/3 rounded-full bg-white/10" />
+                              <div className="absolute inset-x-4 bottom-4 h-12 rounded-2xl border border-white/10 bg-black/10" />
+                            </>
+                          )}
+                        </div>
                       </div>
-                    ))}
-                  </div>
+                    );
+                  })()}
                   <div className="w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 bg-white/[0.05] ring-1 ring-white/[0.06] group-hover:bg-violet-500/80">
                     <ArrowRight className="w-5 h-5 transition-colors text-gray-200 group-hover:text-white" />
                   </div>
@@ -493,7 +550,7 @@ export default function HomePage() {
                 <span className="w-1 h-4 bg-indigo-500 rounded-full" />
                 常用模板
               </h3>
-              <button 
+              <button
                 onClick={handleViewTemplates}
                 className="text-xs text-gray-400 hover:text-indigo-300 transition-colors flex items-center gap-0.5"
               >
@@ -501,23 +558,41 @@ export default function HomePage() {
               </button>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-              {[
-                { name: '新品发布海报', gradient: 'from-blue-400 to-indigo-500' },
-                { name: '开业活动海报', gradient: 'from-orange-400 to-red-500' },
-                { name: '招聘海报', gradient: 'from-violet-400 to-purple-500' },
-                { name: '节日倒计时', gradient: 'from-pink-400 to-rose-500' }
-              ].map((item, i) => (
-                <div key={i} className="group cursor-pointer">
-                  <div className={`aspect-[3/4.5] rounded-xl bg-gradient-to-br ${item.gradient} mb-2 overflow-hidden relative shadow-sm ring-1 ring-white/10 group-hover:shadow-[0_18px_36px_rgba(15,23,42,0.25)] group-hover:-translate-y-1 transition-all duration-300`}>
-                    <div className="absolute inset-0 bg-black/10 group-hover:bg-transparent transition-colors" />
-                    <div className="absolute inset-x-2 bottom-2 h-0.5 bg-white/20 rounded-full overflow-hidden">
-                      <div className="h-full bg-white/40 w-1/3" />
+              {commonTemplates.map((item, i) => {
+                const templateImage = getTemplateImageUrl(item);
+                const templateGradient = getTemplateGradient(item, i);
+
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => handleTemplateOpen(item.id)}
+                    className="group cursor-pointer text-left"
+                  >
+                    <div className={`aspect-[3/4.5] rounded-xl ${templateImage ? 'bg-white/[0.02]' : `bg-gradient-to-br ${templateGradient}`} mb-2 overflow-hidden relative shadow-sm ring-1 ring-white/10 group-hover:shadow-[0_18px_36px_rgba(15,23,42,0.25)] group-hover:-translate-y-1 transition-all duration-300`}>
+                      {templateImage ? (
+                        <>
+                          <img
+                            src={templateImage}
+                            alt={item.name}
+                            className="absolute inset-0 h-full w-full object-cover"
+                          />
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/35 via-black/10 to-transparent" />
+                        </>
+                      ) : (
+                        <div className="absolute inset-0 bg-black/10 group-hover:bg-transparent transition-colors" />
+                      )}
+                      <div className="absolute inset-x-2 bottom-2 h-0.5 bg-white/20 rounded-full overflow-hidden">
+                        <div className="h-full bg-white/40 w-1/3" />
+                      </div>
                     </div>
-                  </div>
-                  <p className="text-[10px] font-medium text-center text-gray-300 truncate">{item.name}</p>
-                </div>
-              ))}
-              <div 
+                    <p className="text-[10px] font-medium text-center text-gray-300 truncate">
+                      {item.coverMetadata?.title || item.name}
+                    </p>
+                  </button>
+                );
+              })}
+              <div
                 onClick={handleViewTemplates}
                 className="aspect-[3/4.5] rounded-xl border border-dashed border-white/10 flex flex-col items-center justify-center gap-2 cursor-pointer bg-white/[0.02] hover:border-violet-400/40 hover:bg-violet-500/10 transition-all duration-300">
                 <Plus className="w-5 h-5 text-gray-400" />
@@ -526,38 +601,63 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* Column 2: 最近使用 (3 cols) */}
+          {/* Column 2: 预设封面 (3 cols) */}
           <div className="lg:col-span-3 rounded-3xl p-6 border border-white/10 bg-gray-900/55 backdrop-blur-sm shadow-[0_24px_80px_rgba(15,23,42,0.32)] transition-all duration-500">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-base font-bold flex items-center gap-2 text-white">
                 <span className="w-1 h-4 bg-blue-500 rounded-full" />
-                最近使用
+                预设封面
               </h3>
-              <button 
-                onClick={handleHistory}
+              <button
+                onClick={handleViewTemplates}
                 className="text-xs text-gray-400 hover:text-blue-300 transition-colors flex items-center gap-0.5"
               >
-                全部记录 <ChevronRight className="w-3 h-3" />
+                查看全部 <ChevronRight className="w-3 h-3" />
               </button>
             </div>
             <div className="space-y-4">
-              {[
-                { name: '夏季新品发布海报', time: '今天 10:24', size: '1920 x 1080px', gradient: 'from-sky-400 to-blue-500' },
-                { name: '618活动主视觉', time: '昨天 16:35', size: '1920 x 1080px', gradient: 'from-rose-400 to-pink-500' },
-                { name: '企业招聘海报_设计稿', time: '昨天 11:02', size: '1080 x 1920px', gradient: 'from-indigo-400 to-violet-500' }
-              ].map((item, i) => (
-                <div key={i} className="flex items-center gap-3 p-2 rounded-xl transition-colors cursor-pointer hover:bg-white/5">
-                  <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${item.gradient} shrink-0 shadow-sm`} />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[13px] font-bold truncate mb-0.5 text-gray-100">{item.name}</p>
-                    <p className="text-[10px] text-gray-400 font-medium">{item.size}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-[10px] text-gray-400 font-medium mb-1">{item.time}</p>
-                    <MoreHorizontal className="w-4 h-4 text-gray-500 ml-auto" />
-                  </div>
+              {commonTemplates.slice(0, 3).length > 0 ? (
+                commonTemplates.slice(0, 3).map((item, i) => {
+                  const previewImage = getTemplateImageUrl(item);
+                  const previewGradient = getTemplateGradient(item, i);
+
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => handleTemplateOpen(item.id)}
+                      className="w-full flex items-center gap-3 p-2 rounded-xl transition-colors cursor-pointer hover:bg-white/5 text-left"
+                    >
+                      <div className={`w-10 h-10 rounded-lg ${previewImage ? 'bg-white/[0.03]' : `bg-gradient-to-br ${previewGradient}`} shrink-0 shadow-sm overflow-hidden relative`}>
+                        {previewImage ? (
+                          <img
+                            src={previewImage}
+                            alt={item.name}
+                            className="absolute inset-0 h-full w-full object-cover"
+                          />
+                        ) : null}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[13px] font-bold truncate mb-0.5 text-gray-100">
+                          {item.coverMetadata?.title || item.name}
+                        </p>
+                        <p className="text-[10px] text-gray-400 font-medium">
+                          {item.featureGroup?.name || '精选模板'}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-[10px] text-gray-400 font-medium mb-1">预设封面</p>
+                        <MoreHorizontal className="w-4 h-4 text-gray-500 ml-auto" />
+                      </div>
+                    </button>
+                  );
+                })
+              ) : (
+                <div className="rounded-2xl border border-white/[0.08] bg-white/[0.03] px-4 py-6">
+                  <p className="text-sm font-bold text-gray-100">封面数据加载中</p>
+                  <p className="mt-1 text-xs text-gray-400">模板封面接入后，这里会展示预设好的推荐内容。</p>
                 </div>
-              ))}
+              )}
             </div>
           </div>
 
