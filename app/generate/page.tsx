@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import imageCompression from 'browser-image-compression';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { UserMenuDropdown } from '@/components/UserMenuDropdown';
@@ -71,6 +72,86 @@ const QUALITY_OPTIONS = [
   { value: 'high', label: '质量优先', description: '最终出图，高细节' },
   { value: 'auto', label: '自动', description: '模型自动判断' },
 ];
+
+const ACCEPTED_REFERENCE_IMAGE_MIME_TYPES = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/gif'
+]);
+const ACCEPTED_REFERENCE_IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif']);
+const ACCEPTED_REFERENCE_IMAGE_ACCEPT = '.jpg,.jpeg,.png,.webp,.gif';
+
+function getAcceptedReferenceImageFormatText() {
+  return 'JPG、JPEG、PNG、WEBP、GIF';
+}
+
+function getFileExtension(fileName: string) {
+  const extension = fileName.match(/\.[^.]+$/)?.[0]?.toLowerCase();
+  return extension || '';
+}
+
+function isAcceptedReferenceImageFile(file: File) {
+  const mimeType = (file.type || '').toLowerCase();
+  const extension = getFileExtension(file.name);
+  return ACCEPTED_REFERENCE_IMAGE_MIME_TYPES.has(mimeType) || ACCEPTED_REFERENCE_IMAGE_EXTENSIONS.has(extension);
+}
+
+function dedupeFiles(files: File[]) {
+  const seen = new Set<string>();
+  return files.filter((file) => {
+    const key = `${file.name}:${file.size}:${file.lastModified}`;
+    if (seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
+}
+
+function getFileIdentity(file: File) {
+  return `${file.name}:${file.size}:${file.lastModified}`;
+}
+
+function dataTransferHasFiles(dataTransfer?: DataTransfer | null) {
+  if (!dataTransfer) {
+    return false;
+  }
+
+  return Array.from(dataTransfer.items || []).some((item) => item.kind === 'file') || dataTransfer.files.length > 0;
+}
+
+function extractDraggedFiles(dataTransfer: DataTransfer) {
+  const filesFromItems: File[] = [];
+  let hasDirectory = false;
+
+  if (dataTransfer.items) {
+    for (const item of Array.from(dataTransfer.items)) {
+      const entry = (
+        item as DataTransferItem & {
+          webkitGetAsEntry?: () => { isDirectory?: boolean } | null;
+        }
+      ).webkitGetAsEntry?.();
+
+      if (entry?.isDirectory) {
+        hasDirectory = true;
+        continue;
+      }
+
+      if (item.kind === 'file') {
+        const file = item.getAsFile();
+        if (file) {
+          filesFromItems.push(file);
+        }
+      }
+    }
+  }
+
+  return {
+    files: filesFromItems.length > 0 ? filesFromItems : Array.from(dataTransfer.files || []),
+    hasDirectory,
+  };
+}
 
 interface ReferenceImage {
   id: string;
@@ -156,8 +237,6 @@ const LEGACY_SIZE_MAP: Record<string, string> = {
 const REFERENCE_UPLOAD_MAX_EDGE = 3840;
 const REFERENCE_UPLOAD_MAX_TOTAL_PIXELS = 8_294_400;
 const REFERENCE_UPLOAD_MAX_FILE_SIZE_BYTES = 8 * 1024 * 1024;
-const REFERENCE_UPLOAD_QUALITY_STEPS = [0.92, 0.88, 0.84, 0.8, 0.76, 0.72];
-const REFERENCE_UPLOAD_SCALE_STEPS = [1, 0.94, 0.88, 0.82];
 
 function formatFileSize(size: number) {
   if (size < 1024) {
@@ -173,19 +252,6 @@ function formatFileSize(size: number) {
 
 function getReferenceUploadLimitText() {
   return `最大边长 ${REFERENCE_UPLOAD_MAX_EDGE}px，总像素不超过 ${REFERENCE_UPLOAD_MAX_TOTAL_PIXELS.toLocaleString()}，文件大小不超过 ${formatFileSize(REFERENCE_UPLOAD_MAX_FILE_SIZE_BYTES)}`;
-}
-
-function canvasToBlob(canvas: HTMLCanvasElement, type: string, quality: number): Promise<Blob> {
-  return new Promise((resolve, reject) => {
-    canvas.toBlob((blob) => {
-      if (!blob) {
-        reject(new Error('图片压缩失败'));
-        return;
-      }
-
-      resolve(blob);
-    }, type, quality);
-  });
 }
 
 async function getImageFileDimensions(file: File): Promise<{ width: number; height: number }> {
@@ -205,7 +271,7 @@ async function getImageFileDimensions(file: File): Promise<{ width: number; heig
   }
 }
 
-function getReferenceUploadViolations({
+function inspectReferenceUpload({
   width,
   height,
   sizeBytes
@@ -214,23 +280,23 @@ function getReferenceUploadViolations({
   height: number;
   sizeBytes: number;
 }) {
-  const violations: string[] = [];
+  const hardViolations: string[] = [];
   const longestEdge = Math.max(width, height);
   const totalPixels = width * height;
 
   if (longestEdge > REFERENCE_UPLOAD_MAX_EDGE) {
-    violations.push(`最大边长 ${longestEdge}px，超过 ${REFERENCE_UPLOAD_MAX_EDGE}px`);
+    hardViolations.push(`最大边长 ${longestEdge}px，超过 ${REFERENCE_UPLOAD_MAX_EDGE}px`);
   }
 
   if (totalPixels > REFERENCE_UPLOAD_MAX_TOTAL_PIXELS) {
-    violations.push(`总像素 ${totalPixels.toLocaleString()}，超过 ${REFERENCE_UPLOAD_MAX_TOTAL_PIXELS.toLocaleString()}`);
+    hardViolations.push(`总像素 ${totalPixels.toLocaleString()}，超过 ${REFERENCE_UPLOAD_MAX_TOTAL_PIXELS.toLocaleString()}`);
   }
 
   if (sizeBytes > REFERENCE_UPLOAD_MAX_FILE_SIZE_BYTES) {
-    violations.push(`文件大小 ${formatFileSize(sizeBytes)}，超过 ${formatFileSize(REFERENCE_UPLOAD_MAX_FILE_SIZE_BYTES)}`);
+    hardViolations.push(`文件大小 ${formatFileSize(sizeBytes)}，超过 ${formatFileSize(REFERENCE_UPLOAD_MAX_FILE_SIZE_BYTES)}`);
   }
 
-  return violations;
+  return { hardViolations };
 }
 
 function getConstrainedDimensions(width: number, height: number) {
@@ -259,62 +325,30 @@ function getCompressedFileExtension(type: string) {
 }
 
 async function compressReferenceUploadImage(file: File): Promise<File> {
-  const imageUrl = URL.createObjectURL(file);
+  const dimensions = await getImageFileDimensions(file);
+  const constrained = getConstrainedDimensions(dimensions.width, dimensions.height);
+  const preferredType =
+    file.type === 'image/png' || file.type === 'image/webp' || file.type === 'image/bmp'
+      ? 'image/webp'
+      : 'image/jpeg';
+  const targetLongestEdge = Math.max(constrained.width, constrained.height);
 
-  try {
-    const image = await new Promise<HTMLImageElement>((resolve, reject) => {
-      const element = new Image();
-      element.onload = () => resolve(element);
-      element.onerror = () => reject(new Error('加载图片失败'));
-      element.src = imageUrl;
-    });
+  const compressedBlob = await imageCompression(file, {
+    maxSizeMB: REFERENCE_UPLOAD_MAX_FILE_SIZE_BYTES / (1024 * 1024),
+    maxWidthOrHeight: targetLongestEdge,
+    useWebWorker: true,
+    initialQuality: 0.9,
+    maxIteration: 10,
+    alwaysKeepResolution: false,
+    fileType: preferredType,
+  });
 
-    const preferredType = file.type === 'image/png' || file.type === 'image/webp' ? 'image/webp' : 'image/jpeg';
-    const constrained = getConstrainedDimensions(image.width, image.height);
-    let bestBlob: Blob | null = null;
-
-    for (const scaleStep of REFERENCE_UPLOAD_SCALE_STEPS) {
-      const targetWidth = Math.max(1, Math.round(constrained.width * scaleStep));
-      const targetHeight = Math.max(1, Math.round(constrained.height * scaleStep));
-      const canvas = document.createElement('canvas');
-      canvas.width = targetWidth;
-      canvas.height = targetHeight;
-
-      const context = canvas.getContext('2d');
-      if (!context) {
-        throw new Error('浏览器不支持图片压缩');
-      }
-
-      context.drawImage(image, 0, 0, targetWidth, targetHeight);
-
-      for (const quality of REFERENCE_UPLOAD_QUALITY_STEPS) {
-        const blob = await canvasToBlob(canvas, preferredType, quality);
-        bestBlob = blob;
-
-        if (blob.size <= REFERENCE_UPLOAD_MAX_FILE_SIZE_BYTES) {
-          const extension = getCompressedFileExtension(preferredType);
-          const fileName = file.name.replace(/\.[^.]+$/, '') || 'reference';
-          return new File([blob], `${fileName}.${extension}`, {
-            type: preferredType,
-            lastModified: Date.now()
-          });
-        }
-      }
-    }
-
-    if (!bestBlob) {
-      throw new Error('图片压缩失败');
-    }
-
-    const extension = getCompressedFileExtension(preferredType);
-    const fileName = file.name.replace(/\.[^.]+$/, '') || 'reference';
-    return new File([bestBlob], `${fileName}.${extension}`, {
-      type: preferredType,
-      lastModified: Date.now()
-    });
-  } finally {
-    URL.revokeObjectURL(imageUrl);
-  }
+  const extension = getCompressedFileExtension(preferredType);
+  const fileName = file.name.replace(/\.[^.]+$/, '') || 'reference';
+  return new File([compressedBlob], `${fileName}.${extension}`, {
+    type: compressedBlob.type || preferredType,
+    lastModified: Date.now()
+  });
 }
 
 function normalizeSizeValue(rawSize?: string) {
@@ -649,9 +683,13 @@ export default function GeneratePage() {
   const [deletingFailedHistories, setDeletingFailedHistories] = useState(false);
   const [deleteFailedModalOpen, setDeleteFailedModalOpen] = useState(false);
   const [pendingCompressionUploads, setPendingCompressionUploads] = useState<PendingCompressionUpload[]>([]);
+  const [isMainUploadDragActive, setIsMainUploadDragActive] = useState(false);
+  const [isPageDragActive, setIsPageDragActive] = useState(false);
   const pendingJobRecoveryRef = useRef<string | null>(null);
   const providerFetchInFlightRef = useRef(false);
   const lastProviderFetchAtRef = useRef(0);
+  const mainUploadAddButtonRef = useRef<HTMLLabelElement | null>(null);
+  const mainUploadEmptyDropzoneRef = useRef<HTMLDivElement | null>(null);
 
   // 预览图片缩放和拖拽状态
   const [zoomScale, setZoomScale] = useState(1);
@@ -661,6 +699,8 @@ export default function GeneratePage() {
   const historyId = searchParams.get('historyId');
   const isSpecialThreeDRender = template?.coverMetadata?.specialTemplateType === SPECIAL_TEMPLATE_3D_RENDER;
   const specialTemplateWorkspace = getSpecialTemplateWorkspace(template?.id);
+  const hasMainVisualUpload = template?.showMainVisual !== false;
+  const allowMultipleMainReferenceUploads = template?.enableReferenceBatchMode === true && !isSpecialThreeDRender;
   const canManage = user?.role === 'admin' || user?.role === 'sub_admin';
   const isAdmin = user?.role === 'admin';
   const isSubAdmin = user?.role === 'sub_admin';
@@ -1208,7 +1248,7 @@ export default function GeneratePage() {
     const inspectedFiles = await Promise.all(
       selectedFiles.map(async (file) => {
         const dimensions = await getImageFileDimensions(file);
-        const reasons = getReferenceUploadViolations({
+        const { hardViolations } = inspectReferenceUpload({
           width: dimensions.width,
           height: dimensions.height,
           sizeBytes: file.size
@@ -1222,7 +1262,7 @@ export default function GeneratePage() {
           width: dimensions.width,
           height: dimensions.height,
           sizeBytes: file.size,
-          reasons
+          reasons: hardViolations
         } satisfies PendingCompressionUpload;
       })
     );
@@ -1235,9 +1275,200 @@ export default function GeneratePage() {
     }
 
     if (needCompression.length > 0) {
-      setPendingCompressionUploads((prev) => [...prev, ...needCompression]);
+      setPendingCompressionUploads((prev) => {
+        const next = [...prev];
+        const existingKeys = new Set(
+          prev.map((item) => `${item.source}:${item.variableKey || ''}:${getFileIdentity(item.file)}`)
+        );
+
+        for (const item of needCompression) {
+          const key = `${item.source}:${item.variableKey || ''}:${getFileIdentity(item.file)}`;
+          if (!existingKeys.has(key)) {
+            existingKeys.add(key);
+            next.push(item);
+          }
+        }
+
+        return next;
+      });
     }
   }, [uploadPreparedFiles]);
+
+  const handleRemovePendingCompressionUpload = (id: string) => {
+    if (compressingPendingUploads) {
+      return;
+    }
+
+    setPendingCompressionUploads((prev) => prev.filter((item) => item.id !== id));
+  };
+
+  const handleDismissPendingCompressionUploads = () => {
+    if (compressingPendingUploads) {
+      return;
+    }
+
+    setPendingCompressionUploads([]);
+  };
+
+  const handleMainImageFiles = useCallback(async (
+    incomingFiles: File[],
+    options?: {
+      hasDirectory?: boolean;
+      resetInput?: HTMLInputElement | null;
+    }
+  ) => {
+    const normalizedFiles = dedupeFiles(incomingFiles);
+
+    setUploadingImage(true);
+    setError('');
+
+    try {
+      const rejectedFiles = normalizedFiles.filter((file) => !isAcceptedReferenceImageFile(file));
+      const acceptedFiles = normalizedFiles.filter((file) => isAcceptedReferenceImageFile(file));
+
+      if (options?.hasDirectory) {
+        throw new Error('不支持上传文件夹，请直接选择图片文件');
+      }
+
+      if (acceptedFiles.length === 0) {
+        if (rejectedFiles.length > 0) {
+          throw new Error(`仅支持 ${getAcceptedReferenceImageFormatText()} 格式图片，不支持 PSD、SVG、HEIC 等文件`);
+        }
+        return;
+      }
+
+      const filesToUpload = allowMultipleMainReferenceUploads ? acceptedFiles : acceptedFiles.slice(0, 1);
+      await processSelectedUploads(filesToUpload, 'main');
+    } catch (error) {
+      console.error('[generate][upload] 主视觉上传异常', {
+        message: getErrorMessage(error),
+        error,
+      });
+      setError(`图片上传失败：${getErrorMessage(error)}`);
+    } finally {
+      setIsPageDragActive(false);
+      setIsMainUploadDragActive(false);
+      setUploadingImage(false);
+      if (options?.resetInput) {
+        options.resetInput.value = '';
+      }
+    }
+  }, [allowMultipleMainReferenceUploads, processSelectedUploads]);
+
+  useEffect(() => {
+    if (!hasMainVisualUpload || typeof window === 'undefined') {
+      return;
+    }
+
+    const isEventInsideMainDropzone = (event: DragEvent) => {
+      const dropzone = mainUploadAddButtonRef.current || mainUploadEmptyDropzoneRef.current;
+      if (!dropzone) {
+        return false;
+      }
+
+      const { clientX, clientY } = event;
+      if (typeof clientX !== 'number' || typeof clientY !== 'number') {
+        return false;
+      }
+
+      const rect = dropzone.getBoundingClientRect();
+      return clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom;
+    };
+
+    const preventBrowserFileDrop = (event: DragEvent) => {
+      if (!dataTransferHasFiles(event.dataTransfer)) {
+        return;
+      }
+
+      event.preventDefault();
+
+      if (event.type === 'dragenter' || event.type === 'dragover') {
+        const isInsideDropzone = isEventInsideMainDropzone(event);
+        setIsPageDragActive(true);
+        setIsMainUploadDragActive(isInsideDropzone);
+
+        if (event.dataTransfer) {
+          event.dataTransfer.dropEffect = isInsideDropzone ? 'copy' : 'none';
+        }
+      }
+
+      if (event.type === 'drop') {
+        const { files, hasDirectory } = extractDraggedFiles(event.dataTransfer!);
+        const isInsideDropzone = isEventInsideMainDropzone(event);
+
+        setIsPageDragActive(false);
+        setIsMainUploadDragActive(false);
+
+        if (isInsideDropzone) {
+          void handleMainImageFiles(files, { hasDirectory });
+        }
+      }
+    };
+
+    const resetDragState = () => {
+      setIsPageDragActive(false);
+      setIsMainUploadDragActive(false);
+    };
+
+    const listenerOptions: AddEventListenerOptions = { capture: true };
+
+    window.addEventListener('dragenter', preventBrowserFileDrop, listenerOptions);
+    window.addEventListener('dragover', preventBrowserFileDrop, listenerOptions);
+    window.addEventListener('drop', preventBrowserFileDrop, listenerOptions);
+    document.addEventListener('dragenter', preventBrowserFileDrop, listenerOptions);
+    document.addEventListener('dragover', preventBrowserFileDrop, listenerOptions);
+    document.addEventListener('drop', preventBrowserFileDrop, listenerOptions);
+    document.body?.addEventListener('dragenter', preventBrowserFileDrop, listenerOptions);
+    document.body?.addEventListener('dragover', preventBrowserFileDrop, listenerOptions);
+    document.body?.addEventListener('drop', preventBrowserFileDrop, listenerOptions);
+    window.addEventListener('drop', resetDragState);
+    window.addEventListener('dragend', resetDragState);
+
+    return () => {
+      window.removeEventListener('dragenter', preventBrowserFileDrop, listenerOptions);
+      window.removeEventListener('dragover', preventBrowserFileDrop, listenerOptions);
+      window.removeEventListener('drop', preventBrowserFileDrop, listenerOptions);
+      document.removeEventListener('dragenter', preventBrowserFileDrop, listenerOptions);
+      document.removeEventListener('dragover', preventBrowserFileDrop, listenerOptions);
+      document.removeEventListener('drop', preventBrowserFileDrop, listenerOptions);
+      document.body?.removeEventListener('dragenter', preventBrowserFileDrop, listenerOptions);
+      document.body?.removeEventListener('dragover', preventBrowserFileDrop, listenerOptions);
+      document.body?.removeEventListener('drop', preventBrowserFileDrop, listenerOptions);
+      window.removeEventListener('drop', resetDragState);
+      window.removeEventListener('dragend', resetDragState);
+    };
+  }, [handleMainImageFiles, hasMainVisualUpload]);
+
+  useEffect(() => {
+    if (!hasMainVisualUpload || typeof window === 'undefined') {
+      return;
+    }
+
+    const handlePaste = (event: ClipboardEvent) => {
+      if (uploadingImage || compressingPendingUploads) {
+        return;
+      }
+
+      const target = event.target as HTMLElement | null;
+      if (
+        target?.closest('input, textarea, select, [contenteditable="true"]') ||
+        target?.isContentEditable
+      ) {
+        return;
+      }
+
+      const clipboardFiles = Array.from(event.clipboardData?.files || []);
+      if (clipboardFiles.length === 0) {
+        return;
+      }
+
+      event.preventDefault();
+      void handleMainImageFiles(clipboardFiles);
+    };
+
+    window.addEventListener('paste', handlePaste);
+    return () => window.removeEventListener('paste', handlePaste);
+  }, [compressingPendingUploads, handleMainImageFiles, hasMainVisualUpload, uploadingImage]);
 
   const handleCompressPendingUploads = async () => {
     if (pendingCompressionUploads.length === 0) {
@@ -1254,14 +1485,14 @@ export default function GeneratePage() {
       for (const pendingUpload of pendingCompressionUploads) {
         const compressedFile = await compressReferenceUploadImage(pendingUpload.file);
         const compressedDimensions = await getImageFileDimensions(compressedFile);
-        const remainingViolations = getReferenceUploadViolations({
+        const { hardViolations } = inspectReferenceUpload({
           width: compressedDimensions.width,
           height: compressedDimensions.height,
           sizeBytes: compressedFile.size
         });
 
-        if (remainingViolations.length > 0) {
-          throw new Error(`${pendingUpload.file.name} 压缩后仍超限：${remainingViolations.join('；')}`);
+        if (hardViolations.length > 0) {
+          throw new Error(`${pendingUpload.file.name} 压缩后仍超限：${hardViolations.join('；')}`);
         }
 
         const key = `${pendingUpload.source}:${pendingUpload.variableKey || ''}`;
@@ -1285,7 +1516,7 @@ export default function GeneratePage() {
       setPendingCompressionUploads([]);
     } catch (compressionError) {
       console.error('压缩上传失败:', compressionError);
-      setError(`压缩上传失败，请手动缩放后重试。限制：${getReferenceUploadLimitText()}`);
+      setError(`压缩上传失败：${getErrorMessage(compressionError)}`);
     } finally {
       setCompressingPendingUploads(false);
       setUploadingImage(false);
@@ -1296,21 +1527,7 @@ export default function GeneratePage() {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
-    setUploadingImage(true);
-    setError('');
-
-    try {
-      await processSelectedUploads(Array.from(files), 'main');
-    } catch (error) {
-      console.error('[generate][upload] 主视觉上传异常', {
-        message: getErrorMessage(error),
-        error,
-      });
-      setError(`图片上传失败：${getErrorMessage(error)}`);
-    } finally {
-      setUploadingImage(false);
-      e.target.value = '';
-    }
+    await handleMainImageFiles(Array.from(files), { resetInput: e.target });
   };
 
   const handleCustomReferenceUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -2326,7 +2543,6 @@ export default function GeneratePage() {
   const allImages = getAllImages();
   const annotationPromptEntries = getAnnotationPromptEntries();
   const annotationTokenCount = annotationPromptEntries.reduce((total, entry) => total + entry.tokens.length, 0);
-  const hasMainVisualUpload = template?.showMainVisual !== false;
   const hasPresetReferenceImages = (template?.referenceImages?.length || 0) > 0;
   const hasCustomReferenceUpload = template?.enableCustomReferenceUpload === true;
   const hasActiveCustomReferences = activeTemplateReferenceImages.some((image) =>
@@ -2403,6 +2619,34 @@ export default function GeneratePage() {
         onThemeChange={handleAdminColorThemeChange}
         onOpenAdminUsers={() => router.push('/admin/users?tab=image_providers')}
       />
+
+      <AnimatePresence>
+        {isPageDragActive && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className={`pointer-events-none fixed inset-0 z-[92] ${
+              darkMode ? 'bg-black/35 backdrop-blur-[2px]' : 'bg-slate-950/10 backdrop-blur-[2px]'
+            }`}
+          >
+            <div className="flex h-full items-center justify-center p-6">
+              <div className={`rounded-[28px] border px-6 py-4 text-center shadow-2xl ${
+                isMainUploadDragActive
+                  ? (darkMode ? 'border-amber-300 bg-amber-400/15 text-amber-100' : 'border-amber-500 bg-white text-amber-700')
+                  : (darkMode ? 'border-white/10 bg-[#161b17]/95 text-stone-300' : 'border-slate-200 bg-white/95 text-slate-600')
+              }`}>
+                <p className="text-sm font-semibold">
+                  {isMainUploadDragActive ? '松手上传图片' : '拖动到“上传参考图”区域即可上传'}
+                </p>
+                <p className="mt-1 text-xs opacity-80">
+                  仅支持 {getAcceptedReferenceImageFormatText()}，不支持文件夹与 PSD。
+                </p>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <AnimatePresence>
         {deleteFailedModalOpen && (
@@ -2516,6 +2760,160 @@ export default function GeneratePage() {
                     <>
                       <Trash2 className="h-4 w-4" />
                       确认删除
+                    </>
+                  )}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {pendingCompressionUploads.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[96] flex items-center justify-center bg-black/60 p-4 backdrop-blur-md"
+            onClick={handleDismissPendingCompressionUploads}
+          >
+            <motion.div
+              initial={{ opacity: 0, y: 20, scale: 0.96 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 16, scale: 0.97 }}
+              transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+              className={`w-full max-w-2xl overflow-hidden rounded-[28px] border shadow-2xl ${
+                darkMode
+                  ? 'border-amber-900/70 bg-[#161b17] text-white'
+                  : 'border-white/70 bg-white text-gray-900'
+              }`}
+              onClick={(event) => event.stopPropagation()}
+              role="dialog"
+              aria-modal="true"
+              aria-label="图片超限压缩弹窗"
+            >
+              <div className={`relative overflow-hidden px-6 pb-5 pt-6 ${
+                darkMode
+                  ? 'bg-[radial-gradient(circle_at_top,rgba(251,191,36,0.16),transparent_58%),linear-gradient(180deg,rgba(255,255,255,0.03),transparent)]'
+                  : 'bg-[radial-gradient(circle_at_top,rgba(251,191,36,0.18),transparent_58%),linear-gradient(180deg,rgba(255,251,235,0.92),rgba(255,255,255,0.98))]'
+              }`}>
+                <button
+                  type="button"
+                  onClick={handleDismissPendingCompressionUploads}
+                  disabled={compressingPendingUploads}
+                  className={`absolute right-4 top-4 inline-flex h-9 w-9 items-center justify-center rounded-full transition-colors ${
+                    darkMode
+                      ? 'text-gray-400 hover:bg-white/10 hover:text-white'
+                      : 'text-gray-500 hover:bg-gray-100 hover:text-gray-900'
+                  }`}
+                  aria-label="关闭图片超限弹窗"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+
+                <div className={`inline-flex h-14 w-14 items-center justify-center rounded-2xl border ${
+                  darkMode
+                    ? 'border-amber-400/20 bg-amber-500/10 text-amber-200'
+                    : 'border-amber-200 bg-amber-50 text-amber-600'
+                }`}>
+                  <Info className="h-6 w-6" />
+                </div>
+
+                <h3 className="mt-5 text-xl font-semibold tracking-tight">图片超过上传限制</h3>
+                <p className={`mt-2 text-sm leading-6 ${
+                  darkMode ? 'text-amber-100/80' : 'text-amber-950/80'
+                }`}>
+                  检测到
+                  <span className={`mx-1 inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${
+                    darkMode ? 'bg-amber-400/15 text-amber-100' : 'bg-amber-100 text-amber-700'
+                  }`}>
+                    {pendingCompressionUploads.length} 张图片
+                  </span>
+                  超限。支持批量压缩后一次性上传，限制：{getReferenceUploadLimitText()}。
+                </p>
+
+                <div className={`mt-4 rounded-2xl border px-4 py-3 text-xs leading-5 ${
+                  darkMode
+                    ? 'border-amber-900/40 bg-black/10 text-amber-100/85'
+                    : 'border-amber-200 bg-amber-50 text-amber-800'
+                }`}>
+                  建议直接点击“压缩并上传全部”，系统会按当前列表逐张压缩并批量上传；也可以手动移除不需要处理的图片。
+                </div>
+              </div>
+
+              <div className={`max-h-[52vh] space-y-2 overflow-y-auto px-6 py-5 ${
+                darkMode ? 'bg-[#141915]' : 'bg-white'
+              }`}>
+                {pendingCompressionUploads.map((item) => (
+                  <div
+                    key={item.id}
+                    className={`rounded-2xl border px-4 py-3 ${darkMode ? 'border-amber-900/50 bg-black/10' : 'border-amber-200 bg-amber-50/60'}`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <p className={`truncate text-sm font-semibold ${darkMode ? 'text-amber-50' : 'text-amber-950'}`}>
+                          {item.file.name}
+                        </p>
+                        <p className={`mt-1 text-xs leading-5 ${darkMode ? 'text-amber-100/80' : 'text-amber-900/80'}`}>
+                          当前尺寸 {item.width}x{item.height}，{formatFileSize(item.sizeBytes)}
+                        </p>
+                        <p className={`mt-1 text-xs leading-5 ${darkMode ? 'text-amber-200/85' : 'text-amber-800'}`}>
+                          原因：{item.reasons.join('；')}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleRemovePendingCompressionUpload(item.id)}
+                        disabled={compressingPendingUploads}
+                        className={`inline-flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full transition-colors ${
+                          darkMode
+                            ? 'text-amber-200/80 hover:bg-white/10 hover:text-white'
+                            : 'text-amber-700 hover:bg-white hover:text-amber-900'
+                        }`}
+                        aria-label={`移除 ${item.file.name}`}
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className={`flex flex-col-reverse gap-3 px-6 py-5 sm:flex-row sm:items-center sm:justify-between ${
+                darkMode ? 'border-t border-white/10 bg-[#121612]' : 'border-t border-gray-100 bg-gray-50/80'
+              }`}>
+                <button
+                  type="button"
+                  onClick={handleDismissPendingCompressionUploads}
+                  disabled={compressingPendingUploads}
+                  className={`rounded-2xl px-4 py-2.5 text-sm font-medium transition-colors ${
+                    darkMode
+                      ? 'bg-[#242b25] text-stone-300 hover:bg-[#2c352d] hover:text-white'
+                      : 'border border-gray-200 bg-white text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                  }`}
+                >
+                  取消并清空
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCompressPendingUploads}
+                  disabled={compressingPendingUploads || uploadingImage}
+                  className={`inline-flex min-w-[176px] items-center justify-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-semibold transition-all ${
+                    darkMode
+                      ? 'bg-amber-300 text-amber-950 shadow-lg shadow-amber-500/15 hover:bg-amber-200'
+                      : 'bg-amber-600 text-white shadow-lg shadow-amber-500/20 hover:bg-amber-500'
+                  } disabled:cursor-not-allowed disabled:opacity-60`}
+                >
+                  {compressingPendingUploads ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      批量压缩中...
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="h-4 w-4" />
+                      压缩并上传全部（{pendingCompressionUploads.length} 张）
                     </>
                   )}
                 </button>
@@ -2904,7 +3302,7 @@ export default function GeneratePage() {
                               }`}>
                                 <input
                                   type="file"
-                                  accept="image/*"
+                                  accept={ACCEPTED_REFERENCE_IMAGE_ACCEPT}
                                   multiple={template?.allowMultipleCustomReferences === true}
                                   onChange={handleCustomReferenceUpload}
                                   className="hidden"
@@ -3017,64 +3415,42 @@ export default function GeneratePage() {
                                   );
                                 })}
                               </div>
-                              <label className={`block cursor-pointer rounded-xl border-2 border-dashed py-2 text-center transition-colors ${
-                                darkMode ? 'border-[#334034] text-stone-400 hover:border-[#425143]' : 'border-gray-300 text-gray-600 hover:border-gray-400'
-                              }`}>
-                                <input type="file" accept="image/*" multiple={supportsReferenceBatch} onChange={handleImageUpload} className="hidden" disabled={uploadingImage} />
+                              <label
+                                ref={mainUploadAddButtonRef}
+                                className={`block cursor-pointer rounded-xl border-2 border-dashed py-2 text-center transition-colors ${
+                                  isMainUploadDragActive
+                                    ? (darkMode ? 'border-amber-300 bg-amber-400/10 text-amber-100' : 'border-amber-500 bg-amber-50 text-amber-700')
+                                    : (darkMode ? 'border-[#334034] text-stone-400 hover:border-[#425143]' : 'border-gray-300 text-gray-600 hover:border-gray-400')
+                                }`}
+                              >
+                                <input type="file" accept={ACCEPTED_REFERENCE_IMAGE_ACCEPT} multiple onChange={handleImageUpload} className="hidden" disabled={uploadingImage} />
                                 <span className="text-xs">{uploadingImage ? '上传中...' : supportsReferenceBatch ? '+ 添加图片' : '重新上传'}</span>
                               </label>
+                              <p className={`text-[11px] leading-5 ${darkMode ? 'text-stone-500' : 'text-gray-500'}`}>
+                                支持拖拽、Ctrl+V 粘贴和多选上传，仅支持 {getAcceptedReferenceImageFormatText()}；单图模板会自动取第一张。
+                              </p>
                             </div>
                           ) : (
-                            <div className={`rounded-xl border-2 border-dashed p-5 text-center transition-colors ${
-                              darkMode ? 'border-[#334034] hover:border-[#425143]' : 'border-gray-300 hover:border-gray-400'
-                            }`}>
-                              <input type="file" accept="image/*" multiple={supportsReferenceBatch} onChange={handleImageUpload} className="hidden" id="user-image-upload" disabled={uploadingImage} />
+                            <div
+                              ref={mainUploadEmptyDropzoneRef}
+                              className={`rounded-xl border-2 border-dashed p-5 text-center transition-colors ${
+                                isMainUploadDragActive
+                                  ? (darkMode ? 'border-amber-300 bg-amber-400/10' : 'border-amber-500 bg-amber-50')
+                                  : (darkMode ? 'border-[#334034] hover:border-[#425143]' : 'border-gray-300 hover:border-gray-400')
+                              }`}
+                            >
+                              <input type="file" accept={ACCEPTED_REFERENCE_IMAGE_ACCEPT} multiple onChange={handleImageUpload} className="hidden" id="user-image-upload" disabled={uploadingImage} />
                               <label htmlFor="user-image-upload" className="cursor-pointer">
                                 <Upload className={`mx-auto mb-2 h-8 w-8 ${darkMode ? 'text-stone-500' : 'text-gray-400'}`} />
-                                <p className={`text-xs ${darkMode ? 'text-stone-400' : 'text-gray-600'}`}>{supportsReferenceBatch ? '点击上传参考图片' : '点击上传 1 张参考图片'}</p>
+                                <p className={`text-xs ${darkMode ? 'text-stone-400' : 'text-gray-600'}`}>
+                                  {isMainUploadDragActive ? '松手即可上传图片' : supportsReferenceBatch ? '点击、拖拽或粘贴上传参考图片' : '点击、拖拽或粘贴上传参考图片'}
+                                </p>
+                                <p className={`mt-2 text-[11px] leading-5 ${darkMode ? 'text-stone-500' : 'text-gray-500'}`}>
+                                  支持多选；当前模板若不支持多图参考，将自动仅使用第一张。仅支持 {getAcceptedReferenceImageFormatText()}。
+                                </p>
                               </label>
                             </div>
                           )}
-                        </div>
-                      )}
-
-                      {pendingCompressionUploads.length > 0 && (
-                        <div className={`rounded-2xl border p-3.5 ${darkMode ? 'border-amber-900/70 bg-amber-950/20' : 'border-amber-200 bg-amber-50/80'}`}>
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0">
-                              <h2 className={`flex items-center gap-2 text-sm font-semibold ${darkMode ? 'text-amber-100' : 'text-amber-900'}`}>
-                                <Info className="h-4 w-4" />
-                                图片超过上传限制
-                              </h2>
-                              <p className={`mt-1 text-xs leading-5 ${darkMode ? 'text-amber-200/90' : 'text-amber-800'}`}>
-                                检测到 {pendingCompressionUploads.length} 张图片超限。你可以先手动缩放，或点击右侧按钮一键压缩后上传。限制：{getReferenceUploadLimitText()}。
-                              </p>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={handleCompressPendingUploads}
-                              disabled={compressingPendingUploads || uploadingImage}
-                              className={`inline-flex flex-shrink-0 items-center gap-2 rounded-xl px-3 py-2 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
-                                darkMode ? 'bg-amber-300 text-amber-950 hover:bg-amber-200' : 'bg-amber-600 text-white hover:bg-amber-500'
-                              }`}
-                            >
-                              {compressingPendingUploads ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-                              {compressingPendingUploads ? '压缩中...' : '一键压缩并上传'}
-                            </button>
-                          </div>
-                          <div className="mt-3 space-y-2">
-                            {pendingCompressionUploads.map((item) => (
-                              <div
-                                key={item.id}
-                                className={`rounded-xl border px-3 py-2 text-xs ${darkMode ? 'border-amber-900/60 bg-black/10 text-amber-100' : 'border-amber-200 bg-white/80 text-amber-900'}`}
-                              >
-                                <p className="truncate font-medium">{item.file.name}</p>
-                                <p className="mt-1 leading-5">
-                                  当前尺寸 {item.width}x{item.height}，{formatFileSize(item.sizeBytes)}，原因：{item.reasons.join('；')}
-                                </p>
-                              </div>
-                            ))}
-                          </div>
                         </div>
                       )}
 
@@ -3439,7 +3815,7 @@ export default function GeneratePage() {
                                   <div className="space-y-2">
                                     <input
                                       type="file"
-                                      accept="image/*"
+                                      accept={ACCEPTED_REFERENCE_IMAGE_ACCEPT}
                                       onChange={(e) => handleVariableImageUpload(variable.key, e)}
                                       className="hidden"
                                       id={`upload-${variable.key}`}
